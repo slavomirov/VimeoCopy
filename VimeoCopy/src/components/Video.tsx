@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useAuth } from "../Auth/useAuth";
+import { API_BASE_URL } from "../config";
 
 interface Media {
   id: string;
@@ -12,15 +14,16 @@ interface Media {
 export function Videos() {
   const [items, setItems] = useState<Media[]>([]);
   const [selected, setSelected] = useState<Media | null>(null);
+  const { authFetch } = useAuth();
 
   useEffect(() => {
     async function load() {
-      const res = await fetch("https://localhost:7009/api/media");
+      const res = await authFetch(`${API_BASE_URL}/api/media`);
       const data = await res.json();
       setItems(data);
     }
     load();
-  }, []);
+  }, [authFetch]);
 
   return (
     <div style={{ padding: 20 }}>
@@ -53,17 +56,18 @@ function MediaItem({
   onClick: () => void;
 }) {
   const [url, setUrl] = useState("");
+  const { authFetch } = useAuth();
 
   useEffect(() => {
     async function loadUrl() {
-      const res = await fetch(
-        `https://localhost:7009/api/media/${media.id}/url`
+      const res = await authFetch(
+        `${API_BASE_URL}/api/media/${media.id}/url`
       );
       const data = await res.json();
       setUrl(data.url);
     }
     loadUrl();
-  }, [media.id]);
+  }, [media.id, authFetch]);
 
   if (!url) return <div>Loading...</div>;
 
@@ -110,7 +114,7 @@ function FullscreenViewer({
   useEffect(() => {
     async function loadUrl() {
       const res = await fetch(
-        `https://localhost:7009/api/media/${media.id}/url`
+        `${API_BASE_URL}/api/media/${media.id}/url`
       );
       const data = await res.json();
       setUrl(data.url);

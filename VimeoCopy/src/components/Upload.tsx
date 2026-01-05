@@ -1,9 +1,12 @@
 import { useState } from "react";
+import { useAuth } from "../Auth/useAuth";
+import { API_BASE_URL } from "../config";
 
 export function Upload() {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
+  const { authFetch } = useAuth();
 
   async function handleUpload() {
     if (!file) return;
@@ -13,7 +16,7 @@ export function Upload() {
 
     try {
       // 1) Взимаме pre-signed URL от backend-а
-      const presignRes = await fetch("https://localhost:7009/api/Upload/url", {
+      const presignRes = await authFetch(`${API_BASE_URL}/api/Upload/url`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -39,7 +42,7 @@ export function Upload() {
       }
 
       // 3) Казваме на backend-а, че upload-ът е завършен
-      const completeRes = await fetch("https://localhost:7009/api/Upload/complete", {
+      const completeRes = await authFetch(`${API_BASE_URL}/api/Upload/complete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
