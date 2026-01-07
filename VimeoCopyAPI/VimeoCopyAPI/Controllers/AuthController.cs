@@ -1,14 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
-using VimeoCopyApi.Data;
-using VimeoCopyAPI.Models;
+using VimeoCopyAPI.Models.DTOs;
+using VimeoCopyAPI.Services.Interfaces;
 
 namespace VimeoCopyAPI.Controllers;
 
@@ -16,182 +9,90 @@ namespace VimeoCopyAPI.Controllers;
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
-    private readonly UserManager<ApplicationUser> _userManager;
-    private readonly SignInManager<ApplicationUser> _signInManager;
-    private readonly IConfiguration _config;
-    private readonly AppDbContext _db;
+    private readonly IUserService _userService;
 
-    public AuthController(
-        UserManager<ApplicationUser> userManager,
-        SignInManager<ApplicationUser> signInManager,
-        IConfiguration config,
-        AppDbContext db)
+    public AuthController(IUserService userService)
     {
-        _userManager = userManager;
-        _signInManager = signInManager;
-        _config = config;
-        _db = db;
+        _userService = userService;
     }
-
 
     [Authorize(Roles = "Admin")]
     [HttpGet("admin-only")]
-    public IActionResult AdminOnly()
+    public IActionResult AdminOnly() //test admin role endpoint
     {
         return Ok("You are admin");
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "User")]
     [HttpGet("user-only")]
-    public IActionResult UserOnly()
+    public IActionResult UserOnly() //test user role endpoint
     {
         return Ok("You are admin");
     }
 
     [Authorize(Policy = "CanUploadVideos")]
     [HttpPost("upload")]
-    public IActionResult Upload()
+    public IActionResult Upload() //test policy endpoint
     {
         return Ok("You can upload videos");
     }
 
 
     [HttpPost("register")]
-    public async Task<IActionResult> Register(RegisterRequest req)
+    public async Task<IActionResult> Register(UserRegisterDTO input)
     {
-        var user = new ApplicationUser
-        {
-            UserName = req.Email,
-            Email = req.Email
-        };
-
-        var result = await _userManager.CreateAsync(user, req.Password);
-
-        if (!result.Succeeded)
-            return BadRequest(result.Errors);
-
-        // default role
-        await _userManager.AddToRoleAsync(user, "User");
-        await _userManager.AddClaimAsync(user, new Claim("CanUploadVideos", "true"));
-        // по-късно ще добавим email confirmation тук
-
-        return Ok(new { message = "Registered" });
+        await _userService.RegisterAsync(input);
+        return Ok();
     }
 
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login(LoginRequest req)
+    public async Task<IActionResult> Login(UserLoginRequestDTO input)
     {
-        var user = await _userManager.FindByEmailAsync(req.Email);
-        if (user == null)
-            return Unauthorized("Invalid credentials");
+        var result = await _userService.LoginAsync(input);
 
-        var result = await _signInManager.CheckPasswordSignInAsync(user, req.Password, false);
-        if (!result.Succeeded)
-            return Unauthorized("Invalid credentials");
+        SetRefreshTokenCookie(result!.RefreshToken); //move to the service ???
 
-        var accessToken = GenerateAccessToken(user);
-        var refreshToken = await CreateAndStoreRefreshToken(user);
-
-        SetRefreshTokenCookie(refreshToken);
-
-        return Ok(new { accessToken });
+        return Ok(new { result.AccessToken });
     }
-
 
     [HttpPost("refresh")]
     public async Task<IActionResult> Refresh()
     {
-        if (!Request.Cookies.TryGetValue("refreshToken", out var token))
-            return Unauthorized("No refresh token");
+        var result = await _userService.RefreshAsync(HttpContext);
 
-        var refreshToken = await _db.RefreshTokens
-            .Include(rt => rt.User)
-            .FirstOrDefaultAsync(rt => rt.Token == token);
+        if (result.IsUnauthorized)
+            return Unauthorized(new { error = result.ErrorMessage });
 
-        if (refreshToken == null || refreshToken.IsRevoked || refreshToken.IsExpired)
-            return Unauthorized("Invalid refresh token");
-
-        var user = refreshToken.User;
-
-        // по желание: revoke стария токен и създай нов
-        refreshToken.RevokedAt = DateTime.UtcNow;
-        var newRefreshToken = await CreateAndStoreRefreshToken(user);
-
-        var accessToken = GenerateAccessToken(user);
-        SetRefreshTokenCookie(newRefreshToken);
-
-        await _db.SaveChangesAsync();
-
-        return Ok(new { accessToken });
+        return Ok(new { accessToken = result.AccessToken });
     }
 
     [HttpPost("logout")]
     public async Task<IActionResult> Logout()
     {
-        if (Request.Cookies.TryGetValue("refreshToken", out var token))
-        {
-            var refreshToken = await _db.RefreshTokens.FirstOrDefaultAsync(rt => rt.Token == token);
-            if (refreshToken != null)
-            {
-                refreshToken.RevokedAt = DateTime.UtcNow;
-                await _db.SaveChangesAsync();
-            }
-        }
-
-        Response.Cookies.Delete("refreshToken");
-
+        await _userService.LogoutAsync(HttpContext);
         return Ok(new { message = "Logged out" });
     }
 
-    private async Task<string> GenerateAccessToken(ApplicationUser user)
+    [HttpGet("external-login")]
+    public IActionResult ExternalLogin(string provider, string returnUrl = "/")
     {
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-        var userRoles = await _userManager.GetRolesAsync(user);
-        var userClaims = await _userManager.GetClaimsAsync(user);
-
-        var claims = new List<Claim>
-        {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Id),
-           new Claim(JwtRegisteredClaimNames.Email, user.Email)
-        };
-
-        // add roles
-        claims.AddRange(userRoles.Select(r => new Claim(ClaimTypes.Role, r)));
-
-        // add custom claims
-        claims.AddRange(userClaims);
-
-        var token = new JwtSecurityToken(
-            issuer: _config["Jwt:Issuer"],
-            audience: _config["Jwt:Audience"],
-            claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(15),
-            signingCredentials: creds
-        );
-
-        return new JwtSecurityTokenHandler().WriteToken(token);
+        var redirectUrl = Url.Action("ExternalLoginCallback", "Auth", new { returnUrl }, Request.Scheme);
+        var properties = _userService.GetExternalAuthenticationProperties(provider, redirectUrl);
+        return Challenge(properties, provider);
     }
 
-
-    private async Task<string> CreateAndStoreRefreshToken(ApplicationUser user)
+    [HttpGet("external-login-callback")]
+    public async Task<IActionResult> ExternalLoginCallback(string returnUrl = "/")
     {
-        var tokenBytes = RandomNumberGenerator.GetBytes(64);
-        var token = Convert.ToBase64String(tokenBytes);
+        var result = await _userService.HandleExternalLoginCallbackAsync(HttpContext, returnUrl);
 
-        var refreshToken = new RefreshToken
-        {
-            UserId = user.Id,
-            Token = token,
-            ExpiresAt = DateTime.UtcNow.AddDays(7)
-        };
+        if (!result.Success)
+            return BadRequest(result.ErrorMessage);
 
-        _db.RefreshTokens.Add(refreshToken);
-        await _db.SaveChangesAsync();
+        SetRefreshTokenCookie(result.RefreshToken!);
 
-        return token;
+        return Redirect(result.RedirectUrl ?? $"{returnUrl}?accessToken={result.AccessToken}");
     }
 
     private void SetRefreshTokenCookie(string refreshToken)
@@ -207,6 +108,3 @@ public class AuthController : ControllerBase
         Response.Cookies.Append("refreshToken", refreshToken, cookieOptions);
     }
 }
-
-public record RegisterRequest(string Email, string Password);
-public record LoginRequest(string Email, string Password);

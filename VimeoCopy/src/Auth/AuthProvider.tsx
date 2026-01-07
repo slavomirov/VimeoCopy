@@ -30,6 +30,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setEmail(decoded.email || null);
   }, []);
 
+  const loginWithToken = useCallback((token: string) => {
+    setAccessToken(token);
+    processToken(token);
+  }, [processToken]);
+
   const refreshToken = useCallback(async () => {
     const res = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
       method: "POST",
@@ -124,6 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         claims,
         email,
         login,
+        loginWithToken,
         logout,
         authFetch,
       }}

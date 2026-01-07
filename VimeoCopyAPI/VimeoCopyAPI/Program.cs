@@ -7,6 +7,8 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using VimeoCopyApi.Data;
 using VimeoCopyAPI.Models;
+using VimeoCopyAPI.Services;
+using VimeoCopyAPI.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -53,8 +55,19 @@ builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
+}).AddGoogle(options =>
+{
+    options.ClientId = builder.Configuration["Authentication:Google:ClientId"]!;
+    options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]!;
+}).AddMicrosoftAccount(options =>
+{
+    options.ClientId = builder.Configuration["Authentication:Microsoft:ClientId"]!;
+    options.ClientSecret = builder.Configuration["Authentication:Microsoft:ClientSecret"]!;
+}).AddFacebook(options =>
+{
+    options.AppId = builder.Configuration["Authentication:Facebook:AppId"]!;
+    options.AppSecret = builder.Configuration["Authentication:Facebook:AppSecret"]!;
+}).AddJwtBearer(options =>
 {
     options.TokenValidationParameters = new TokenValidationParameters
     {
@@ -67,6 +80,11 @@ builder.Services.AddAuthentication(options =>
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key))
     };
 });
+
+//Services
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IMediaService, MediaService>();
+builder.Services.AddScoped<IUploadService, UploadService>();
 
 
 var app = builder.Build();

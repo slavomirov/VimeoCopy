@@ -1,9 +1,12 @@
 ﻿using Amazon.S3;
 using Amazon.S3.Model;
 using Microsoft.AspNetCore.Mvc;
+using System.Threading.Tasks;
 using VimeoCopyApi.Data;
 using VimeoCopyApi.Models;
 using VimeoCopyAPI.Models;
+using VimeoCopyAPI.Models.DTOs;
+using VimeoCopyAPI.Services.Interfaces;
 
 namespace VimeoCopyAPI.Controllers;
 
@@ -11,110 +14,30 @@ namespace VimeoCopyAPI.Controllers;
 [Route("api/[controller]")]
 public class UploadController : ControllerBase
 {
-    private readonly IAmazonS3 _s3;
-    private readonly IConfiguration _config;
-    private readonly AppDbContext _dbContext;
-    private readonly string[] allowedUploadContentTypes = new[] { "image/jpeg", "image/png", "video/mp4", "video/webm" };
+    private readonly IUploadService _uploadService;
+    private readonly IMediaService _mediaService;
 
-    public UploadController(IAmazonS3 s3, IConfiguration config, AppDbContext dbContext)
+    public UploadController(IUploadService uploadService, IMediaService mediaService)
     {
-        _s3 = s3;
-        _config = config;
-        _dbContext = dbContext;
+        _uploadService = uploadService;
+        _mediaService = mediaService;
     }
 
     [HttpPost("url")]
-    public IActionResult GetPresignedUrl([FromBody] PresignRequest input)
-    {
-        var bucket = _config["AWS:BucketName"];
-
-        var request = new GetPreSignedUrlRequest
-        {
-            BucketName = bucket,
-            Key = input.FileName, //+ userId + GUID/проверка в базата ако има такъв/ива fileName за този потребител, да се сложи (n брой) след името
-            Verb = HttpVerb.PUT,
-            Expires = DateTime.UtcNow.AddMinutes(15),
-            ContentType = "application/octet-stream"
-        };
-
-        var url = _s3.GetPreSignedURL(request);
-
-        return Ok(new { url }); //+ new FileName
-    }
-
+    public IActionResult GetPresignedUrl([FromBody] PresignRequest input) => Ok(new { url = _uploadService.GetPresignedUrl(input.FileName) }); //+ new FileName
 
     [HttpPost("complete")]
-    public IActionResult UploadComplete([FromBody] UploadCompleteRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(request.FileName))
-            return BadRequest("FileName is required.");
-
-        if (request.FileSize <= 0)
-            return BadRequest("Invalid file size.");
-
-        if (!allowedUploadContentTypes.Contains(request.ContentType)) 
-            return BadRequest("Unsupported content type");
-
-        var mediaId = Guid.NewGuid();
-
-        var mediaRecord = new Media
-        {
-            Id = mediaId,
-            FileName = request.FileName,
-            FileSize = request.FileSize,
-            ContentType = request.ContentType,
-            UploadedAt = DateTime.UtcNow
-        };
-
-        _dbContext.Media.Add(mediaRecord);
-        _dbContext.SaveChanges();
-        return Ok(mediaRecord);
-    }
+    public async Task<IActionResult> UploadComplete([FromBody] MediaUploadCompleteDTO input) //need to sync it with FE, because the endpoint was synchronous before (not async Task)
+        => Ok(await _uploadService.UploadCompleteAsync(input));
 
     [HttpGet("media/{id}/url")]
-    public async Task<IActionResult> GetMediaUrl(Guid id)
+    public async Task<IActionResult> GetMediaUrl(Guid mediaId)
     {
-        var media = await _dbContext.Media.FindAsync(id);
-        if (media == null)
-            return NotFound();
-
-        var bucket = _config["Aws:BucketName"];
-
-        var request = new GetPreSignedUrlRequest
-        {
-            BucketName = bucket,
-            Key = media.FileName, // или отделно поле StorageKey
-            Verb = HttpVerb.GET,
-            Expires = DateTime.UtcNow.AddMinutes(15)
-        };
-
-        var url = _s3.GetPreSignedURL(request);
-
-        return Ok(new
-        {
-            id = media.Id,
-            url,
-            contentType = media.ContentType
-        });
+        return Ok(await _uploadService.GetMediaURLAsync(mediaId));
     }
 
     [HttpGet("media")]
-    public IActionResult GetMedia()
-    {
-        var items = _dbContext.Media
-            .OrderByDescending(m => m.UploadedAt)
-            .Select(m => new
-            {
-                m.Id,
-                m.FileName,
-                m.FileSize,
-                m.ContentType,
-                m.Status,
-                m.UploadedAt
-            })
-            .ToList();
-
-        return Ok(items);
-    }
+    public async Task<IActionResult> GetMedia() // this must be moven to media controller, also the result wasn't containing thumbnail url and video url
+        => Ok(await _mediaService.GetAllMediaAsync());
 
 }

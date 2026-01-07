@@ -3,53 +3,25 @@ using Amazon.S3.Model;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VimeoCopyApi.Data;
+using VimeoCopyAPI.Services.Interfaces;
 
 namespace VimeoCopyAPI.Controllers;
+
 [ApiController]
 [Route("api/media")]
 public class MediaController : ControllerBase
 {
-    private readonly AppDbContext _db;
-    private readonly IAmazonS3 _s3;
-    private readonly IConfiguration _config;
+    private readonly IMediaService _mediaService;
 
-    public MediaController(AppDbContext db, IAmazonS3 s3, IConfiguration config)
+    public MediaController(IMediaService mediaService)
     {
-        _db = db;
-        _s3 = s3;
-        _config = config;
+        _mediaService = mediaService;
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll()
-    {
-        var items = await _db.Media
-            .OrderByDescending(m => m.UploadedAt)
-            .ToListAsync();
-
-        return Ok(items);
-    }
+    public async Task<IActionResult> GetAll() => Ok(await _mediaService.GetAllMediaAsync());
 
     [HttpGet("{id}/url")]
-    public async Task<IActionResult> GetPresignedGetUrl(Guid id)
-    {
-        var media = await _db.Media.FindAsync(id);
-        if (media == null)
-            return NotFound();
-
-        var bucket = _config["AWS:BucketName"];
-
-        var request = new GetPreSignedUrlRequest
-        {
-            BucketName = bucket,
-            Key = media.FileName,
-            Verb = HttpVerb.GET,
-            Expires = DateTime.UtcNow.AddMinutes(15)
-        };
-
-        var url = _s3.GetPreSignedURL(request);
-
-        return Ok(new { url, media.ContentType });
-    }
+    public async Task<IActionResult> GetPresignedGetUrl(Guid mediaId) => Ok(await _mediaService.GetPresignedURLAsync(mediaId)); 
 
 }

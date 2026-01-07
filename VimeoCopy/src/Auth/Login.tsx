@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "./useAuth";
+import { API_BASE_URL } from "../config";
 
 export function LoginForm() {
   const { login } = useAuth();
@@ -16,6 +17,11 @@ export function LoginForm() {
     } catch {
       setError("Invalid email or password");
     }
+  }
+
+  function handleSocialLogin(provider: "Google" | "Microsoft" | "Facebook") {
+    const returnUrl = encodeURIComponent(window.location.origin + "/social-login");
+    window.location.href = `${API_BASE_URL}/api/auth/external-login?provider=${provider}&returnUrl=${returnUrl}`;
   }
 
   return (
@@ -52,6 +58,33 @@ export function LoginForm() {
       <button type="submit" style={{ padding: 10 }}>
         Login
       </button>
+
+      {/* --- SOCIAL LOGIN BUTTONS --- */}
+      <div style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 10 }}>
+        <button
+          type="button"
+          onClick={() => handleSocialLogin("Google")}
+          style={{ padding: 10, background: "#db4437", color: "white", border: "none" }}
+        >
+          Continue with Google
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleSocialLogin("Microsoft")}
+          style={{ padding: 10, background: "#2F2F2F", color: "white", border: "none" }}
+        >
+          Continue with Microsoft
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleSocialLogin("Facebook")}
+          style={{ padding: 10, background: "#1877F2", color: "white", border: "none" }}
+        >
+          Continue with Facebook
+        </button>
+      </div>
     </form>
   );
 }
