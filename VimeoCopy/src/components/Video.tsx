@@ -13,9 +13,11 @@ interface Media {
 
 export function Videos() {
   const [items, setItems] = useState<Media[]>([]);
+  const [urls, setUrls] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Media | null>(null);
   const { authFetch } = useAuth();
 
+  // Load media list
   useEffect(() => {
     async function load() {
       const res = await authFetch(`${API_BASE_URL}/api/media`);
@@ -24,6 +26,23 @@ export function Videos() {
     }
     load();
   }, [authFetch]);
+
+  // Load URLs for all media items ONCE
+  useEffect(() => {
+    async function loadAllUrls() {
+      const newUrls: Record<string, string> = {};
+
+      for (const m of items) {
+        const res = await authFetch(`${API_BASE_URL}/api/media/${m.id}/url`);
+        const data = await res.json();
+        newUrls[m.id] = data.url;
+      }
+
+      setUrls(newUrls);
+    }
+
+    if (items.length > 0) loadAllUrls();
+  }, [items, authFetch]);
 
   return (
     <div style={{ padding: 20 }}>
@@ -37,12 +56,21 @@ export function Videos() {
         }}
       >
         {items.map((m) => (
-          <MediaItem key={m.id} media={m} onClick={() => setSelected(m)} />
+          <MediaItem
+            key={m.id}
+            media={m}
+            url={urls[m.id]}
+            onClick={() => setSelected(m)}
+          />
         ))}
       </div>
 
       {selected && (
-        <FullscreenViewer media={selected} onClose={() => setSelected(null)} />
+        <FullscreenViewer
+          media={selected}
+          url={urls[selected.id]}
+          onClose={() => setSelected(null)}
+        />
       )}
     </div>
   );
@@ -50,25 +78,13 @@ export function Videos() {
 
 function MediaItem({
   media,
+  url,
   onClick,
 }: {
   media: Media;
+  url?: string;
   onClick: () => void;
 }) {
-  const [url, setUrl] = useState("");
-  const { authFetch } = useAuth();
-
-  useEffect(() => {
-    async function loadUrl() {
-      const res = await authFetch(
-        `${API_BASE_URL}/api/media/${media.id}/url`
-      );
-      const data = await res.json();
-      setUrl(data.url);
-    }
-    loadUrl();
-  }, [media.id, authFetch]);
-
   if (!url) return <div>Loading...</div>;
 
   const commonStyle: React.CSSProperties = {
@@ -104,31 +120,21 @@ function MediaItem({
 
 function FullscreenViewer({
   media,
+  url,
   onClose,
 }: {
   media: Media;
+  url?: string;
   onClose: () => void;
 }) {
-  const [url, setUrl] = useState("");
-
   useEffect(() => {
-    async function loadUrl() {
-      const res = await fetch(
-        `${API_BASE_URL}/api/media/${media.id}/url`
-      );
-      const data = await res.json();
-      setUrl(data.url);
-    }
-    loadUrl();
-
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [media.id, onClose]);
-
+  }, [onClose]);
 
   if (!url) return null;
 

@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using VimeoCopyAPI.Models;
 
 namespace VimeoCopyApi.Models;
 
@@ -31,4 +32,9 @@ public class Media
 
     [MaxLength(500)]
     public string? VideoUrl { get; set; }
+
+    // Owner FK and navigation
+    public string UserId { get; set; }
+
+    public ApplicationUser User { get; set; } = default!;
 }

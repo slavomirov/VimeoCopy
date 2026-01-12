@@ -16,26 +16,26 @@ public class AuthController : ControllerBase
         _userService = userService;
     }
 
-    [Authorize(Roles = "Admin")]
-    [HttpGet("admin-only")]
-    public IActionResult AdminOnly() //test admin role endpoint
-    {
-        return Ok("You are admin");
-    }
+    //[Authorize(Roles = "Admin")]
+    //[HttpGet("admin-only")]
+    //public IActionResult AdminOnly() //test admin role endpoint
+    //{
+    //    return Ok("You are admin");
+    //}
 
-    [Authorize(Roles = "User")]
-    [HttpGet("user-only")]
-    public IActionResult UserOnly() //test user role endpoint
-    {
-        return Ok("You are admin");
-    }
+    //[Authorize(Roles = "User")]
+    //[HttpGet("user-only")]
+    //public IActionResult UserOnly() //test user role endpoint
+    //{
+    //    return Ok("You are admin");
+    //}
 
-    [Authorize(Policy = "CanUploadVideos")]
-    [HttpPost("upload")]
-    public IActionResult Upload() //test policy endpoint
-    {
-        return Ok("You can upload videos");
-    }
+    //[Authorize(Policy = "CanUploadVideos")]
+    //[HttpPost("upload")]
+    //public IActionResult Upload() //test policy endpoint
+    //{
+    //    return Ok("You can upload videos");
+    //}
 
 
     [HttpPost("register")]

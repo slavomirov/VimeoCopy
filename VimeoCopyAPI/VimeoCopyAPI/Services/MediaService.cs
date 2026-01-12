@@ -24,9 +24,11 @@ public class MediaService : IMediaService
     public async Task<IEnumerable<Media>> GetAllMediaAsync()
         => await _dbContext.Media.OrderByDescending(m => m.UploadedAt).ToListAsync();
 
-    public async Task<Media?> GetMediaByIdAsync(Guid mediaId) => await _dbContext.Media.FirstOrDefaultAsync(x => x.Id == mediaId);
+    public async Task<Media?> GetMediaByIdAsync(string mediaId) => await _dbContext.Media.FirstOrDefaultAsync(x => x.Id.ToString() == mediaId);
 
-    public async Task<GetPresignedURLDTO> GetPresignedURLAsync(Guid mediaId)
+    //public async Task<IEnumerable<Media>> GetMediaByIdUserAsync(string userId) => await _dbContext.Media.Where(m => m.UserId == userId).ToListAsync();
+
+    public async Task<GetPresignedURLDTO> GetPresignedURLAsync(string mediaId)
     {
         var media = await GetMediaByIdAsync(mediaId) ?? throw new Exception("Media with this id not found!");
 

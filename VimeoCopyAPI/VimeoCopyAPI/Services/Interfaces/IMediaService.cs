@@ -6,6 +6,7 @@ namespace VimeoCopyAPI.Services.Interfaces;
 public interface IMediaService
 {
     public Task<IEnumerable<Media>> GetAllMediaAsync();
-    public Task<Media?> GetMediaByIdAsync(Guid mediaId);
-    public Task<GetPresignedURLDTO> GetPresignedURLAsync(Guid mediaId);
+    public Task<Media?> GetMediaByIdAsync(string mediaId);
+    //public Task<IEnumerable<Media>> GetMediaByIdUserAsync(string userId);
+    public Task<GetPresignedURLDTO> GetPresignedURLAsync(string mediaId);
 }

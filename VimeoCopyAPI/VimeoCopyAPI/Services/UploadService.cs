@@ -1,7 +1,8 @@
 ﻿using Amazon.S3;
 using Amazon.S3.Model;
-using Azure.Core;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 using VimeoCopyApi.Data;
 using VimeoCopyApi.Models;
 using VimeoCopyAPI.Models.DTOs;
@@ -16,16 +17,23 @@ public class UploadService : IUploadService
     private readonly AppDbContext _dbContext;
     private readonly string[] allowedUploadContentTypes = new[] { "image/jpeg", "image/png", "video/mp4", "video/webm" };
     private readonly IMediaService _mediaService;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public UploadService(IAmazonS3 s3, IConfiguration config, AppDbContext dbContext, IMediaService mediaService)
+    public UploadService(
+        IAmazonS3 s3,
+        IConfiguration config,
+        AppDbContext dbContext,
+        IMediaService mediaService,
+        IHttpContextAccessor httpContextAccessor)
     {
         _s3 = s3;
         _config = config;
         _dbContext = dbContext;
         _mediaService = mediaService;
+        _httpContextAccessor = httpContextAccessor;
     }
 
-    public async Task<MediaURLDTO> GetMediaURLAsync(Guid mediaId)
+    public async Task<MediaURLDTO> GetMediaURLAsync(string mediaId)
     {
         var media = await _mediaService.GetMediaByIdAsync(mediaId) ?? throw new Exception("Media with this id not found!");
 
@@ -76,6 +84,13 @@ public class UploadService : IUploadService
         if (!allowedUploadContentTypes.Contains(input.ContentType))
             throw new Exception("Unsupported content type");
 
+        // require authenticated user so UserId can be non-nullable
+        var userId = _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+
+
+        if (userId is null)
+            throw new Exception("Authentication required to complete upload.");
+
         var mediaId = Guid.NewGuid();
 
         var mediaRecord = new Media
@@ -84,7 +99,8 @@ public class UploadService : IUploadService
             FileName = input.FileName,
             FileSize = input.FileSize,
             ContentType = input.ContentType,
-            UploadedAt = DateTime.UtcNow
+            UploadedAt = DateTime.UtcNow,
+            UserId = userId
         };
 
         await _dbContext.Media.AddAsync(mediaRecord);

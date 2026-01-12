@@ -2,12 +2,13 @@ import React, { useEffect, useState, useCallback } from "react";
 import { AuthContext } from "./AuthContext";
 import { API_BASE_URL } from "../config";
 import { jwtDecode } from "jwt-decode";
+import toast from "react-hot-toast";
 
 interface TokenPayload {
   sub: string;
   email: string;
   role?: string | string[];
-  [key: string]: unknown; // claims
+  [key: string]: unknown;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -16,6 +17,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [claims, setClaims] = useState<Record<string, unknown>>({});
   const [email, setEmail] = useState<string | null>(null);
 
+  // Decode JWT and extract claims
   const processToken = useCallback((token: string) => {
     const decoded = jwtDecode<TokenPayload>(token);
 
@@ -30,11 +32,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setEmail(decoded.email || null);
   }, []);
 
-  const loginWithToken = useCallback((token: string) => {
-    setAccessToken(token);
-    processToken(token);
-  }, [processToken]);
+  // Used for social login redirect
+  const loginWithToken = useCallback(
+    (token: string) => {
+      setAccessToken(token);
+      processToken(token);
+    },
+    [processToken]
+  );
 
+  // Refresh token flow
   const refreshToken = useCallback(async () => {
     const res = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
       method: "POST",
@@ -55,6 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return data.accessToken;
   }, [processToken]);
 
+  // Normal login
   async function login(email: string, password: string) {
     const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: "POST",
@@ -63,13 +71,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       body: JSON.stringify({ email, password }),
     });
 
-    if (!res.ok) throw new Error("Invalid credentials");
+    if (!res.ok) {
+      toast.error("Invalid email or password");
+      throw new Error("Invalid credentials");
+    }
 
     const data = await res.json();
     setAccessToken(data.accessToken);
     processToken(data.accessToken);
   }
 
+  // Logout
   async function logout() {
     await fetch(`${API_BASE_URL}/api/auth/logout`, {
       method: "POST",
@@ -82,37 +94,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setEmail(null);
   }
 
-  const authFetch: typeof fetch = async (input, init = {}) => {
-    const headers = new Headers(init.headers || {});
+  // Global fetch wrapper with auto-refresh + error notifications
+  const authFetch: typeof fetch = useCallback(
+    async (input, init = {}) => {
+      const headers = new Headers(init.headers || {});
 
-    if (accessToken) {
-      headers.set("Authorization", `Bearer ${accessToken}`);
-    }
+      if (accessToken) {
+        headers.set("Authorization", `Bearer ${accessToken}`);
+      }
 
-    let res = await fetch(input, {
-      ...init,
-      headers,
-      credentials: "include",
-    });
-
-    if (res.status === 401) {
-      const newToken = await refreshToken();
-
-      if (!newToken) return res;
-
-      const headers2 = new Headers(init.headers || {});
-      headers2.set("Authorization", `Bearer ${newToken}`);
-
-      res = await fetch(input, {
+      let res = await fetch(input, {
         ...init,
-        headers: headers2,
+        headers,
         credentials: "include",
       });
-    }
 
-    return res;
-  };
+      // Auto refresh on 401
+      if (res.status === 401) {
+        const newToken = await refreshToken();
 
+        if (!newToken) {
+          toast.error("Session expired. Please log in again.");
+          return res;
+        }
+
+        const headers2 = new Headers(init.headers || {});
+        headers2.set("Authorization", `Bearer ${newToken}`);
+
+        res = await fetch(input, {
+          ...init,
+          headers: headers2,
+          credentials: "include",
+        });
+      }
+
+      // Global error popup
+      if (!res.ok) {
+        try {
+          const data = await res.json();
+          const msg = data.message || data.error || "Unexpected server error";
+          toast.error(msg);
+        } catch {
+          toast.error("Unexpected server error");
+        }
+      }
+
+      return res;
+    },
+    [accessToken, refreshToken]
+  );
+
+  // Auto refresh every 10 minutes
   useEffect(() => {
     const id = setInterval(() => {
       if (accessToken) refreshToken();

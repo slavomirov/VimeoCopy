@@ -22,6 +22,9 @@ public class MediaController : ControllerBase
     public async Task<IActionResult> GetAll() => Ok(await _mediaService.GetAllMediaAsync());
 
     [HttpGet("{id}/url")]
-    public async Task<IActionResult> GetPresignedGetUrl(Guid mediaId) => Ok(await _mediaService.GetPresignedURLAsync(mediaId)); 
+    public async Task<IActionResult> GetPresignedGetUrl(string id) => Ok(await _mediaService.GetPresignedURLAsync(id));
+
+    //[HttpGet("UserMedias/{userId}")]
+    //public async Task<IActionResult> GetByUserId(string userId) => Ok(await _mediaService.GetMediaByIdUserAsync(userId));
 
 }

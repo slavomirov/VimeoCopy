@@ -158,6 +158,32 @@ namespace VimeoCopyAPI.Services
             return new ExternalLoginResultDTO { Success = true, AccessToken = newAccessToken, RefreshToken = newRefreshToken, RedirectUrl = $"{returnUrl}?accessToken={newAccessToken}" };
         }
 
+        public async Task<UserDataDTO?> GetUserDataAsync(string userId)
+        {
+            var user = await _dbContext.Users
+                .Include(u => u.Media)
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (user == null) return null;
+
+            return new UserDataDTO
+            {
+                Id = user.Id,
+                Email = user.Email,
+                Username = user.UserName,
+                Media = [.. user.Media.Select(m => new MediaDTO
+                {
+                    Id = m.Id,
+                    FileName = m.FileName,
+                    ContentType = m.ContentType,
+                    FileSize = m.FileSize,
+                    UploadedAt = m.UploadedAt,
+                    Status = m.Status
+                })]
+            };
+        }
+
+
         private async Task<string> GenerateAccessTokenAsync(ApplicationUser user)
         {
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
@@ -204,7 +230,7 @@ namespace VimeoCopyAPI.Services
             return token;
         }
 
-        private void SetRefreshTokenCookie(HttpResponse response, string refreshToken)
+        private static void SetRefreshTokenCookie(HttpResponse response, string refreshToken)
         {
             var cookieOptions = new CookieOptions
             {

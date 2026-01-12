@@ -1,9 +1,4 @@
-﻿using Amazon.S3;
-using Amazon.S3.Model;
-using Microsoft.AspNetCore.Mvc;
-using System.Threading.Tasks;
-using VimeoCopyApi.Data;
-using VimeoCopyApi.Models;
+﻿using Microsoft.AspNetCore.Mvc;
 using VimeoCopyAPI.Models;
 using VimeoCopyAPI.Models.DTOs;
 using VimeoCopyAPI.Services.Interfaces;
@@ -31,7 +26,7 @@ public class UploadController : ControllerBase
         => Ok(await _uploadService.UploadCompleteAsync(input));
 
     [HttpGet("media/{id}/url")]
-    public async Task<IActionResult> GetMediaUrl(Guid mediaId)
+    public async Task<IActionResult> GetMediaUrl(string mediaId)
     {
         return Ok(await _uploadService.GetMediaURLAsync(mediaId));
     }

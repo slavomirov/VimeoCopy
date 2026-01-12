@@ -7,5 +7,5 @@ public interface IUploadService
 {
     public string GetPresignedUrl(string fileName);
     public Task<Media> UploadCompleteAsync(MediaUploadCompleteDTO input);
-    public Task<MediaURLDTO> GetMediaURLAsync(Guid mediaId);
+    public Task<MediaURLDTO> GetMediaURLAsync(string mediaId);
 }

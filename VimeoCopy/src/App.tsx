@@ -5,6 +5,8 @@ import { LoginForm } from "./Auth/Login";
 import { AuthProvider } from "./Auth/AuthProvider";
 import { useAuth } from "./Auth/useAuth";
 import SocialLoginPage from "./SocialLoginPage";
+import { Toaster } from "react-hot-toast";
+import { ProfilePage } from "./components/ProfilePage";
 
 function App() {
   return (
@@ -20,6 +22,9 @@ function MainLayout() {
 
   return (
     <div style={{ padding: 20 }}>
+      <Toaster
+        position="top-right"
+        toastOptions={{ style: { background: "#ff0033", color: "#fff", fontWeight: "bold", borderRadius: "8px", padding: "12px 16px", fontSize: "16px", }, }} />
       <nav style={{ display: "flex", gap: 20 }}>
         <Link to="/">Home</Link>
         <Link to="/upload">Upload</Link>
@@ -45,7 +50,7 @@ function MainLayout() {
         <Route
           path="/profile"
           element={
-            isLoggedIn ? <Profile /> : <Navigate to="/login" replace />
+            isLoggedIn ? <ProfilePage /> : <Navigate to="/login" replace />
           }
         />
 
@@ -63,10 +68,6 @@ function MainLayout() {
 
 function Home() {
   return <h1>Home Page</h1>;
-}
-
-function Profile() {
-  return <h1>Profile Page</h1>;
 }
 
 export default App;
