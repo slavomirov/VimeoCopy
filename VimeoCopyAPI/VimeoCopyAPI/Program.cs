@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using VimeoCopyApi.Data;
+using VimeoCopyAPI.Addons;
 using VimeoCopyAPI.Middlewares;
 using VimeoCopyAPI.Models;
 using VimeoCopyAPI.Services;
@@ -45,6 +46,9 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 })
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
+
+
+builder.Services.AddHostedService<RefreshTokenCleanupService>();
 
 
 //FE CORS
