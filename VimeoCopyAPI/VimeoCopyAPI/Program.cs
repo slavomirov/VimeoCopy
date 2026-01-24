@@ -81,6 +81,8 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IUploadService, UploadService>();
 
 
+builder.Services.AddOptions<StripeOptions>().Bind(builder.Configuration.GetSection("Stripe"));
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
@@ -121,7 +123,6 @@ app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
-
 
 
 app.MapControllers();

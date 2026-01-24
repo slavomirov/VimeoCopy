@@ -7,6 +7,7 @@ import { useAuth } from "./Auth/useAuth";
 import SocialLoginPage from "./SocialLoginPage";
 import { Toaster } from "react-hot-toast";
 import { ProfilePage } from "./components/ProfilePage";
+import { BuyPage } from "./Payments/BuyPage";
 
 function App() {
   return (
@@ -29,6 +30,7 @@ function MainLayout() {
         <Link to="/">Home</Link>
         <Link to="/upload">Upload</Link>
         <Link to="/videos">Videos</Link>
+        <Link to="/buy">Buy</Link>
 
         {isLoggedIn && <Link to="/profile">Profile</Link>}
         {!isLoggedIn && <Link to="/login">Login</Link>}
@@ -45,6 +47,8 @@ function MainLayout() {
         <Route path="/upload" element={<Upload />} />
         <Route path="/videos" element={<Videos />} />
         <Route path="/social-login" element={<SocialLoginPage />} />
+        <Route path="/buy" element={<BuyPage />} />
+
 
         {/* Protected route */}
         <Route
