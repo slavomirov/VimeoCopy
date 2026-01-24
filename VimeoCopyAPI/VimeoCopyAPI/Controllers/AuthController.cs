@@ -41,8 +41,11 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<IActionResult> Register(UserRegisterDTO input)
     {
-        await _userService.RegisterAsync(input);
-        return Ok();
+        var result = await _userService.RegisterAsync(input);
+
+        SetRefreshTokenCookie(result!.RefreshToken); //move to the service ???
+
+        return Ok(new { result.AccessToken });
     }
 
 

@@ -34,9 +34,14 @@ namespace VimeoCopyAPI.Services
             _dbContext = db;
         }
 
-        public async Task RegisterAsync(UserRegisterDTO input)
+        public async Task<UserLoginResponseDTO?> RegisterAsync(UserRegisterDTO input)
         {
-            var user = new ApplicationUser
+            //var user = await _userManager.FindByEmailAsync(input.Email);
+
+            //if (user is not null)
+            //    throw new Exception("User already exists");
+
+           var  user = new ApplicationUser
             {
                 UserName = input.Email,
                 Email = input.Email
@@ -45,12 +50,13 @@ namespace VimeoCopyAPI.Services
             var result = await _userManager.CreateAsync(user, input.Password);
 
             if (!result.Succeeded)
-                throw new Exception(result.Errors.ToString()); //test this
+                throw new Exception(result.Errors.Select(x => x.Description).FirstOrDefault());
 
             await _userManager.AddToRoleAsync(user, "User"); //default 
-            await _userManager.AddClaimAsync(user, new Claim("CanUploadVideos", "true"));
+            //await _userManager.AddClaimAsync(user, new Claim("CanUploadVideos", "true"));
 
             // email confirmation later
+            return await LoginAsync(new() { Email = input.Email, Password = input.Password });
         }
 
         public async Task<UserLoginResponseDTO?> LoginAsync(UserLoginRequestDTO input)

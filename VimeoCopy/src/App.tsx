@@ -8,6 +8,7 @@ import SocialLoginPage from "./SocialLoginPage";
 import { Toaster } from "react-hot-toast";
 import { ProfilePage } from "./components/ProfilePage";
 import { BuyPage } from "./Payments/BuyPage";
+import { Register } from "./Auth/Register";
 
 function App() {
   return (
@@ -25,7 +26,20 @@ function MainLayout() {
     <div style={{ padding: 20 }}>
       <Toaster
         position="top-right"
-        toastOptions={{ style: { background: "#ff0033", color: "#fff", fontWeight: "bold", borderRadius: "8px", padding: "12px 16px", fontSize: "16px", }, }} />
+        toastOptions={{
+          style: {
+            color: "#fff",
+            fontWeight: "bold",
+            borderRadius: "8px",
+            padding: "12px 16px",
+            fontSize: "16px",
+          },
+
+          success: { style: { background: "#4caf50", }, },
+          error: { style: { background: "#ff0033", }, },
+        }}
+      />
+
       <nav style={{ display: "flex", gap: 20 }}>
         <Link to="/">Home</Link>
         <Link to="/upload">Upload</Link>
@@ -34,6 +48,7 @@ function MainLayout() {
 
         {isLoggedIn && <Link to="/profile">Profile</Link>}
         {!isLoggedIn && <Link to="/login">Login</Link>}
+        {!isLoggedIn && <Link to="/register">Register</Link>}
 
         {isLoggedIn && (
           <button onClick={logout} style={{ marginLeft: "auto" }}>
@@ -63,6 +78,14 @@ function MainLayout() {
           path="/login"
           element={
             !isLoggedIn ? <LoginForm /> : <Navigate to="/profile" replace />
+          }
+        />
+
+        {/* Register only if NOT logged in */}
+        <Route
+          path="/register"
+          element={
+            !isLoggedIn ? <Register /> : <Navigate to="/profile" replace />
           }
         />
       </Routes>

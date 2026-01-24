@@ -81,6 +81,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     processToken(data.accessToken);
   }
 
+  async function register(email: string, password: string) {
+    const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const msg = data.message || "Registration failed";
+      toast.error(msg);
+      throw new Error(msg);
+    }
+
+    const data = await res.json();
+
+    // Ако backend връща accessToken след регистрация
+    if (data.accessToken) {
+      setAccessToken(data.accessToken);
+      processToken(data.accessToken);
+    }
+
+    return data;
+  }
+
+
   // Logout
   async function logout() {
     await fetch(`${API_BASE_URL}/api/auth/logout`, {
@@ -164,6 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loginWithToken,
         logout,
         authFetch,
+        register
       }}
     >
       {children}

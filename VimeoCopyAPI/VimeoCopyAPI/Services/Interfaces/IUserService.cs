@@ -6,7 +6,7 @@ namespace VimeoCopyAPI.Services.Interfaces;
 
 public interface IUserService
 {
-    public Task RegisterAsync(UserRegisterDTO input);
+    public Task<UserLoginResponseDTO?> RegisterAsync(UserRegisterDTO input);
     public Task<UserLoginResponseDTO?> LoginAsync(UserLoginRequestDTO input);
     public Task<RefreshResultDTO> RefreshAsync(HttpContext context);
     public Task LogoutAsync(HttpContext context);

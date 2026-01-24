@@ -19,7 +19,7 @@ export function LoginForm() {
     }
   }
 
-  function handleSocialLogin(provider: "Google" | "Microsoft" | "Facebook") {
+  function handleSocialLogin(provider: "Google") {
     const returnUrl = encodeURIComponent(window.location.origin + "/social-login");
     window.location.href = `${API_BASE_URL}/api/auth/external-login?provider=${provider}&returnUrl=${returnUrl}`;
   }
@@ -69,21 +69,6 @@ export function LoginForm() {
           Continue with Google
         </button>
 
-        <button
-          type="button"
-          onClick={() => handleSocialLogin("Microsoft")}
-          style={{ padding: 10, background: "#2F2F2F", color: "white", border: "none" }}
-        >
-          Continue with Microsoft
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleSocialLogin("Facebook")}
-          style={{ padding: 10, background: "#1877F2", color: "white", border: "none" }}
-        >
-          Continue with Facebook
-        </button>
       </div>
     </form>
   );

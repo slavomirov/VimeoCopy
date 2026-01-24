@@ -9,6 +9,7 @@ export interface AuthContextValue {
   loginWithToken: (token: string) => void; 
   logout: () => Promise<void>;
   authFetch: typeof fetch;
+  register: (email: string, password: string) => Promise<void>;
 }
 
 
