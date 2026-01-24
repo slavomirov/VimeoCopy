@@ -42,7 +42,7 @@ public class MediaService : IMediaService
             Expires = DateTime.UtcNow.AddMinutes(15)
         };
 
-        var url = _s3.GetPreSignedURL(request);
+        var url = _s3.GetPreSignedURL(request); //use async-await method
 
         return new() { URL = url, ContentType = media.ContentType };
     }

@@ -18,9 +18,17 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// AWS config
+// AWS S3 storage config
 var awsConfig = builder.Configuration.GetSection("AWS");
-builder.Services.AddSingleton<IAmazonS3>(sp => { return new AmazonS3Client(awsConfig["AccessKey"], awsConfig["SecretKey"], RegionEndpoint.GetBySystemName(awsConfig["Region"])); });
+builder.Services.AddSingleton<IAmazonS3>(sp =>
+{
+    return new AmazonS3Client
+    (
+        awsConfig["AccessKey"],
+        awsConfig["SecretKey"],
+        new AmazonS3Config { ServiceURL = awsConfig["ServiceURL"], ForcePathStyle = true }
+    );
+});
 
 //DB Config
 builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));

@@ -35,8 +35,8 @@ public class StripeController : ControllerBase
                 SuccessUrl = $"{origin}/upload",
                 CancelUrl = $"{origin}/",
                 CustomerEmail = "test@abv.bg", //TODO: get from user profile,
-                LineItems = new List<SessionLineItemOptions>
-                {
+                LineItems =
+                [
                     new ()
                     {
                         PriceData = new ()
@@ -50,7 +50,7 @@ public class StripeController : ControllerBase
                         },
                         Quantity = 1
                     }
-                }
+                ]
             });
 
         // Placeholder implementation
