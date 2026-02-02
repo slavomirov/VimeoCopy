@@ -189,6 +189,24 @@ namespace VimeoCopyAPI.Services
             };
         }
 
+        public async Task IncreaseUsedMemoryAsync(string userId, long mediaSize)
+            => await _dbContext.Users.Where(u => u.Id == userId)
+                .ExecuteUpdateAsync(u => u.SetProperty(user => user.UsedMemory, user => user.UsedMemory + mediaSize));
+
+        public async Task DecreaseUsedMemoryAsync(string userId, long mediaSize)
+            => await _dbContext.Users.Where(u => u.Id == userId)
+                .ExecuteUpdateAsync(u => u.SetProperty(user => user.UsedMemory, user => Math.Max(0, (user.UsedMemory ?? 0) - mediaSize)));
+
+        public async Task AssignPlanToUserAsync(string userId, string planName)
+        {
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId) ?? throw new Exception("User not found");
+            var plan = await _dbContext.Plans.FirstOrDefaultAsync(p => p.Name == planName) ?? throw new Exception("Plan not found");
+
+            user.PlanId = plan.Id;
+            user.BuyedMemory = plan.StorageLimitInBytes;
+            _dbContext.Users.Update(user);
+            await _dbContext.SaveChangesAsync();
+        }
 
         private async Task<string> GenerateAccessTokenAsync(ApplicationUser user)
         {
@@ -248,6 +266,5 @@ namespace VimeoCopyAPI.Services
 
             response.Cookies.Append("refreshToken", refreshToken, cookieOptions);
         }
-
     }
 }

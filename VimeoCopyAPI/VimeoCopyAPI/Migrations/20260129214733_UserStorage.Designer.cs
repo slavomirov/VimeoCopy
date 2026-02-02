@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using VimeoCopyApi.Data;
 
@@ -11,9 +12,11 @@ using VimeoCopyApi.Data;
 namespace VimeoCopyAPI.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260129214733_UserStorage")]
+    partial class UserStorage
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -163,9 +166,6 @@ namespace VimeoCopyAPI.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("int");
 
-                    b.Property<long?>("BuyedMemory")
-                        .HasColumnType("bigint");
-
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("nvarchar(max)");
@@ -203,9 +203,6 @@ namespace VimeoCopyAPI.Migrations
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("bit");
 
-                    b.Property<int?>("PlanId")
-                        .HasColumnType("int");
-
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("nvarchar(max)");
 
@@ -229,30 +226,7 @@ namespace VimeoCopyAPI.Migrations
                         .HasDatabaseName("UserNameIndex")
                         .HasFilter("[NormalizedUserName] IS NOT NULL");
 
-                    b.HasIndex("PlanId");
-
                     b.ToTable("AspNetUsers", (string)null);
-                });
-
-            modelBuilder.Entity("VimeoCopyAPI.Models.Plan", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<long>("StorageLimitInBytes")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Plans");
                 });
 
             modelBuilder.Entity("VimeoCopyAPI.Models.RefreshToken", b =>
@@ -383,16 +357,6 @@ namespace VimeoCopyAPI.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("VimeoCopyAPI.Models.ApplicationUser", b =>
-                {
-                    b.HasOne("VimeoCopyAPI.Models.Plan", "Plan")
-                        .WithMany("Users")
-                        .HasForeignKey("PlanId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Plan");
-                });
-
             modelBuilder.Entity("VimeoCopyAPI.Models.RefreshToken", b =>
                 {
                     b.HasOne("VimeoCopyAPI.Models.ApplicationUser", "User")
@@ -418,11 +382,6 @@ namespace VimeoCopyAPI.Migrations
             modelBuilder.Entity("VimeoCopyAPI.Models.ApplicationUser", b =>
                 {
                     b.Navigation("Media");
-                });
-
-            modelBuilder.Entity("VimeoCopyAPI.Models.Plan", b =>
-                {
-                    b.Navigation("Users");
                 });
 #pragma warning restore 612, 618
         }

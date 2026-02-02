@@ -6,11 +6,14 @@ namespace VimeoCopyAPI.Services.Interfaces;
 
 public interface IUserService
 {
-    public Task<UserLoginResponseDTO?> RegisterAsync(UserRegisterDTO input);
-    public Task<UserLoginResponseDTO?> LoginAsync(UserLoginRequestDTO input);
-    public Task<RefreshResultDTO> RefreshAsync(HttpContext context);
-    public Task LogoutAsync(HttpContext context);
+    Task<UserLoginResponseDTO?> RegisterAsync(UserRegisterDTO input);
+    Task<UserLoginResponseDTO?> LoginAsync(UserLoginRequestDTO input);
+    Task<RefreshResultDTO> RefreshAsync(HttpContext context);
+    Task LogoutAsync(HttpContext context);
     AuthenticationProperties GetExternalAuthenticationProperties(string provider, string redirectUrl);
     Task<ExternalLoginResultDTO> HandleExternalLoginCallbackAsync(HttpContext httpContext, string returnUrl = "/");
-    public Task<UserDataDTO?> GetUserDataAsync(string userId);
+    Task<UserDataDTO?> GetUserDataAsync(string userId);
+    Task IncreaseUsedMemoryAsync(string userId, long mediaSize);
+    Task AssignPlanToUserAsync(string userId, string planName);
+    Task DecreaseUsedMemoryAsync(string userId, long mediaSize);
 }

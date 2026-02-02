@@ -1,7 +1,9 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Stripe;
 using Stripe.Checkout;
+using System.Security.Claims;
 using VimeoCopyAPI.Models;
 
 namespace VimeoCopyAPI.Controllers;
@@ -17,9 +19,13 @@ public class StripeController : ControllerBase
         _stripeOptions = stripeOptions.Value;
     }
 
+    [Authorize]
     [HttpPost("test")]
     public async Task<IActionResult> Payment([FromBody] TestPaymentRequest request)
     {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var userEmail = User.FindFirst(ClaimTypes.Email)?.Value;
+
         var product = new { Id = 1, Description = "testWE", Price = 10m };
         var origin = $"http://localhost:5173"; //FE server
 
@@ -31,10 +37,10 @@ public class StripeController : ControllerBase
             .CreateAsync(new SessionCreateOptions
             {
                 Mode = "payment",
-                ClientReferenceId = Guid.NewGuid().ToString(),
+                ClientReferenceId = userId,
                 SuccessUrl = $"{origin}/upload",
                 CancelUrl = $"{origin}/",
-                CustomerEmail = "test@abv.bg", //TODO: get from user profile,
+                CustomerEmail = userEmail,
                 LineItems =
                 [
                     new ()

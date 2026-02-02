@@ -9,4 +9,5 @@ public interface IMediaService
     public Task<Media?> GetMediaByIdAsync(string mediaId);
     //public Task<IEnumerable<Media>> GetMediaByIdUserAsync(string userId);
     public Task<GetPresignedURLDTO> GetPresignedURLAsync(string mediaId);
+    public Task DeleteMediaAsync(string fileName);
 }

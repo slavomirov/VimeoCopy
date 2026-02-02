@@ -97,6 +97,16 @@ builder.Services.AddOptions<StripeOptions>().Bind(builder.Configuration.GetSecti
 
 var app = builder.Build();
 
+
+
+//Automatic migrations
+//remove on production
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+}
+
 using (var scope = app.Services.CreateScope())
 {
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
@@ -110,14 +120,6 @@ using (var scope = app.Services.CreateScope())
             await roleManager.CreateAsync(new IdentityRole(role));
         }
     }
-}
-
-//Automatic migrations
-//remove on production
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
 }
 
 app.UseCors("AllowFrontend");
