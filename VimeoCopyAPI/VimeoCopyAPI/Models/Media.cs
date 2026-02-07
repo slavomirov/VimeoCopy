@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using VimeoCopyAPI.Models;
 
 namespace VimeoCopyApi.Models;
@@ -7,10 +8,6 @@ public class Media
 {
     [Key]
     public Guid Id { get; set; }
-
-    [Required]
-    [MaxLength(255)]
-    public required string FileName { get; set; }
 
     [Required]
     [Range(1, long.MaxValue)]
@@ -35,6 +32,6 @@ public class Media
 
     // Owner FK and navigation
     public string UserId { get; set; }
-
+    [JsonIgnore]
     public ApplicationUser User { get; set; } = default!;
 }

@@ -18,11 +18,12 @@ public class UploadController : ControllerBase
         _mediaService = mediaService;
     }
 
-    [HttpPost("url")]
-    public IActionResult GetPresignedUrl([FromBody] PresignRequest input) => Ok(new { url = _uploadService.GetPresignedUrl(input.FileName) }); //+ new FileName
+    [HttpGet("url")]
+    public IActionResult GetPresignedUrl()
+        => Ok(_uploadService.GetPresignedUrl());
 
     [HttpPost("complete")]
-    public async Task<IActionResult> UploadComplete([FromBody] MediaUploadCompleteDTO input) //need to sync it with FE, because the endpoint was synchronous before (not async Task)
+    public async Task<IActionResult> UploadComplete([FromBody] MediaUploadCompleteDTO input)
         => Ok(await _uploadService.UploadCompleteAsync(input));
 
     [HttpGet("media/{id}/url")]
@@ -32,7 +33,6 @@ public class UploadController : ControllerBase
     }
 
     [HttpGet("media")]
-    public async Task<IActionResult> GetMedia() // this must be moven to media controller, also the result wasn't containing thumbnail url and video url
+    public async Task<IActionResult> GetMedia()
         => Ok(await _mediaService.GetAllMediaAsync());
-
 }

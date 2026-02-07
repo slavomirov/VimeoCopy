@@ -33,6 +33,43 @@ export function ProfilePage() {
     load();
   }, [authFetch, claims]);
 
+  // Handle media deletion
+  async function handleDeleteMedia(mediaId: string) {
+    if (!confirm("Are you sure you want to delete this media?")) {
+      return;
+    }
+
+    try {
+      const res = await authFetch(`${API_BASE_URL}/api/media/Media/Delete/${mediaId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to delete media");
+      }
+
+      // Remove from user state
+      setUser((prevUser) => {
+        if (!prevUser) return prevUser;
+        return {
+          ...prevUser,
+          media: prevUser.media.filter((m) => m.id !== mediaId),
+        };
+      });
+
+      // Remove from URLs cache
+      setUrls((prevUrls) => {
+        const newUrls = { ...prevUrls };
+        delete newUrls[mediaId];
+        return newUrls;
+      });
+    } catch (err) {
+      alert(
+        err instanceof Error ? err.message : "Failed to delete media"
+      );
+    }
+  }
+
   // Load AWS URLs for each media item
   useEffect(() => {
     async function loadUrls() {
@@ -69,14 +106,27 @@ export function ProfilePage() {
         }}
       >
         {user.media.map((m) => (
-          <MediaItem key={m.id} media={m} url={urls[m.id]} />
+          <MediaItem
+            key={m.id}
+            media={m}
+            url={urls[m.id]}
+            onDelete={() => handleDeleteMedia(m.id)}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function MediaItem({ media, url }: { media: Media; url?: string }) {
+function MediaItem({
+  media,
+  url,
+  onDelete,
+}: {
+  media: Media;
+  url?: string;
+  onDelete: () => void;
+}) {
   if (!url) return <div>Loading...</div>;
 
   const style: React.CSSProperties = {
@@ -87,9 +137,32 @@ function MediaItem({ media, url }: { media: Media; url?: string }) {
     backgroundColor: "#000",
   };
 
-  if (media.contentType.startsWith("image/")) {
-    return <img src={url} style={style} />;
-  }
+  const containerStyle: React.CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  };
 
-  return <video src={url} controls style={style} />;
+  const buttonStyle: React.CSSProperties = {
+    padding: "8px 12px",
+    backgroundColor: "#e74c3c",
+    color: "white",
+    border: "none",
+    borderRadius: 4,
+    cursor: "pointer",
+    fontSize: "14px",
+  };
+
+  return (
+    <div style={containerStyle}>
+      {media.contentType.startsWith("image/") ? (
+        <img src={url} style={style} />
+      ) : (
+        <video src={url} controls style={style} />
+      )}
+      <button onClick={onDelete} style={buttonStyle}>
+        Delete
+      </button>
+    </div>
+  );
 }

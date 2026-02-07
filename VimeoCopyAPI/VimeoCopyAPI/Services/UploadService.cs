@@ -10,6 +10,7 @@ using VimeoCopyAPI.Services.Interfaces;
 
 namespace VimeoCopyAPI.Services;
 
+
 public class UploadService : IUploadService
 {
     private readonly IAmazonS3 _s3;
@@ -19,6 +20,8 @@ public class UploadService : IUploadService
     private readonly IMediaService _mediaService;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IUserService _userService;
+    private record PresignedRequest(string url, string mediaId);
+
 
     public UploadService(
         IAmazonS3 s3,
@@ -45,7 +48,7 @@ public class UploadService : IUploadService
         var request = new GetPreSignedUrlRequest
         {
             BucketName = bucket,
-            Key = media.FileName, // или отделно поле StorageKey
+            Key = mediaId, // или отделно поле StorageKey
             Verb = HttpVerb.GET,
             Expires = DateTime.UtcNow.AddMinutes(15)
         };
@@ -60,30 +63,28 @@ public class UploadService : IUploadService
         };
     }
 
-    public string GetPresignedUrl(string fileName)
+    public PresignRequestDTO GetPresignedUrl()
     {
         var bucket = _config["AWS:BucketName"];
+        var mediaId = Guid.NewGuid().ToString();
 
         var request = new GetPreSignedUrlRequest
         {
             BucketName = bucket,
-            Key = fileName, //+ userId + GUID/проверка в базата ако има такъв/ива fileName за този потребител, да се сложи (n брой) след името
+            Key = mediaId,
             Verb = HttpVerb.PUT,
             Expires = DateTime.UtcNow.AddMinutes(15),
             ContentType = "application/octet-stream"
         };
 
-        return _s3.GetPreSignedURL(request);
+        return new PresignRequestDTO { Url = _s3.GetPreSignedURL(request), MediaId = mediaId };
     }
 
-    public async Task<Media> UploadCompleteAsync(MediaUploadCompleteDTO input)
+    public async Task<MediaDTO> UploadCompleteAsync(MediaUploadCompleteDTO input)
     {
         // require authenticated user so UserId can be non-nullable
         var userId = _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? throw new Exception("Authentication required to complete upload.");
-
-        if (string.IsNullOrWhiteSpace(input.FileName))
-            throw new Exception("FileName is required.");
 
         if (input.FileSize <= 0)
             throw new Exception("Invalid file size.");
@@ -97,8 +98,7 @@ public class UploadService : IUploadService
 
         var mediaRecord = new Media
         {
-            Id = Guid.NewGuid(),
-            FileName = input.FileName,
+            Id = Guid.Parse(input.MediaId),
             FileSize = input.FileSize,
             ContentType = input.ContentType,
             UploadedAt = DateTime.UtcNow,
@@ -108,6 +108,15 @@ public class UploadService : IUploadService
         await _dbContext.Media.AddAsync(mediaRecord);
         await _userService.IncreaseUsedMemoryAsync(userId, input.FileSize);
         await _dbContext.SaveChangesAsync();
-        return mediaRecord;
+
+        // Return DTO without circular references
+        return new MediaDTO
+        {
+            Id = mediaRecord.Id,
+            ContentType = mediaRecord.ContentType,
+            FileSize = mediaRecord.FileSize,
+            UploadedAt = mediaRecord.UploadedAt,
+            Status = mediaRecord.Status
+        };
     }
 }

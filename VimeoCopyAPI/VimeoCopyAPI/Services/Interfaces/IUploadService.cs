@@ -1,11 +1,10 @@
-﻿using VimeoCopyApi.Models;
-using VimeoCopyAPI.Models.DTOs;
+﻿using VimeoCopyAPI.Models.DTOs;
 
 namespace VimeoCopyAPI.Services.Interfaces;
 
 public interface IUploadService
 {
-    public string GetPresignedUrl(string fileName);
-    public Task<Media> UploadCompleteAsync(MediaUploadCompleteDTO input);
-    public Task<MediaURLDTO> GetMediaURLAsync(string mediaId);
+    Task<MediaURLDTO> GetMediaURLAsync(string mediaId);
+    PresignRequestDTO GetPresignedUrl();
+    Task<MediaDTO> UploadCompleteAsync(MediaUploadCompleteDTO input);
 }

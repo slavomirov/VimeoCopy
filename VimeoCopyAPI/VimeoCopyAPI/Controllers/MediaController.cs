@@ -24,10 +24,10 @@ public class MediaController : ControllerBase
     [HttpGet("{id}/url")]
     public async Task<IActionResult> GetPresignedGetUrl(string id) => Ok(await _mediaService.GetPresignedURLAsync(id));
 
-    [HttpDelete("Media/Delete/{fileName}")]
-    public async Task<IActionResult> DeleteMediaAsync(string fileName)
+    [HttpDelete("Media/Delete/{mediaId}")]
+    public async Task<IActionResult> DeleteMediaAsync(string mediaId)
     {
-        await _mediaService.DeleteMediaAsync(fileName);
+        await _mediaService.DeleteMediaAsync(mediaId);
         return Ok();
     }
 }

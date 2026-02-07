@@ -179,7 +179,6 @@ namespace VimeoCopyAPI.Services
                 Media = [.. user.Media.Select(m => new MediaDTO
                 {
                     Id = m.Id,
-                    FileName = m.FileName,
                     ContentType = m.ContentType,
                     FileSize = m.FileSize,
                     UploadedAt = m.UploadedAt,
