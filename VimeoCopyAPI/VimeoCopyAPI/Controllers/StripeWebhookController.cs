@@ -68,7 +68,6 @@ public class StripeWebhookController : ControllerBase
 
         Console.WriteLine("➡ checkout.session.completed received");
 
-        // Взимаме line items
         var lineItems = await new SessionService().ListLineItemsAsync(session.Id);
         var item = lineItems.Data.FirstOrDefault();
 

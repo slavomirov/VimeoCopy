@@ -18,4 +18,5 @@ public class ApplicationUser : IdentityUser
 
     public Plan? Plan { get; set; }
     public int? PlanId { get; set; }
+    public DateTime? PlanExpiration { get; set; }
 }

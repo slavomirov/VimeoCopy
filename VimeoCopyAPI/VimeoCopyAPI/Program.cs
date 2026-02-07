@@ -49,7 +49,7 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 
 
 builder.Services.AddHostedService<RefreshTokenCleanupService>();
-
+builder.Services.AddHostedService<PlanExpirationService>();
 
 //FE CORS
 builder.Services.AddCors(options =>
@@ -89,6 +89,7 @@ builder.Services.AddAuthentication(options =>
 //Services
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IMediaService, MediaService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IUploadService, UploadService>();
 

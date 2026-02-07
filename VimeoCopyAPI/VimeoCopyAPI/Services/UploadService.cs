@@ -15,7 +15,7 @@ public class UploadService : IUploadService
     private readonly IAmazonS3 _s3;
     private readonly IConfiguration _config;
     private readonly AppDbContext _dbContext;
-    private readonly string[] allowedUploadContentTypes = new[] { "image/jpeg", "image/png", "video/mp4", "video/webm" };
+    private readonly string[] allowedUploadContentTypes = ["image/jpeg", "image/png", "video/mp4", "video/webm"];
     private readonly IMediaService _mediaService;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IUserService _userService;
@@ -78,6 +78,10 @@ public class UploadService : IUploadService
 
     public async Task<Media> UploadCompleteAsync(MediaUploadCompleteDTO input)
     {
+        // require authenticated user so UserId can be non-nullable
+        var userId = _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new Exception("Authentication required to complete upload.");
+
         if (string.IsNullOrWhiteSpace(input.FileName))
             throw new Exception("FileName is required.");
 
@@ -87,12 +91,9 @@ public class UploadService : IUploadService
         if (!allowedUploadContentTypes.Contains(input.ContentType))
             throw new Exception("Unsupported content type");
 
-        // require authenticated user so UserId can be non-nullable
-        var userId = _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier) 
-            ?? throw new Exception("Authentication required to complete upload.");
-
-        if (!await CanUserUpload(userId, input.FileSize))
-            throw new Exception("User has exceeded their storage limit.");
+        var result = await _userService.CanUserUploadAsync(userId, input.FileSize);
+        if (result != "Yes")
+            throw new Exception(result);
 
         var mediaRecord = new Media
         {
@@ -108,10 +109,5 @@ public class UploadService : IUploadService
         await _userService.IncreaseUsedMemoryAsync(userId, input.FileSize);
         await _dbContext.SaveChangesAsync();
         return mediaRecord;
-    }
-
-    private async Task<bool> CanUserUpload(string userId, long fileSize)
-    {
-        return true; //add user=>plan connection and in plan set storage limit. Then check if user used storage + fileSize <= plan limit
     }
 }

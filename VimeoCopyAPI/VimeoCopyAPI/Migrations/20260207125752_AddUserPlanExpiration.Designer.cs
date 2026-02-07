@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using VimeoCopyApi.Data;
 
@@ -11,9 +12,11 @@ using VimeoCopyApi.Data;
 namespace VimeoCopyAPI.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260207125752_AddUserPlanExpiration")]
+    partial class AddUserPlanExpiration
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -203,7 +206,7 @@ namespace VimeoCopyAPI.Migrations
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("bit");
 
-                    b.Property<DateTime?>("PlanExpiration")
+                    b.Property<DateTime>("PlanExpiration")
                         .HasColumnType("datetime2");
 
                     b.Property<int?>("PlanId")
@@ -256,34 +259,6 @@ namespace VimeoCopyAPI.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Plans");
-                });
-
-            modelBuilder.Entity("VimeoCopyAPI.Models.PlanNotification", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("ExpirationCheckDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("SentAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("int");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("PlanNotifications");
                 });
 
             modelBuilder.Entity("VimeoCopyAPI.Models.RefreshToken", b =>
@@ -422,17 +397,6 @@ namespace VimeoCopyAPI.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Plan");
-                });
-
-            modelBuilder.Entity("VimeoCopyAPI.Models.PlanNotification", b =>
-                {
-                    b.HasOne("VimeoCopyAPI.Models.ApplicationUser", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("VimeoCopyAPI.Models.RefreshToken", b =>

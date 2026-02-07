@@ -12,6 +12,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Media> Media { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<Plan> Plans { get; set; }
+    public DbSet<PlanNotification> PlanNotifications { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

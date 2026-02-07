@@ -36,12 +36,12 @@ namespace VimeoCopyAPI.Services
 
         public async Task<UserLoginResponseDTO?> RegisterAsync(UserRegisterDTO input)
         {
-            //var user = await _userManager.FindByEmailAsync(input.Email);
+            var user = await _userManager.FindByEmailAsync(input.Email);
 
-            //if (user is not null)
-            //    throw new Exception("User already exists");
+            if (user is not null)
+                throw new Exception("User already exists");
 
-           var  user = new ApplicationUser
+            user = new ApplicationUser
             {
                 UserName = input.Email,
                 Email = input.Email
@@ -53,9 +53,8 @@ namespace VimeoCopyAPI.Services
                 throw new Exception(result.Errors.Select(x => x.Description).FirstOrDefault());
 
             await _userManager.AddToRoleAsync(user, "User"); //default 
-            //await _userManager.AddClaimAsync(user, new Claim("CanUploadVideos", "true"));
+            await AssignPlanToUserAsync(user.Id, "free");
 
-            // email confirmation later
             return await LoginAsync(new() { Email = input.Email, Password = input.Password });
         }
 
@@ -114,7 +113,7 @@ namespace VimeoCopyAPI.Services
             context.Response.Cookies.Delete("refreshToken");
         }
 
-        public AuthenticationProperties GetExternalAuthenticationProperties(string provider, string redirectUrl) 
+        public AuthenticationProperties GetExternalAuthenticationProperties(string provider, string redirectUrl)
             => _signInManager.ConfigureExternalAuthenticationProperties(provider, redirectUrl);
 
         public async Task<ExternalLoginResultDTO> HandleExternalLoginCallbackAsync(HttpContext httpContext, string returnUrl = "/")
@@ -150,7 +149,7 @@ namespace VimeoCopyAPI.Services
                 return new ExternalLoginResultDTO { Success = false, ErrorMessage = "Email claim missing from external provider" };
 
             if (await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == email) != null)
-                return new ExternalLoginResultDTO 
+                return new ExternalLoginResultDTO
                 { Success = false, ErrorMessage = "An account with this email already exists. Please login using your credentials and link the external provider from your account settings." };
 
             var newUser = new ApplicationUser { UserName = email, Email = email, EmailConfirmed = true };
@@ -204,8 +203,36 @@ namespace VimeoCopyAPI.Services
 
             user.PlanId = plan.Id;
             user.BuyedMemory = plan.StorageLimitInBytes;
+            user.PlanExpiration = planName == "free" ? DateTime.UtcNow.AddDays(1) : DateTime.UtcNow.AddMonths(1);
             _dbContext.Users.Update(user);
             await _dbContext.SaveChangesAsync();
+        }
+
+        public async Task UnassingPlanFromUserAsync(string userId)
+        {
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId) ?? throw new Exception("User not found");
+            user.PlanId = null;
+            user.BuyedMemory = null;
+            user.PlanExpiration = null;
+            _dbContext.Users.Update(user);
+            await _dbContext.SaveChangesAsync();
+        }
+
+        public async Task<string> CanUserUploadAsync(string userId, long fileSize)
+        {
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId) ?? throw new Exception("User not found");
+
+            if (user.BuyedMemory is null || user.PlanId is null)
+                return "User doesn't have plan!";
+            if (user.PlanExpiration < DateTime.UtcNow)
+            {
+                await UnassingPlanFromUserAsync(userId);
+                return "User's plan has expired!";
+            }
+            if ((user.UsedMemory ?? 0) + fileSize > user.BuyedMemory)
+                return "Yes";
+
+            return "User doesn't have enough storage!";
         }
 
         private async Task<string> GenerateAccessTokenAsync(ApplicationUser user)
