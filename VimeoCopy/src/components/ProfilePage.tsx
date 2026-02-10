@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../Auth/useAuth";
 import { API_BASE_URL } from "../config";
+import "../App.css";
 
 interface Media {
   id: string;
@@ -89,30 +90,46 @@ export function ProfilePage() {
     loadUrls();
   }, [user, authFetch]);
 
-  if (!user) return <div>Loading...</div>;
+  if (!user) return <div className="loading" style={{ margin: "var(--space-16) auto" }}></div>;
 
   return (
-    <div style={{ padding: 20 }}>
-      <h1>Profile</h1>
-      <p>Email: {user.email}</p>
+    <div className="container">
+      <div className="card">
+        <div className="card-header">
+          <h1 style={{ marginBottom: 0 }}>Creator Dashboard</h1>
+        </div>
 
-      <h2>Your Media</h2>
+        <div className="card-body">
+          <div style={{ marginBottom: "var(--space-6)" }}>
+            <p style={{ color: "var(--gray-600)" }}>
+              <span style={{ fontWeight: 600 }}>Account Email:</span> {user.email}
+            </p>
+            <p style={{ color: "var(--gray-600)" }}>
+              <span style={{ fontWeight: 600 }}>Published Content:</span> {user.media.length} file{user.media.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+        </div>
+      </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-          gap: 20,
-        }}
-      >
-        {user.media.map((m) => (
-          <MediaItem
-            key={m.id}
-            media={m}
-            url={urls[m.id]}
-            onDelete={() => handleDeleteMedia(m.id)}
-          />
-        ))}
+      <div style={{ marginTop: "var(--space-8)" }}>
+        <h2>Your Video Collection</h2>
+
+        {user.media.length === 0 ? (
+          <div className="card" style={{ textAlign: "center", padding: "var(--space-12)" }}>
+            <p className="text-muted">Your media library is empty. <a href="/upload">Upload your first video</a> to get started!</p>
+          </div>
+        ) : (
+          <div className="grid grid-2">
+            {user.media.map((m) => (
+              <MediaItem
+                key={m.id}
+                media={m}
+                url={urls[m.id]}
+                onDelete={() => handleDeleteMedia(m.id)}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -127,42 +144,33 @@ function MediaItem({
   url?: string;
   onDelete: () => void;
 }) {
-  if (!url) return <div>Loading...</div>;
-
-  const style: React.CSSProperties = {
-    width: "100%",
-    borderRadius: 8,
-    maxHeight: "50vh",
-    objectFit: "contain",
-    backgroundColor: "#000",
-  };
-
-  const containerStyle: React.CSSProperties = {
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-  };
-
-  const buttonStyle: React.CSSProperties = {
-    padding: "8px 12px",
-    backgroundColor: "#e74c3c",
-    color: "white",
-    border: "none",
-    borderRadius: 4,
-    cursor: "pointer",
-    fontSize: "14px",
-  };
+  if (!url) return <div className="card" style={{ padding: "var(--space-8)", textAlign: "center" }}><div className="loading" style={{ margin: "0 auto" }}></div></div>;
 
   return (
-    <div style={containerStyle}>
-      {media.contentType.startsWith("image/") ? (
-        <img src={url} style={style} />
-      ) : (
-        <video src={url} controls style={style} />
-      )}
-      <button onClick={onDelete} style={buttonStyle}>
-        Delete
-      </button>
+    <div className="card">
+      <div style={{ width: "100%", height: "200px", borderRadius: "var(--radius-lg)", overflow: "hidden", backgroundColor: "var(--bg-deep)", marginBottom: "var(--space-4)" }}>
+        {media.contentType.startsWith("image/") ? (
+          <img src={url} alt={media.fileName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : (
+          <video src={url} controls style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        )}
+      </div>
+
+      <div style={{ marginBottom: "var(--space-3)" }}>
+        <p style={{ fontWeight: 500, marginBottom: "var(--space-1)" }}>{media.fileName}</p>
+        <p className="text-muted" style={{ fontSize: "var(--font-size-sm)", marginBottom: "var(--space-1)" }}>
+          {(media.fileSize / (1024 * 1024)).toFixed(2)} MB
+        </p>
+        <p className="text-muted" style={{ fontSize: "var(--font-size-xs)", marginBottom: 0 }}>
+          Status: <span style={{ color: "var(--success)", fontWeight: 600 }}>{media.status || 'Ready'}</span>
+        </p>
+      </div>
+
+      <div style={{ display: "flex", gap: "var(--space-2)" }}>
+        <button onClick={onDelete} className="btn-danger" style={{ flex: 1, fontSize: "var(--font-size-sm)" }}>
+          Delete
+        </button>
+      </div>
     </div>
   );
 }

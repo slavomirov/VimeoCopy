@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { API_BASE_URL } from "../config";
 import { useAuth } from "../Auth/useAuth";
+import "../App.css";
 
 export function BuyPage() {
   const { authFetch } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   async function handleBuy() {
     setError(null);
+    setLoading(true);
 
     try {
       const res = await authFetch(`${API_BASE_URL}/api/payments/test`, {
@@ -28,59 +31,61 @@ export function BuyPage() {
         return;
       }
 
-      // 🔥 Redirect към Stripe / Paddle / каквото е
       window.location.href = data.redirectUrl;
 
     } catch (err) {
       setError("Network error");
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
-    <div
-      style={{
-        padding: 40,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 30,
-      }}
-    >
-      <h1>Buy Test Page</h1>
-
-      <button
-        onClick={handleBuy}
-        style={{
-          padding: "16px 40px",
-          fontSize: "20px",
-          fontWeight: 600,
-          borderRadius: "12px",
-          border: "none",
-          cursor: "pointer",
-          background: "linear-gradient(135deg, #6a5af9, #8f7bff)",
-          color: "white",
-          boxShadow: "0 8px 20px rgba(0,0,0,0.15)",
-          transition: "transform 0.15s ease, box-shadow 0.15s ease",
-        }}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.05)";
-          (e.currentTarget as HTMLButtonElement).style.boxShadow =
-            "0 12px 28px rgba(0,0,0,0.25)";
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)";
-          (e.currentTarget as HTMLButtonElement).style.boxShadow =
-            "0 8px 20px rgba(0,0,0,0.15)";
-        }}
-      >
-        Buy
-      </button>
-
-      {error && (
-        <div style={{ color: "red", marginTop: 20 }}>
-          {error}
+    <div className="container" style={{ maxWidth: "500px", margin: "0 auto" }}>
+      <div className="card" style={{ textAlign: "center", padding: "var(--space-12)" }}>
+        <div className="card-header" style={{ borderBottom: "none", paddingBottom: 0 }}>
+          <h1 style={{ marginBottom: "var(--space-2)" }}>Unlock Premium Features</h1>
+          <p className="text-muted">Take your video content to the next level with our professional plan</p>
         </div>
-      )}
+
+        <div className="card-body" style={{ marginTop: "var(--space-8)" }}>
+          <div style={{
+            backgroundColor: "rgba(34, 197, 94, 0.08)",
+            padding: "var(--space-6)",
+            borderRadius: "var(--radius-lg)",
+            marginBottom: "var(--space-8)",
+            border: "1px solid rgba(34, 197, 94, 0.2)"
+          }}>
+            <p style={{ fontSize: "var(--font-size-3xl)", fontWeight: 700, color: "var(--primary)", marginBottom: "var(--space-2)", textShadow: "0 0 15px rgba(34, 197, 94, 0.4)" }}>
+              $9.99
+            </p>
+            <p className="text-muted" style={{ marginBottom: 0 }}>per month • Cancel anytime</p>
+          </div>
+
+          <ul style={{ textAlign: "left", marginBottom: "var(--space-8)", listStyle: "none", color: "var(--gray-500)" }}>
+            <li style={{ padding: "var(--space-3)", borderBottom: "1px solid var(--border-color)" }}>✓ Unlimited video uploads</li>
+            <li style={{ padding: "var(--space-3)", borderBottom: "1px solid var(--border-color)" }}>✓ Advanced viewer analytics</li>
+            <li style={{ padding: "var(--space-3)", borderBottom: "1px solid var(--border-color)" }}>✓ Custom video players</li>
+            <li style={{ padding: "var(--space-3)", borderBottom: "1px solid var(--border-color)" }}>✓ Priority email support</li>
+            <li style={{ padding: "var(--space-3)" }}>✓ 4K streaming capability</li>
+          </ul>
+
+          {error && <div className="alert alert-error" style={{ marginBottom: "var(--space-6)" }}>{error}</div>}
+
+          <button
+            onClick={handleBuy}
+            disabled={loading}
+            className="btn-primary"
+            style={{ width: "100%", fontSize: "var(--font-size-lg)", padding: "var(--space-4)" }}
+          >
+            {loading ? "Processing Payment..." : "Upgrade Now"}
+          </button>
+
+          <p className="text-muted" style={{ marginTop: "var(--space-4)", fontSize: "var(--font-size-sm)" }}>
+            💳 Secure payment processed by Stripe. Your data is encrypted and secure.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

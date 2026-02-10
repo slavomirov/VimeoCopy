@@ -16,6 +16,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [roles, setRoles] = useState<string[]>([]);
   const [claims, setClaims] = useState<Record<string, unknown>>({});
   const [email, setEmail] = useState<string | null>(null);
+  const [initializing, setInitializing] = useState(true);
 
   // Decode JWT and extract claims
   const processToken = useCallback((token: string) => {
@@ -180,6 +181,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(id);
   }, [accessToken, refreshToken]);
 
+  // Attempt to restore session on initial mount (use refresh token cookie)
+  useEffect(() => {
+    // call refreshToken once when the app loads to pick up a session after full-page redirects
+    (async () => {
+      try {
+        await refreshToken();
+      } finally {
+        setInitializing(false);
+      }
+    })();
+  }, [refreshToken]);
+
+  if (initializing) {
+    return (
+      <div style={{ padding: 40, textAlign: "center" }}>
+        <h2>Restoring session...</h2>
+      </div>
+    );
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -187,6 +208,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         roles,
         claims,
         email,
+        initializing,
         login,
         loginWithToken,
         logout,

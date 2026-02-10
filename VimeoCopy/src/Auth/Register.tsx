@@ -31,78 +31,84 @@ export function Register() {
     try {
       setLoading(true);
 
-      // 🔥 register() вече логва потребителя автоматично
       await register(form.email, form.password);
 
       toast.success("Successfully registered!");
 
-      // 🔥 след успешна регистрация → директно към профила
       navigate("/profile");
     } catch {
-      // грешката вече е показана от AuthProvider
+      // Error already displayed from AuthProvider
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div style={{ maxWidth: 400, margin: "40px auto" }}>
-      <h2>Register</h2>
-
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: 15 }}>
-          <label>Email</label>
-          <input
-            type="email"
-            name="email"
-            value={form.email}
-            onChange={handleChange}
-            required
-            style={{ width: "100%", padding: 8 }}
-          />
+    <div className="container" style={{ maxWidth: "400px", margin: "var(--space-16) auto" }}>
+      <div className="card">
+        <div className="card-header">
+          <h2 className="card-title">Create New Account</h2>
         </div>
 
-        <div style={{ marginBottom: 15 }}>
-          <label>Password</label>
-          <input
-            type="password"
-            name="password"
-            value={form.password}
-            onChange={handleChange}
-            required
-            minLength={6}
-            style={{ width: "100%", padding: 8 }}
-          />
-        </div>
+        <form onSubmit={handleSubmit} className="form">
+          <div className="form-group">
+            <label htmlFor="email">Email Address</label>
+            <input
+              id="email"
+              type="email"
+              name="email"
+              placeholder="your@email.com"
+              value={form.email}
+              onChange={handleChange}
+              required
+            />
+          </div>
 
-        <div style={{ marginBottom: 15 }}>
-          <label>Confirm Password</label>
-          <input
-            type="password"
-            name="confirmPassword"
-            value={form.confirmPassword}
-            onChange={handleChange}
-            required
-            minLength={6}
-            style={{ width: "100%", padding: 8 }}
-          />
-        </div>
+          <div className="form-group">
+            <label htmlFor="password">Password</label>
+            <input
+              id="password"
+              type="password"
+              name="password"
+              placeholder="Minimum 6 characters"
+              value={form.password}
+              onChange={handleChange}
+              required
+              minLength={6}
+            />
+            <div className="input-help">Must be at least 6 characters</div>
+          </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            width: "100%",
-            padding: 10,
-            background: "#007bff",
-            color: "white",
-            border: "none",
-            cursor: "pointer"
-          }}
-        >
-          {loading ? "Please wait..." : "Register"}
-        </button>
-      </form>
+          <div className="form-group">
+            <label htmlFor="confirmPassword">Confirm Password</label>
+            <input
+              id="confirmPassword"
+              type="password"
+              name="confirmPassword"
+              placeholder="Confirm your password"
+              value={form.confirmPassword}
+              onChange={handleChange}
+              required
+              minLength={6}
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="btn-primary"
+            disabled={loading}
+            style={{ width: "100%" }}
+          >
+            {loading ? "Creating Account..." : "Create Account"}
+          </button>
+        </form>
+
+        <div className="card-footer" style={{ textAlign: "center", marginTop: "var(--space-6)" }}>
+          <p className="text-muted" style={{ marginBottom: 0 }}>
+            Already have an account? <a href="/login">Sign in here</a>
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

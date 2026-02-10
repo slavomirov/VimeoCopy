@@ -163,6 +163,65 @@ namespace VimeoCopyAPI.Services
             return new ExternalLoginResultDTO { Success = true, AccessToken = newAccessToken, RefreshToken = newRefreshToken, RedirectUrl = $"{returnUrl}?accessToken={newAccessToken}" };
         }
 
+        private async Task<string> GenerateAccessTokenAsync(ApplicationUser user)
+        {
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var userRoles = await _userManager.GetRolesAsync(user);
+            var userClaims = await _userManager.GetClaimsAsync(user);
+
+            var claims = new List<Claim>
+            {
+                new(JwtRegisteredClaimNames.Sub, user.Id),
+                new(JwtRegisteredClaimNames.Email, user.Email!)
+            };
+
+            claims.AddRange(userRoles.Select(r => new Claim(ClaimTypes.Role, r)));
+            claims.AddRange(userClaims);
+
+            var token = new JwtSecurityToken(
+                issuer: _config["Jwt:Issuer"],
+                audience: _config["Jwt:Audience"],
+                claims: claims,
+                expires: DateTime.UtcNow.AddMinutes(15),
+                signingCredentials: creds
+            );
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        private async Task<string> CreateAndStoreRefreshTokenAsync(ApplicationUser user)
+        {
+            var tokenBytes = RandomNumberGenerator.GetBytes(64);
+            var token = Convert.ToBase64String(tokenBytes);
+
+            var refreshToken = new RefreshToken
+            {
+                UserId = user.Id,
+                Token = token,
+                ExpiresAt = DateTime.UtcNow.AddDays(1)
+            };
+
+            _dbContext.RefreshTokens.Add(refreshToken);
+            await _dbContext.SaveChangesAsync();
+
+            return token;
+        }
+
+        private static void SetRefreshTokenCookie(HttpResponse response, string refreshToken)
+        {
+            var cookieOptions = new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Strict,
+                Expires = DateTime.UtcNow.AddDays(1)
+            };
+
+            response.Cookies.Append("refreshToken", refreshToken, cookieOptions);
+        }
+
         public async Task<UserDataDTO?> GetUserDataAsync(string userId)
         {
             var user = await _dbContext.Users
@@ -234,63 +293,5 @@ namespace VimeoCopyAPI.Services
             return "User doesn't have enough storage!";
         }
 
-        private async Task<string> GenerateAccessTokenAsync(ApplicationUser user)
-        {
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-            var userRoles = await _userManager.GetRolesAsync(user);
-            var userClaims = await _userManager.GetClaimsAsync(user);
-
-            var claims = new List<Claim>
-            {
-                new(JwtRegisteredClaimNames.Sub, user.Id),
-                new(JwtRegisteredClaimNames.Email, user.Email!)
-            };
-
-            claims.AddRange(userRoles.Select(r => new Claim(ClaimTypes.Role, r)));
-            claims.AddRange(userClaims);
-
-            var token = new JwtSecurityToken(
-                issuer: _config["Jwt:Issuer"],
-                audience: _config["Jwt:Audience"],
-                claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(15),
-                signingCredentials: creds
-            );
-
-            return new JwtSecurityTokenHandler().WriteToken(token);
-        }
-
-        private async Task<string> CreateAndStoreRefreshTokenAsync(ApplicationUser user)
-        {
-            var tokenBytes = RandomNumberGenerator.GetBytes(64);
-            var token = Convert.ToBase64String(tokenBytes);
-
-            var refreshToken = new RefreshToken
-            {
-                UserId = user.Id,
-                Token = token,
-                ExpiresAt = DateTime.UtcNow.AddDays(1)
-            };
-
-            _dbContext.RefreshTokens.Add(refreshToken);
-            await _dbContext.SaveChangesAsync();
-
-            return token;
-        }
-
-        private static void SetRefreshTokenCookie(HttpResponse response, string refreshToken)
-        {
-            var cookieOptions = new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = true,
-                SameSite = SameSiteMode.Strict,
-                Expires = DateTime.UtcNow.AddDays(1)
-            };
-
-            response.Cookies.Append("refreshToken", refreshToken, cookieOptions);
-        }
     }
 }
