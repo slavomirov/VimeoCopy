@@ -7,9 +7,12 @@ import toast from "react-hot-toast";
 interface TokenPayload {
   sub: string;
   email: string;
+  exp?: number;
   role?: string | string[];
   [key: string]: unknown;
 }
+
+const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -17,6 +20,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [claims, setClaims] = useState<Record<string, unknown>>({});
   const [email, setEmail] = useState<string | null>(null);
   const [initializing, setInitializing] = useState(true);
+
+  const clearAuthState = useCallback(() => {
+    setAccessToken(null);
+    setRoles([]);
+    setClaims({});
+    setEmail(null);
+    sessionStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+  }, []);
 
   // Decode JWT and extract claims
   const processToken = useCallback((token: string) => {
@@ -31,6 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setRoles(extractedRoles);
     setClaims(decoded);
     setEmail(decoded.email || null);
+    sessionStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, token);
   }, []);
 
   // Used for social login redirect
@@ -50,10 +62,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     if (!res.ok) {
-      setAccessToken(null);
-      setRoles([]);
-      setClaims({});
-      setEmail(null);
       return null;
     }
 
@@ -116,10 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       credentials: "include",
     });
 
-    setAccessToken(null);
-    setRoles([]);
-    setClaims({});
-    setEmail(null);
+    clearAuthState();
   }
 
   // Global fetch wrapper with auto-refresh + error notifications
@@ -143,6 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (!newToken) {
           toast.error("Session expired. Please log in again.");
+          clearAuthState();
           return res;
         }
 
@@ -169,7 +175,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return res;
     },
-    [accessToken, refreshToken]
+    [accessToken, clearAuthState, refreshToken]
   );
 
   // Auto refresh every 10 minutes
@@ -183,15 +189,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Attempt to restore session on initial mount (use refresh token cookie)
   useEffect(() => {
-    // call refreshToken once when the app loads to pick up a session after full-page redirects
+    const savedToken = sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
+
     (async () => {
       try {
+        if (savedToken) {
+          const decoded = jwtDecode<TokenPayload>(savedToken);
+          const nowInSeconds = Math.floor(Date.now() / 1000);
+
+          if (decoded.exp && decoded.exp > nowInSeconds) {
+            setAccessToken(savedToken);
+            processToken(savedToken);
+          } else {
+            sessionStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+          }
+        }
+
         await refreshToken();
       } finally {
         setInitializing(false);
       }
     })();
-  }, [refreshToken]);
+  }, [processToken, refreshToken]);
 
   if (initializing) {
     return (

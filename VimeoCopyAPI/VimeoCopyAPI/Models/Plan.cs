@@ -15,5 +15,8 @@ public class Plan
     [Required]
     public long StorageLimitInBytes { get; set; }
 
+    [MaxLength(1000)]
+    public string? Description { get; set; }
+
     public ICollection<ApplicationUser> Users { get; set; } = [];
 }

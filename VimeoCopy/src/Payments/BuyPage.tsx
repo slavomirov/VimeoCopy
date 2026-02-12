@@ -1,14 +1,21 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../config";
 import { useAuth } from "../Auth/useAuth";
 import "../App.css";
 
 export function BuyPage() {
-  const { authFetch } = useAuth();
+  const { authFetch, accessToken } = useAuth();
+  const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleBuy() {
+    if (!accessToken) {
+      navigate("/profile");
+      return;
+    }
+
     setError(null);
     setLoading(true);
 

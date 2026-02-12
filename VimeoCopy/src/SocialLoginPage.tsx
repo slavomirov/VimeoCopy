@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./Auth/useAuth";
+import toast from "react-hot-toast";
 import "./App.css";
 
 export default function SocialLoginPage() {
@@ -10,12 +11,19 @@ export default function SocialLoginPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("accessToken");
+    const error = params.get("error");
+
+    if (error) {
+      toast.error(error);
+      navigate("/profile");
+      return;
+    }
 
     if (token) {
       loginWithToken(token);
       navigate("/");
     } else {
-      navigate("/login");
+      navigate("/profile");
     }
   }, [loginWithToken, navigate]);
 

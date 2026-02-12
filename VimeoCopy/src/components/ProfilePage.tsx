@@ -15,7 +15,28 @@ interface Media {
 interface UserData {
   id: string;
   email: string;
+  buyedMemory: number | null;
+  usedMemory: number | null;
+  freeMemory: number | null;
+  planExpiration: string | null;
+  planName: string | null;
+  planDescription: string | null;
   media: Media[];
+}
+
+function formatBytes(value: number | null | undefined) {
+  if (value === null || value === undefined) return "N/A";
+
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let size = value;
+  let unitIndex = 0;
+
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex++;
+  }
+
+  return `${size.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`;
 }
 
 export function ProfilePage() {
@@ -106,6 +127,24 @@ export function ProfilePage() {
             </p>
             <p style={{ color: "var(--gray-600)" }}>
               <span style={{ fontWeight: 600 }}>Published Content:</span> {user.media.length} file{user.media.length !== 1 ? 's' : ''}
+            </p>
+            <p style={{ color: "var(--gray-600)" }}>
+              <span style={{ fontWeight: 600 }}>Plan:</span> {user.planName ?? "N/A"}
+            </p>
+            <p style={{ color: "var(--gray-600)" }}>
+              <span style={{ fontWeight: 600 }}>Buyed Memory:</span> {formatBytes(user.buyedMemory)}
+            </p>
+            <p style={{ color: "var(--gray-600)" }}>
+              <span style={{ fontWeight: 600 }}>Used Memory:</span> {formatBytes(user.usedMemory)}
+            </p>
+            <p style={{ color: "var(--gray-600)" }}>
+              <span style={{ fontWeight: 600 }}>Free Memory:</span> {formatBytes(user.freeMemory)}
+            </p>
+            <p style={{ color: "var(--gray-600)" }}>
+              <span style={{ fontWeight: 600 }}>Plan Expiration:</span> {user.planExpiration ? new Date(user.planExpiration).toLocaleString() : "N/A"}
+            </p>
+            <p style={{ color: "var(--gray-600)", marginBottom: 0 }}>
+              <span style={{ fontWeight: 600 }}>Plan Description:</span> {user.planDescription ?? "N/A"}
             </p>
           </div>
         </div>

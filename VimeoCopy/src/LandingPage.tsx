@@ -117,8 +117,8 @@ export function LandingPage() {
             <p>Join thousands of creators and teams who trust VimeoCopy for their video management needs.</p>
 
             <div className="cta-actions">
-              <Link to="/register" className="btn btn-primary btn-large">Create Free Account</Link>
-              <Link to="/login" className="btn btn-ghost btn-large">Sign In</Link>
+              <Link to="/profile" className="btn btn-primary btn-large">Create Free Account</Link>
+              <Link to="/profile" className="btn btn-ghost btn-large">Sign In</Link>
             </div>
           </div>
         </div>
@@ -157,7 +157,7 @@ export function LandingPage() {
       <section className="footer-cta">
         <div className="container">
           <p>Start your free trial today. No credit card required.</p>
-          <Link to="/register" className="btn btn-primary">Get Started Now</Link>
+          <Link to="/profile" className="btn btn-primary">Get Started Now</Link>
         </div>
       </section>
 

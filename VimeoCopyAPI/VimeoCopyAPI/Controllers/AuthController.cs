@@ -69,7 +69,11 @@ public class AuthController : ControllerBase
         var result = await _userService.HandleExternalLoginCallbackAsync(HttpContext, returnUrl);
 
         if (!result.Success)
-            throw new Exception(result.ErrorMessage);
+        {
+            var separator = returnUrl.Contains('?') ? "&" : "?";
+            var encodedError = Uri.EscapeDataString(result.ErrorMessage ?? "External login failed");
+            return Redirect($"{returnUrl}{separator}error={encodedError}");
+        }
 
         SetRefreshTokenCookie(result.RefreshToken!);
 
@@ -82,7 +86,7 @@ public class AuthController : ControllerBase
         {
             HttpOnly = true,
             Secure = true, // в dev може да го махнеш ако не си на https
-            SameSite = SameSiteMode.Strict,
+            SameSite = SameSiteMode.None,
             Expires = DateTime.UtcNow.AddDays(7)
         };
 

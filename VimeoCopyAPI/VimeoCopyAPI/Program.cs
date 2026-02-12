@@ -36,7 +36,7 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(buil
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
-    options.SignIn.RequireConfirmedEmail = false; // ще го ползваме по-късно
+    options.SignIn.RequireConfirmedEmail = false; // пїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ-пїЅпїЅпїЅпїЅпїЅ
     options.Password.RequiredUniqueChars = 0;
     options.Password.RequireNonAlphanumeric = false;
     options.Password.RequireDigit = false;
@@ -51,12 +51,15 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 builder.Services.AddHostedService<RefreshTokenCleanupService>();
 builder.Services.AddHostedService<PlanExpirationService>();
 
+var allowedFrontendOrigins = builder.Configuration.GetSection("Frontend:AllowedOrigins").Get<string[]>()
+    ?? ["http://localhost:5173"];
+
 //FE CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5173") // FE dev server
+        policy.WithOrigins(allowedFrontendOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
@@ -124,6 +127,8 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseCors("AllowFrontend");
+
+app.UseMiddleware<CsrfProtectionMiddleware>(new object[] { allowedFrontendOrigins });
 
 app.UseMiddleware<ErrorHandlingMiddleware>();
 
