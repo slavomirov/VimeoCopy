@@ -1,0 +1,44 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "run backend",
+      "type": "shell",
+      "command": "dotnet watch run --project \"${workspaceFolder}/VimeoCopyAPI/VimeoCopyAPI/VimeoCopyAPI.csproj\"",
+      "isBackground": true,
+      "problemMatcher": ["$msCompile"]
+    },
+    {
+      "label": "run frontend",
+      "type": "shell",
+      "command": "npm --prefix \"${workspaceFolder}/VimeoCopy\" run dev",
+      "isBackground": true,
+      "problemMatcher": [
+        {
+          "owner": "custom",
+          "fileLocation": ["relative", "${workspaceFolder}/VimeoCopy"],
+          "pattern": {
+            "regexp": "^(?!x)x"
+          },
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": "^\\s*>\\s+vimeocopy@.*\\s+dev$",
+            "endsPattern": "ready in .*ms|Local:\\s+http://"
+          }
+        }
+      ]
+    },
+    {
+      "label": "build backend",
+      "type": "shell",
+      "command": "dotnet build \"${workspaceFolder}/VimeoCopyAPI/VimeoCopyAPI/VimeoCopyAPI.csproj\"",
+      "problemMatcher": ["$msCompile"]
+    },
+    {
+      "label": "Run Both",
+      "dependsOn": ["run backend", "run frontend"],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    }
+  ]
+}

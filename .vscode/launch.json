@@ -1,0 +1,42 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch Frontend (Chrome)",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/VimeoCopy",
+      "preLaunchTask": "run frontend"
+    },
+    {
+      "name": "Backend .NET (Debug)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build backend",
+      "program": "${workspaceFolder}/VimeoCopyAPI/VimeoCopyAPI/bin/Debug/net8.0/VimeoCopyAPI.dll",
+      "cwd": "${workspaceFolder}/VimeoCopyAPI/VimeoCopyAPI",
+      "stopAtEntry": false,
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    {
+      "name": "Attach to .NET",
+      "type": "coreclr",
+      "request": "attach",
+      "processId": "${command:pickProcess}"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Frontend + Backend (No Debug)",
+      "configurations": ["Launch Frontend (Chrome)", "Attach to .NET"],
+      "preLaunchTask": "Run Both"
+    },
+    {
+      "name": "Debug FE + BE",
+      "configurations": ["Backend .NET (Debug)", "Launch Frontend (Chrome)"]
+    }
+  ]
+}
