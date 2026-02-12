@@ -131,7 +131,7 @@ export function Upload() {
     <div className="container" style={{ maxWidth: "600px", margin: "0 auto" }}>
       <div className="card">
         <div className="card-header">
-          <h2 className="card-title">Upload Your Video</h2>
+          <h2 className="card-title">Upload Your Media</h2>
           <p className="text-muted" style={{ marginBottom: 0, fontSize: "var(--font-size-sm)" }}>
             Share your content with the world. Supported formats: MP4, WebM, MOV, PNG, JPG, MP3, OGG
           </p>
@@ -186,7 +186,7 @@ export function Upload() {
                   {file ? file.name : "Click or drag to upload"}
                 </p>
                 <p className="text-muted" style={{ fontSize: "var(--font-size-sm)" }}>
-                  Choose a video file from your device
+                  Choose a media file from your device
                 </p>
               </label>
             </div>
@@ -213,7 +213,7 @@ export function Upload() {
               className="btn-primary"
               style={{ flex: 1 }}
             >
-              {uploading ? "Publishing..." : "Publish Video"}
+              {uploading ? "Publishing..." : "Publish Media"}
             </button>
           </div>
         </div>

@@ -40,7 +40,7 @@ export function LandingPage() {
                 </svg>
               </div>
               <h3>Easy Upload</h3>
-              <p>Drag and drop your videos or click to browse. Supports all major formats with lightning-fast uploads.</p>
+              <p>Drag and drop your media or click to browse. Supports all major formats with lightning-fast uploads.</p>
             </div>
 
             {/* Feature 2 */}
@@ -52,7 +52,7 @@ export function LandingPage() {
                 </svg>
               </div>
               <h3>Organize & Store</h3>
-              <p>Keep all your videos organized in one place. Search, filter, and manage your library effortlessly.</p>
+              <p>Keep all your media files organized in one place. Search, filter, and manage your library effortlessly.</p>
             </div>
 
             {/* Feature 3 */}
