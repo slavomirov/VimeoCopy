@@ -24,10 +24,10 @@ interface UserData {
   media: Media[];
 }
 
-function formatBytes(value: number | null | undefined) {
+function formatMemoryFromMb(value: number | null | undefined) {
   if (value === null || value === undefined) return "N/A";
 
-  const units = ["B", "KB", "MB", "GB", "TB"];
+  const units = ["MB", "GB", "TB", "PB"];
   let size = value;
   let unitIndex = 0;
 
@@ -36,7 +36,8 @@ function formatBytes(value: number | null | undefined) {
     unitIndex++;
   }
 
-  return `${size.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`;
+  const decimals = Number.isInteger(size) ? 0 : 2;
+  return `${size.toFixed(decimals)} ${units[unitIndex]}`;
 }
 
 export function ProfilePage() {
@@ -132,13 +133,13 @@ export function ProfilePage() {
               <span style={{ fontWeight: 600 }}>Plan:</span> {user.planName ?? "N/A"}
             </p>
             <p style={{ color: "var(--gray-600)" }}>
-              <span style={{ fontWeight: 600 }}>Buyed Memory:</span> {formatBytes(user.buyedMemory)}
+              <span style={{ fontWeight: 600 }}>Buyed Memory:</span> {formatMemoryFromMb(user.buyedMemory)}
             </p>
             <p style={{ color: "var(--gray-600)" }}>
-              <span style={{ fontWeight: 600 }}>Used Memory:</span> {formatBytes(user.usedMemory)}
+              <span style={{ fontWeight: 600 }}>Used Memory:</span> {formatMemoryFromMb(user.usedMemory)}
             </p>
             <p style={{ color: "var(--gray-600)" }}>
-              <span style={{ fontWeight: 600 }}>Free Memory:</span> {formatBytes(user.freeMemory)}
+              <span style={{ fontWeight: 600 }}>Free Memory:</span> {formatMemoryFromMb(user.freeMemory)}
             </p>
             <p style={{ color: "var(--gray-600)" }}>
               <span style={{ fontWeight: 600 }}>Plan Expiration:</span> {user.planExpiration ? new Date(user.planExpiration).toLocaleString() : "N/A"}

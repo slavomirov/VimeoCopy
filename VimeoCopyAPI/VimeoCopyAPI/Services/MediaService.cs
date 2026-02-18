@@ -17,14 +17,16 @@ public class MediaService : IMediaService
     private readonly IConfiguration _config;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly string? bucket;
+    private readonly IUserService _userService;
 
-    public MediaService(AppDbContext dbContext, IAmazonS3 s3, IConfiguration config, IHttpContextAccessor httpContextAccessor)
+    public MediaService(AppDbContext dbContext, IAmazonS3 s3, IConfiguration config, IHttpContextAccessor httpContextAccessor, IUserService userService)
     {
         _dbContext = dbContext;
         _s3 = s3;
         _config = config;
         _httpContextAccessor = httpContextAccessor;
         bucket = _config["AWS:BucketName"];
+        _userService = userService;
     }
 
     public async Task<IEnumerable<Media>> GetAllMediaAsync()
@@ -61,6 +63,7 @@ public class MediaService : IMediaService
         if (media.UserId.ToString() != userId)
             throw new UnauthorizedAccessException("You don't have permission to delete this media.");
 
+        await _userService.DecreaseUsedMemoryAsync(userId, media.FileSize);
         _dbContext.Remove(media);
         await _dbContext.SaveChangesAsync();
      
@@ -69,5 +72,7 @@ public class MediaService : IMediaService
             BucketName = bucket,
             Key = mediaId
         });
+
+        ;
     }
 }

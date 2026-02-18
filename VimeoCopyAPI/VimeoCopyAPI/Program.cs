@@ -36,7 +36,7 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(buil
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
-    options.SignIn.RequireConfirmedEmail = false; // �� �� �������� ��-�����
+    options.SignIn.RequireConfirmedEmail = false; //email confirmation!!!
     options.Password.RequiredUniqueChars = 0;
     options.Password.RequireNonAlphanumeric = false;
     options.Password.RequireDigit = false;
@@ -95,13 +95,12 @@ builder.Services.AddScoped<IMediaService, MediaService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IUploadService, UploadService>();
+builder.Services.AddScoped<IPlanService, PlanService>();
 
 
 builder.Services.AddOptions<StripeOptions>().Bind(builder.Configuration.GetSection("Stripe"));
 
 var app = builder.Build();
-
-
 
 //Automatic migrations
 //remove on production
@@ -110,6 +109,13 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
 }
+
+using (var scope = app.Services.CreateScope())
+{
+    var planService = scope.ServiceProvider.GetRequiredService<IPlanService>();
+    await planService.EnsurePlanExists();
+}
+
 
 using (var scope = app.Services.CreateScope())
 {

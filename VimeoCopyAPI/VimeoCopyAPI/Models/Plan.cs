@@ -13,10 +13,15 @@ public class Plan
     public string Name { get; set; }
 
     [Required]
-    public long StorageLimitInBytes { get; set; }
+    public long StorageLimitMB { get; set; }
+
+    [Required]
+    public long BandwithMB { get; set; }
 
     [MaxLength(1000)]
     public string? Description { get; set; }
+
+    public long Price { get; set; }
 
     public ICollection<ApplicationUser> Users { get; set; } = [];
 }

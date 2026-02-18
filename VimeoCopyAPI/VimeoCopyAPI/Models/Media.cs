@@ -25,10 +25,12 @@ public class Media
     [MaxLength(50)]
     public string Status { get; set; } = "Uploaded";
 
-    public string? ThumbnailUrl { get; set; }
+    public string? ThumbnailUrl { get; set; } //add thumbnails saved in the database for faster access
 
     [MaxLength(500)]
     public string? VideoUrl { get; set; }
+
+    //public bool Private { get; set; }
 
     // Owner FK and navigation
     public string UserId { get; set; }

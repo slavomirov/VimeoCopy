@@ -53,7 +53,7 @@ namespace VimeoCopyAPI.Services
                 throw new Exception(result.Errors.Select(x => x.Description).FirstOrDefault());
 
             await _userManager.AddToRoleAsync(user, "User"); //default 
-            await AssignPlanToUserAsync(user.Id, "free");
+            await AssignPlanToUserAsync(user.Id, "Free");
 
             return await LoginAsync(new() { Email = input.Email, Password = input.Password });
         }
@@ -117,79 +117,79 @@ namespace VimeoCopyAPI.Services
             => _signInManager.ConfigureExternalAuthenticationProperties(provider, redirectUrl);
 
         public async Task<ExternalLoginResultDTO> HandleExternalLoginCallbackAsync(HttpContext httpContext, string returnUrl = "/")
-{
-    var info = await _signInManager.GetExternalLoginInfoAsync();
-    if (info == null)
-        return new ExternalLoginResultDTO { Success = false, ErrorMessage = "External login info not found" };
-
-    var email = info.Principal.FindFirstValue(ClaimTypes.Email);
-    if (string.IsNullOrEmpty(email))
-        return new ExternalLoginResultDTO { Success = false, ErrorMessage = "Email not provided by external provider" };
-
-    // 1) Проверяваме дали login вече е вързан към потребител
-    var loginUser = await _userManager.FindByLoginAsync(info.LoginProvider, info.ProviderKey);
-    if (loginUser != null)
-    {
-        // директно логваме
-        await _signInManager.SignInAsync(loginUser, false);
-
-        var access = await GenerateAccessTokenAsync(loginUser);
-        var refresh = await CreateAndStoreRefreshTokenAsync(loginUser);
-
-        return new ExternalLoginResultDTO
         {
-            Success = true,
-            AccessToken = access,
-            RefreshToken = refresh,
-            RedirectUrl = $"{returnUrl}?accessToken={access}"
-        };
-    }
+            var info = await _signInManager.GetExternalLoginInfoAsync();
+            if (info == null)
+                return new ExternalLoginResultDTO { Success = false, ErrorMessage = "External login info not found" };
 
-    // 2) Login не е вързан → проверяваме дали има потребител с този email
-    var user = await _userManager.FindByEmailAsync(email);
+            var email = info.Principal.FindFirstValue(ClaimTypes.Email);
+            if (string.IsNullOrEmpty(email))
+                return new ExternalLoginResultDTO { Success = false, ErrorMessage = "Email not provided by external provider" };
 
-    if (user == null)
-    {
-        // 3) Няма потребител → създаваме нов
-        user = new ApplicationUser
-        {
-            Email = email,
-            UserName = email,
-            EmailConfirmed = true
-        };
+            // 1) Проверяваме дали login вече е вързан към потребител
+            var loginUser = await _userManager.FindByLoginAsync(info.LoginProvider, info.ProviderKey);
+            if (loginUser != null)
+            {
+                // директно логваме
+                await _signInManager.SignInAsync(loginUser, false);
 
-        var createResult = await _userManager.CreateAsync(user);
-        if (!createResult.Succeeded)
-        {
-            var err = createResult.Errors.FirstOrDefault()?.Description ?? "User creation failed";
-            return new ExternalLoginResultDTO { Success = false, ErrorMessage = err };
+                var access = await GenerateAccessTokenAsync(loginUser);
+                var refresh = await CreateAndStoreRefreshTokenAsync(loginUser);
+
+                return new ExternalLoginResultDTO
+                {
+                    Success = true,
+                    AccessToken = access,
+                    RefreshToken = refresh,
+                    RedirectUrl = $"{returnUrl}?accessToken={access}"
+                };
+            }
+
+            // 2) Login не е вързан → проверяваме дали има потребител с този email
+            var user = await _userManager.FindByEmailAsync(email);
+
+            if (user == null)
+            {
+                // 3) Няма потребител → създаваме нов
+                user = new ApplicationUser
+                {
+                    Email = email,
+                    UserName = email,
+                    EmailConfirmed = true
+                };
+
+                var createResult = await _userManager.CreateAsync(user);
+                if (!createResult.Succeeded)
+                {
+                    var err = createResult.Errors.FirstOrDefault()?.Description ?? "User creation failed";
+                    return new ExternalLoginResultDTO { Success = false, ErrorMessage = err };
+                }
+
+                await _userManager.AddToRoleAsync(user, "User");
+            }
+
+            // 4) Връзваме външния login към акаунта
+            var addLoginResult = await _userManager.AddLoginAsync(user, info);
+            if (!addLoginResult.Succeeded)
+            {
+                var err = addLoginResult.Errors.FirstOrDefault()?.Description ?? "Could not link external login";
+                return new ExternalLoginResultDTO { Success = false, ErrorMessage = err };
+            }
+
+            // 5) Логваме потребителя
+            await _signInManager.SignInAsync(user, false);
+
+            var accessToken = await GenerateAccessTokenAsync(user);
+            var refreshToken = await CreateAndStoreRefreshTokenAsync(user);
+
+            return new ExternalLoginResultDTO
+            {
+                Success = true,
+                AccessToken = accessToken,
+                RefreshToken = refreshToken,
+                RedirectUrl = $"{returnUrl}?accessToken={accessToken}"
+            };
         }
-
-        await _userManager.AddToRoleAsync(user, "User");
-    }
-
-    // 4) Връзваме външния login към акаунта
-    var addLoginResult = await _userManager.AddLoginAsync(user, info);
-    if (!addLoginResult.Succeeded)
-    {
-        var err = addLoginResult.Errors.FirstOrDefault()?.Description ?? "Could not link external login";
-        return new ExternalLoginResultDTO { Success = false, ErrorMessage = err };
-    }
-
-    // 5) Логваме потребителя
-    await _signInManager.SignInAsync(user, false);
-
-    var accessToken = await GenerateAccessTokenAsync(user);
-    var refreshToken = await CreateAndStoreRefreshTokenAsync(user);
-
-    return new ExternalLoginResultDTO
-    {
-        Success = true,
-        AccessToken = accessToken,
-        RefreshToken = refreshToken,
-        RedirectUrl = $"{returnUrl}?accessToken={accessToken}"
-    };
-}
 
 
         private async Task<string> GenerateAccessTokenAsync(ApplicationUser user)
@@ -288,11 +288,20 @@ namespace VimeoCopyAPI.Services
 
         public async Task IncreaseUsedMemoryAsync(string userId, long mediaSize)
             => await _dbContext.Users.Where(u => u.Id == userId)
-                .ExecuteUpdateAsync(u => u.SetProperty(user => user.UsedMemory, user => user.UsedMemory + mediaSize));
+                .ExecuteUpdateAsync(u => u.SetProperty(user => user.UsedMemory, user => user.UsedMemory ?? 0 + mediaSize));
 
         public async Task DecreaseUsedMemoryAsync(string userId, long mediaSize)
-            => await _dbContext.Users.Where(u => u.Id == userId)
-                .ExecuteUpdateAsync(u => u.SetProperty(user => user.UsedMemory, user => Math.Max(0, (user.UsedMemory ?? 0) - mediaSize)));
+            => await _dbContext.Users
+                .Where(u => u.Id == userId)
+                .ExecuteUpdateAsync(u => u
+                    .SetProperty(
+                        user => user.UsedMemory,
+                        user => (user.UsedMemory ?? 0) - mediaSize < 0
+                            ? 0
+                            : (user.UsedMemory ?? 0) - mediaSize
+                    )
+                );
+
 
         public async Task AssignPlanToUserAsync(string userId, string planName)
         {
@@ -300,8 +309,8 @@ namespace VimeoCopyAPI.Services
             var plan = await _dbContext.Plans.FirstOrDefaultAsync(p => p.Name == planName) ?? throw new Exception("Plan not found");
 
             user.PlanId = plan.Id;
-            user.BuyedMemory = plan.StorageLimitInBytes;
-            user.PlanExpiration = planName == "free" ? DateTime.UtcNow.AddDays(1) : DateTime.UtcNow.AddMonths(1);
+            user.BuyedMemory = plan.StorageLimitMB;
+            user.PlanExpiration = planName == "Free" ? DateTime.UtcNow.AddDays(7) : DateTime.UtcNow.AddMonths(1);
             _dbContext.Users.Update(user);
             await _dbContext.SaveChangesAsync();
         }
@@ -312,6 +321,7 @@ namespace VimeoCopyAPI.Services
             user.PlanId = null;
             user.BuyedMemory = null;
             user.PlanExpiration = null;
+            user.BuyedBandwidth = null;
             _dbContext.Users.Update(user);
             await _dbContext.SaveChangesAsync();
         }
@@ -333,5 +343,6 @@ namespace VimeoCopyAPI.Services
             return "User doesn't have enough storage!";
         }
 
+        private static long GetPositiveOrZero(long value) => value < 0 ? 0 : value;
     }
 }

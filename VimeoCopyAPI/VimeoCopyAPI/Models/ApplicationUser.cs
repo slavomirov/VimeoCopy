@@ -11,6 +11,8 @@ public class ApplicationUser : IdentityUser
 {
     public long? UsedMemory { get; set; }
     public long? BuyedMemory { get; set; }
+    public long? BuyedBandwidth { get; set; }
+    public long? UsedBandwidth { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

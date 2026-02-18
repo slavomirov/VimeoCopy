@@ -16,7 +16,7 @@ public class UploadService : IUploadService
     private readonly IAmazonS3 _s3;
     private readonly IConfiguration _config;
     private readonly AppDbContext _dbContext;
-    private readonly string[] allowedUploadContentTypes = ["image/jpeg", "image/png", "video/mp4", "video/webm"];
+    private readonly string[] allowedUploadContentTypes = ["image/jpeg", "image/png", "video/mp4", "video/webm", "video/quicktime"];
     private readonly IMediaService _mediaService;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IUserService _userService;
@@ -106,7 +106,7 @@ public class UploadService : IUploadService
         };
 
         await _dbContext.Media.AddAsync(mediaRecord);
-        await _userService.IncreaseUsedMemoryAsync(userId, input.FileSize);
+        await _userService.IncreaseUsedMemoryAsync(userId, (input.FileSize / 1000000)); //kb -> mb
         await _dbContext.SaveChangesAsync();
 
         // Return DTO without circular references

@@ -5,6 +5,7 @@ using Stripe;
 using Stripe.Checkout;
 using System.Security.Claims;
 using VimeoCopyAPI.Models;
+using VimeoCopyAPI.Services.Interfaces;
 
 namespace VimeoCopyAPI.Controllers;
 
@@ -13,21 +14,23 @@ namespace VimeoCopyAPI.Controllers;
 public class StripeController : ControllerBase
 {
     private readonly StripeOptions _stripeOptions;
+    private readonly IPlanService _planService;
 
-    public StripeController(IOptionsSnapshot<StripeOptions> stripeOptions)
+    public StripeController(IOptionsSnapshot<StripeOptions> stripeOptions, IPlanService planService)
     {
         _stripeOptions = stripeOptions.Value;
+        _planService = planService;
     }
 
     [Authorize]
     [HttpPost("test")]
-    public async Task<IActionResult> Payment([FromBody] TestPaymentRequest request)
+    public async Task<IActionResult> Payment([FromBody] PaymentRequest request)
     {
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         var userEmail = User.FindFirst(ClaimTypes.Email)?.Value;
 
-        var product = new { Id = 1, Description = "testWE", Price = 10m };
-        var origin = $"http://localhost:5173"; //FE server
+        var plan = await _planService.GetPlayByNameAsync(request.Name) ?? throw new Exception("Plan not available!");
+        var origin = $"http://localhost:5173"; //FE server change this
 
         StripeConfiguration.ApiKey = _stripeOptions.SecretKey;
 
@@ -47,11 +50,11 @@ public class StripeController : ControllerBase
                     {
                         PriceData = new ()
                         {
-                            UnitAmountDecimal = product.Price * 100, // in cents
+                            UnitAmountDecimal = plan.Price, // in cents 
                             Currency = "EUR",
                             ProductData = new ()
                             {
-                                Name = product.Description
+                                Name = plan.Name,
                             },
                         },
                         Quantity = 1
@@ -64,4 +67,4 @@ public class StripeController : ControllerBase
     }
 }
 
-public record TestPaymentRequest(int Id);
+public record PaymentRequest(string Name); //add description, price, name for products
