@@ -19,6 +19,9 @@ public class ApplicationUser : IdentityUser
     [JsonIgnore]
     public ICollection<Media> Media { get; set; } = new List<Media>();
 
+    [JsonIgnore]
+    public ICollection<Project> Projects { get; set; } = new List<Project>();
+
     public Plan? Plan { get; set; }
     public int? PlanId { get; set; }
     public DateTime? PlanExpiration { get; set; }

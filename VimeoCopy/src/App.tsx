@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Routes, Route, Link, Navigate } from "react-router-dom";
+import { useState, useEffect, useCallback } from "react";
+import { Routes, Route, Link, Navigate, useLocation } from "react-router-dom";
 import { Upload } from "./components/Upload";
 import { Videos } from "./components/Video";
 import { AuthProvider } from "./Auth/AuthProvider";
@@ -11,12 +11,18 @@ import { SharedMediaViewer } from "./components/SharedMediaViewer";
 import { BuyPage } from "./Payments/BuyPage";
 import { ProfileAuthPage } from "./Auth/ProfileAuthPage";
 import { LandingPage } from "./LandingPage";
+import { EmbedPlayer } from "./components/EmbedPlayer";
+import { ProjectsPage } from "./components/ProjectsPage";
+import { ProjectDetailPage } from "./components/ProjectDetailPage";
 import "./App.css";
 
 function App() {
   return (
     <AuthProvider>
-      <MainLayout />
+      <Routes>
+        <Route path="/embed/:mediaId" element={<EmbedPlayer />} />
+        <Route path="/*" element={<MainLayout />} />
+      </Routes>
     </AuthProvider>
   );
 }
@@ -24,7 +30,25 @@ function App() {
 function MainLayout() {
   const { accessToken, logout } = useAuth();
   const isLoggedIn = !!accessToken;
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const location = useLocation();
+
+  const isMobile = useCallback(() => window.innerWidth <= 768, []);
+  const [sidebarOpen, setSidebarOpen] = useState(() => !isMobile());
+
+  // Close sidebar on route change (mobile)
+  useEffect(() => {
+    if (isMobile()) setSidebarOpen(false);
+  }, [location.pathname, isMobile]);
+
+  // Close sidebar on resize to mobile
+  useEffect(() => {
+    function handleResize() {
+      if (isMobile()) setSidebarOpen(false);
+      else setSidebarOpen(true);
+    }
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [isMobile]);
 
   return (
     <div className="app-container">
@@ -42,6 +66,45 @@ function MainLayout() {
           error: { style: { background: "var(--danger)" } },
         }}
       />
+
+      {/* Mobile top bar */}
+      <div className="mobile-topbar">
+        <button
+          className="mobile-menu-btn"
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          aria-label="Toggle menu"
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            {sidebarOpen ? (
+              <>
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </>
+            ) : (
+              <>
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </>
+            )}
+          </svg>
+        </button>
+        <Link to="/" className="mobile-topbar-brand">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M23 7l-7 5 7 5V7z" />
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+          </svg>
+          VimeoCopy
+        </Link>
+      </div>
+
+      {/* Backdrop overlay for mobile sidebar */}
+      {sidebarOpen && (
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
 
       <aside className={`sidebar ${sidebarOpen ? "open" : "closed"}`}>
         <div className="sidebar-header">
@@ -93,6 +156,15 @@ function MainLayout() {
             <span className="nav-label">Media</span>
           </Link>
 
+          {isLoggedIn && (
+            <Link to="/projects" className="nav-item" title="Projects">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </svg>
+              <span className="nav-label">Projects</span>
+            </Link>
+          )}
+
           <Link to="/buy" className="nav-item" title={isLoggedIn ? "Buy" : "Pricing"}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="9" cy="21" r="1"></circle>
@@ -138,6 +210,18 @@ function MainLayout() {
             }
           />
           <Route path="/videos" element={<Videos />} />
+          <Route
+            path="/projects"
+            element={
+              isLoggedIn ? <ProjectsPage /> : <Navigate to="/profile" replace />
+            }
+          />
+          <Route
+            path="/projects/:projectId"
+            element={
+              isLoggedIn ? <ProjectDetailPage /> : <Navigate to="/profile" replace />
+            }
+          />
           <Route path="/shared/:token" element={<SharedMediaViewer />} />
           <Route path="/social-login" element={<SocialLoginPage />} />
           <Route path="/buy" element={<BuyPage />} />

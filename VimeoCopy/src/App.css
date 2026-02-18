@@ -609,11 +609,206 @@
   background: linear-gradient(180deg, rgba(34, 197, 94, 0.08) 0%, rgba(34, 197, 94, 0.03) 100%);
 }
 
+/* ── BuyPage Grid ──────────────────────────── */
+.buypage-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-6);
+}
+
+/* ── Mobile Top Bar ────────────────────────── */
+.mobile-topbar {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  background: linear-gradient(135deg, var(--bg-surface) 0%, rgba(34, 197, 94, 0.05) 100%);
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  z-index: 1100;
+  align-items: center;
+  padding: 0 var(--space-4);
+  gap: var(--space-3);
+}
+
+.mobile-menu-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--gray-500);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+}
+
+.mobile-menu-btn:hover {
+  background-color: rgba(34, 197, 94, 0.1);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.mobile-topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: var(--font-size-lg);
+  text-shadow: 0 0 10px rgba(34, 197, 94, 0.3);
+}
+
+/* ── Sidebar Backdrop ──────────────────────── */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 10, 18, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 999;
+}
+
+/* ── Media Card Actions ────────────────────── */
+.media-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.media-actions button {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+/* ── Embed Size Controls ───────────────────── */
+.embed-size-controls {
+  display: flex;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+}
+
+/* ── Projects ──────────────────────────────── */
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+.project-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  overflow: hidden;
+  padding: 0 !important;
+}
+
+.project-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(34, 197, 94, 0.3);
+}
+
+.project-card-thumb {
+  width: 100%;
+  height: 160px;
+  overflow: hidden;
+  background: var(--bg-deep);
+}
+
+.project-card-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.project-card-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: linear-gradient(135deg, var(--bg-deep), var(--bg-elevated));
+}
+
+.project-thumb-badge {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  background: var(--primary);
+  color: var(--bg-deep);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  z-index: 2;
+  letter-spacing: 0.02em;
+}
+
+/* Add-media picker items */
+.add-media-item {
+  position: relative;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 2px solid var(--border-color);
+  transition: border-color 0.15s, box-shadow 0.15s;
+  background: var(--bg-elevated);
+}
+
+.add-media-item:hover {
+  border-color: var(--gray-400);
+}
+
+.add-media-item.selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25);
+}
+
+.add-media-thumb {
+  width: 100%;
+  height: 90px;
+  overflow: hidden;
+  background: var(--bg-deep);
+}
+
+.add-media-thumb img,
+.add-media-thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.add-media-check {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* ── Responsive ────────────────────────────── */
 @media (max-width: 768px) {
+  .mobile-topbar {
+    display: flex;
+  }
+
+  .sidebar-backdrop {
+    display: block;
+  }
+
   .sidebar {
-    width: 235px;
+    width: 260px;
     transform: translateX(-100%);
+    top: 0;
   }
 
   .sidebar.open {
@@ -621,13 +816,18 @@
     box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
   }
 
+  .sidebar.closed {
+    width: 260px;
+    transform: translateX(-100%);
+  }
+
   .sidebar-toggle {
     display: block;
   }
 
   .app-content {
-    margin-left: 0;
-    padding: var(--space-4);
+    margin-left: 0 !important;
+    padding-top: 56px;
   }
 
   .sidebar.open ~ .app-content {
@@ -650,16 +850,89 @@
     grid-template-columns: 1fr;
   }
 
+  .buypage-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+
   .profile-auth-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: var(--space-4);
   }
 
   .profile-auth-container {
     padding: 0 var(--space-3);
+    margin-top: var(--space-4);
   }
 
   .modal {
     width: 95%;
+    padding: var(--space-4);
+  }
+
+  .card {
+    padding: var(--space-4);
+    border-radius: var(--radius-lg);
+  }
+
+  .card-header {
+    margin-bottom: var(--space-3);
+    padding-bottom: var(--space-3);
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .form-actions button {
+    width: 100%;
+  }
+
+  .media-actions {
+    flex-direction: column;
+  }
+
+  .media-actions button {
+    flex: unset;
+    width: 100%;
+  }
+
+  .embed-size-controls {
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .embed-size-controls > div {
+    width: 100%;
+  }
+
+  .upload-dropzone {
+    padding: var(--space-6) var(--space-3);
+  }
+
+  .projects-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .add-media-thumb {
+    height: 70px;
+  }
+}
+
+@media (max-width: 480px) {
+  .profile-auth-header h1 {
+    font-size: var(--font-size-2xl);
+  }
+
+  .card-title {
+    font-size: var(--font-size-lg);
+  }
+
+  h1 {
+    font-size: var(--font-size-2xl);
+  }
+
+  h2 {
+    font-size: var(--font-size-xl);
   }
 }

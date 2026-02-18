@@ -149,13 +149,12 @@ export function BuyPage() {
       style={{
         maxWidth: 1120,
         margin: "0 auto",
-        padding: "var(--space-6) var(--space-6)",
+        padding: "var(--space-6) var(--space-4)",
         animation: "buypage-fadein .6s ease both",
-        height: "100vh",
+        minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",
-        overflow: "hidden",
       }}
     >
       {/* ── Hero header ─────────────────────── */}
@@ -201,10 +200,8 @@ export function BuyPage() {
 
       {/* ── Plan cards grid ─────────────────── */}
       <div
+        className="buypage-grid"
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: "var(--space-6)",
           marginBottom: "var(--space-4)",
         }}
       >

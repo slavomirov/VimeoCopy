@@ -5,6 +5,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using VimeoCopyApi.Data;
 using VimeoCopyApi.Models;
+using VimeoCopyAPI.Models;
 using VimeoCopyAPI.Models.DTOs;
 using VimeoCopyAPI.Services.Interfaces;
 
@@ -80,6 +81,19 @@ public class UploadService : IUploadService
         return new PresignRequestDTO { Url = _s3.GetPreSignedURL(request), MediaId = mediaId };
     }
 
+    public List<PresignRequestDTO> GetPresignedUrls(int count)
+    {
+        if (count < 1) count = 1;
+        if (count > 20) count = 20;
+
+        var results = new List<PresignRequestDTO>(count);
+        for (int i = 0; i < count; i++)
+        {
+            results.Add(GetPresignedUrl());
+        }
+        return results;
+    }
+
     public async Task<MediaDTO> UploadCompleteAsync(MediaUploadCompleteDTO input)
     {
         // require authenticated user so UserId can be non-nullable
@@ -108,6 +122,38 @@ public class UploadService : IUploadService
 
         await _dbContext.Media.AddAsync(mediaRecord);
         await _userService.IncreaseUsedMemoryAsync(userId, (input.FileSize / 1000000)); //kb -> mb
+
+        // Auto-link to project if ProjectId provided
+        if (input.ProjectId.HasValue)
+        {
+            var project = await _dbContext.Set<VimeoCopyApi.Models.Project>()
+                .Include(p => p.ProjectMedias)
+                .FirstOrDefaultAsync(p => p.Id == input.ProjectId.Value && p.UserId == userId);
+
+            if (project != null)
+            {
+                var maxSort = project.ProjectMedias.Any()
+                    ? project.ProjectMedias.Max(pm => pm.SortOrder)
+                    : -1;
+
+                _dbContext.Set<VimeoCopyAPI.Models.ProjectMedia>().Add(new VimeoCopyAPI.Models.ProjectMedia
+                {
+                    ProjectId = project.Id,
+                    MediaId = mediaRecord.Id,
+                    SortOrder = maxSort + 1,
+                });
+
+                project.UpdatedAt = DateTime.UtcNow;
+
+                // Auto-set thumbnail if project has none and media is image/video
+                if (!project.ThumbnailMediaId.HasValue &&
+                    (mediaRecord.ContentType.StartsWith("image/") || mediaRecord.ContentType.StartsWith("video/")))
+                {
+                    project.ThumbnailMediaId = mediaRecord.Id;
+                }
+            }
+        }
+
         await _dbContext.SaveChangesAsync();
 
         // Return DTO without circular references

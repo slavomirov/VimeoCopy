@@ -48,6 +48,7 @@ export function ProfilePage() {
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [shareLinkExpiry, setShareLinkExpiry] = useState<string | null>(null);
   const [shareLoading, setShareLoading] = useState(false);
+  const [embedMedia, setEmbedMedia] = useState<Media | null>(null);
 
   // Load user DTO
   useEffect(() => {
@@ -224,6 +225,7 @@ export function ProfilePage() {
                 onDelete={() => handleDeleteMedia(m.id)}
                 onToggleVisibility={() => handleToggleVisibility(m.id)}
                 onShare={() => handleShareMedia(m.id)}
+                onEmbed={() => setEmbedMedia(m)}
                 shareLoading={shareLoading}
               />
             ))}
@@ -300,6 +302,14 @@ export function ProfilePage() {
           </div>
         </div>
       )}
+
+      {/* Embed Code Modal */}
+      {embedMedia && (
+        <EmbedModal
+          media={embedMedia}
+          onClose={() => setEmbedMedia(null)}
+        />
+      )}
     </div>
   );
 }
@@ -310,6 +320,7 @@ function MediaItem({
   onDelete,
   onToggleVisibility,
   onShare,
+  onEmbed,
   shareLoading,
 }: {
   media: Media;
@@ -317,6 +328,7 @@ function MediaItem({
   onDelete: () => void;
   onToggleVisibility: () => void;
   onShare: () => void;
+  onEmbed: () => void;
   shareLoading: boolean;
 }) {
   if (!url) return <div className="card" style={{ padding: "var(--space-8)", textAlign: "center" }}><div className="loading" style={{ margin: "0 auto" }}></div></div>;
@@ -327,7 +339,7 @@ function MediaItem({
         {media.contentType.startsWith("image/") ? (
           <img src={url} alt={media.fileName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         ) : (
-          <video src={url} controls style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          <video src={url} controls style={{ width: "100%", height: "100%", objectFit: "contain" }} />
         )}
       </div>
 
@@ -354,11 +366,10 @@ function MediaItem({
         </p>
       </div>
 
-      <div style={{ display: "flex", gap: "var(--space-2)" }}>
+      <div className="media-actions">
         <button
           onClick={onToggleVisibility}
           className={media.isPublic ? "btn-secondary" : "btn-primary"}
-          style={{ flex: 1, fontSize: "var(--font-size-sm)" }}
         >
           {media.isPublic ? "Make Private" : "Make Public"}
         </button>
@@ -367,14 +378,220 @@ function MediaItem({
             onClick={onShare}
             disabled={shareLoading}
             className="btn-primary"
-            style={{ flex: 1, fontSize: "var(--font-size-sm)" }}
           >
             {shareLoading ? "..." : "Share Link"}
           </button>
         )}
-        <button onClick={onDelete} className="btn-danger" style={{ flex: 1, fontSize: "var(--font-size-sm)" }}>
+        <button
+          onClick={onEmbed}
+          className="btn-outline"
+          title="Get embed code"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: "4px", verticalAlign: "middle" }}>
+            <polyline points="16 18 22 12 16 6" />
+            <polyline points="8 6 2 12 8 18" />
+          </svg>
+          Embed
+        </button>
+        <button onClick={onDelete} className="btn-danger">
           Delete
         </button>
+      </div>
+    </div>
+  );
+}
+
+function EmbedModal({ media, onClose }: { media: Media; onClose: () => void }) {
+  const [copied, setCopied] = useState<string | null>(null);
+  const [width, setWidth] = useState("640");
+  const [height, setHeight] = useState("360");
+
+  const embedUrl = `${window.location.origin}/embed/${media.id}`;
+  const iframeCode = `<iframe src="${embedUrl}" width="${width}" height="${height}" frameborder="0" allow="autoplay; fullscreen" allowfullscreen></iframe>`;
+
+  function copyToClipboard(text: string, label: string) {
+    navigator.clipboard.writeText(text);
+    setCopied(label);
+    setTimeout(() => setCopied(null), 2000);
+  }
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.7)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 9999,
+      }}
+      onClick={onClose}
+    >
+      <div
+        className="card"
+        style={{ maxWidth: "600px", width: "90%", margin: "0 auto" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="card-header">
+          <h2 className="card-title" style={{ marginBottom: 0 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: "8px", verticalAlign: "middle" }}>
+              <polyline points="16 18 22 12 16 6" />
+              <polyline points="8 6 2 12 8 18" />
+            </svg>
+            Embed Player
+          </h2>
+        </div>
+        <div className="card-body">
+          <p className="text-muted" style={{ fontSize: "var(--font-size-sm)", marginBottom: "var(--space-4)" }}>
+            Copy the embed code below and paste it into any website's HTML to embed <strong>{media.fileName}</strong>.
+          </p>
+
+          {!media.isPublic && (
+            <div style={{
+              padding: "var(--space-3) var(--space-4)",
+              borderRadius: "var(--radius-sm)",
+              backgroundColor: "rgba(245, 158, 11, 0.1)",
+              border: "1px solid rgba(245, 158, 11, 0.3)",
+              color: "var(--warning)",
+              fontSize: "var(--font-size-sm)",
+              marginBottom: "var(--space-4)",
+            }}>
+              ⚠ This media is currently <strong>private</strong>. The embed will not work until you make it public.
+            </div>
+          )}
+
+          {/* Size controls */}
+          <div className="embed-size-controls">
+            <div style={{ flex: 1, minWidth: "80px" }}>
+              <label style={{ fontSize: "var(--font-size-xs)", marginBottom: "var(--space-1)" }}>Width (px)</label>
+              <input
+                type="number"
+                value={width}
+                onChange={(e) => setWidth(e.target.value)}
+                style={{ padding: "var(--space-2) var(--space-3)", fontSize: "var(--font-size-sm)" }}
+              />
+            </div>
+            <div style={{ flex: 1, minWidth: "80px" }}>
+              <label style={{ fontSize: "var(--font-size-xs)", marginBottom: "var(--space-1)" }}>Height (px)</label>
+              <input
+                type="number"
+                value={height}
+                onChange={(e) => setHeight(e.target.value)}
+                style={{ padding: "var(--space-2) var(--space-3)", fontSize: "var(--font-size-sm)" }}
+              />
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: "var(--space-2)" }}>
+              {[
+                { label: "SD", w: "640", h: "360" },
+                { label: "HD", w: "1280", h: "720" },
+              ].map((preset) => (
+                <button
+                  key={preset.label}
+                  className="btn-secondary"
+                  style={{ fontSize: "var(--font-size-xs)", padding: "var(--space-2) var(--space-3)" }}
+                  onClick={() => { setWidth(preset.w); setHeight(preset.h); }}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Iframe code */}
+          <label style={{ fontSize: "var(--font-size-xs)", marginBottom: "var(--space-1)" }}>Embed Code</label>
+          <div style={{ position: "relative" }}>
+            <textarea
+              readOnly
+              value={iframeCode}
+              rows={3}
+              style={{
+                width: "100%",
+                padding: "var(--space-3)",
+                borderRadius: "var(--radius-md)",
+                border: "1px solid var(--border-color)",
+                backgroundColor: "var(--bg-elevated)",
+                color: "var(--gray-900)",
+                fontSize: "var(--font-size-sm)",
+                fontFamily: "'Courier New', Courier, monospace",
+                resize: "none",
+              }}
+              onFocus={(e) => e.target.select()}
+            />
+            <button
+              className="btn-primary"
+              style={{
+                position: "absolute",
+                top: "var(--space-2)",
+                right: "var(--space-2)",
+                fontSize: "var(--font-size-xs)",
+                padding: "var(--space-1) var(--space-3)",
+              }}
+              onClick={() => copyToClipboard(iframeCode, "iframe")}
+            >
+              {copied === "iframe" ? "Copied!" : "Copy"}
+            </button>
+          </div>
+
+          {/* Direct URL */}
+          <label style={{ fontSize: "var(--font-size-xs)", marginBottom: "var(--space-1)", marginTop: "var(--space-4)", display: "block" }}>Direct Player URL</label>
+          <div style={{
+            display: "flex",
+            gap: "var(--space-2)",
+            alignItems: "center",
+          }}>
+            <input
+              type="text"
+              readOnly
+              value={embedUrl}
+              style={{
+                flex: 1,
+                padding: "var(--space-3)",
+                borderRadius: "var(--radius-md)",
+                border: "1px solid var(--border-color)",
+                backgroundColor: "var(--bg-elevated)",
+                color: "var(--gray-900)",
+                fontSize: "var(--font-size-sm)",
+              }}
+              onFocus={(e) => e.target.select()}
+            />
+            <button
+              className="btn-primary"
+              style={{ whiteSpace: "nowrap", fontSize: "var(--font-size-sm)" }}
+              onClick={() => copyToClipboard(embedUrl, "url")}
+            >
+              {copied === "url" ? "Copied!" : "Copy"}
+            </button>
+          </div>
+
+          {/* Preview */}
+          <label style={{ fontSize: "var(--font-size-xs)", marginBottom: "var(--space-1)", marginTop: "var(--space-4)", display: "block" }}>Preview</label>
+          <div style={{
+            borderRadius: "var(--radius-md)",
+            overflow: "hidden",
+            border: "1px solid var(--border-color)",
+            backgroundColor: "var(--bg-deep)",
+            maxHeight: "300px",
+          }}>
+            <iframe
+              src={embedUrl}
+              width="100%"
+              height="250"
+              style={{ border: "none", display: "block" }}
+              allow="autoplay; fullscreen"
+              allowFullScreen
+            />
+          </div>
+
+          <div style={{ marginTop: "var(--space-4)", textAlign: "right" }}>
+            <button
+              className="btn-secondary"
+              onClick={onClose}
+            >
+              Close
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

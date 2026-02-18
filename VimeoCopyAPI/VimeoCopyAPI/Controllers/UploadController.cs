@@ -22,6 +22,10 @@ public class UploadController : ControllerBase
     public IActionResult GetPresignedUrl()
         => Ok(_uploadService.GetPresignedUrl());
 
+    [HttpPost("urls")]
+    public IActionResult GetPresignedUrls([FromBody] BatchPresignRequest request)
+        => Ok(_uploadService.GetPresignedUrls(request.Count));
+
     [HttpPost("complete")]
     public async Task<IActionResult> UploadComplete([FromBody] MediaUploadCompleteDTO input)
         => Ok(await _uploadService.UploadCompleteAsync(input));
@@ -35,4 +39,9 @@ public class UploadController : ControllerBase
     [HttpGet("media")]
     public async Task<IActionResult> GetMedia()
         => Ok(await _mediaService.GetAllMediaAsync());
+}
+
+public class BatchPresignRequest
+{
+    public int Count { get; set; } = 1;
 }

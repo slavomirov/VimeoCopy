@@ -6,4 +6,7 @@ public class MediaUploadCompleteDTO
     public long FileSize { get; set; }
     public string ContentType { get; set; }
     public bool IsPublic { get; set; } = true;
+
+    /// <summary>Optional: automatically add the uploaded media to this project.</summary>
+    public Guid? ProjectId { get; set; }
 }

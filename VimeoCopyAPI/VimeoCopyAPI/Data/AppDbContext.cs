@@ -14,6 +14,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Plan> Plans { get; set; }
     public DbSet<PlanNotification> PlanNotifications { get; set; }
     public DbSet<SharedLink> SharedLinks { get; set; }
+    public DbSet<Project> Projects { get; set; }
+    public DbSet<ProjectMedia> ProjectMedias { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -41,6 +43,30 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
 
         modelBuilder.Entity<SharedLink>()
             .HasIndex(sl => sl.Token)
+            .IsUnique();
+
+        // Project -> User
+        modelBuilder.Entity<Project>()
+            .HasOne(p => p.User)
+            .WithMany(u => u.Projects)
+            .HasForeignKey(p => p.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // ProjectMedia join table
+        modelBuilder.Entity<ProjectMedia>()
+            .HasOne(pm => pm.Project)
+            .WithMany(p => p.ProjectMedias)
+            .HasForeignKey(pm => pm.ProjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ProjectMedia>()
+            .HasOne(pm => pm.Media)
+            .WithMany()
+            .HasForeignKey(pm => pm.MediaId)
+            .OnDelete(DeleteBehavior.NoAction); // avoid cascade cycle
+
+        modelBuilder.Entity<ProjectMedia>()
+            .HasIndex(pm => new { pm.ProjectId, pm.MediaId })
             .IsUnique();
     }
 }

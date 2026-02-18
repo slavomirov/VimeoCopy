@@ -181,6 +181,24 @@ input:disabled, textarea:disabled, select:disabled {
   border-color: var(--gray-200);
 }
 
+/* ── Browser Autofill Override ─────────────── */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px var(--bg-input) inset, inset 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+  -webkit-text-fill-color: var(--gray-900) !important;
+  border-color: var(--border-color) !important;
+  caret-color: var(--gray-900);
+  transition: background-color 5000s ease-in-out 0s;
+}
+
 label {
   display: block;
   margin-bottom: var(--space-2);
@@ -329,4 +347,94 @@ button:focus-visible {
 ::selection {
   background: rgba(34, 197, 94, 0.3);
   color: white;
+}
+
+/* ── Embed Player ──────────────────────────── */
+.embed-container {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.embed-media {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.embed-loading {
+  background: var(--bg-deep);
+}
+
+.embed-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(34, 197, 94, 0.2);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.embed-error {
+  flex-direction: column;
+  gap: var(--space-3);
+  background: var(--bg-deep);
+  color: var(--gray-500);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+}
+
+.embed-watermark {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  color: rgba(255, 255, 255, 0.7);
+  font-family: var(--font-family);
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  letter-spacing: 0.3px;
+  transition: opacity 0.2s ease;
+  pointer-events: auto;
+}
+
+.embed-watermark:hover {
+  color: var(--primary);
+  opacity: 1;
+}
+
+/* ── Upload Drop Zone ──────────────────────── */
+.upload-dropzone {
+  position: relative;
+  border: 2px dashed rgba(34, 197, 94, 0.25);
+  border-radius: var(--radius-lg);
+  padding: var(--space-10) var(--space-8);
+  text-align: center;
+  background-color: rgba(34, 197, 94, 0.02);
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.upload-dropzone:hover {
+  border-color: rgba(34, 197, 94, 0.45);
+  background-color: rgba(34, 197, 94, 0.05);
+}
+
+.upload-dropzone-active {
+  border-color: var(--primary);
+  border-style: solid;
+  background-color: rgba(34, 197, 94, 0.08);
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.1), var(--glow-md);
+  transform: scale(1.01);
 }
