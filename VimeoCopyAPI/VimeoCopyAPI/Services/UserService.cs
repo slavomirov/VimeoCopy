@@ -281,7 +281,8 @@ namespace VimeoCopyAPI.Services
                     ContentType = m.ContentType,
                     FileSize = m.FileSize,
                     UploadedAt = m.UploadedAt,
-                    Status = m.Status
+                    Status = m.Status,
+                    IsPublic = m.IsPublic
                 })]
             };
         }

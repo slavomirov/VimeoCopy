@@ -2,6 +2,7 @@
 using Amazon.S3.Model;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 using VimeoCopyApi.Data;
 using VimeoCopyAPI.Services.Interfaces;
 
@@ -29,5 +30,15 @@ public class MediaController : ControllerBase
     {
         await _mediaService.DeleteMediaAsync(mediaId);
         return Ok();
+    }
+
+    [HttpPatch("{mediaId}/toggle-visibility")]
+    public async Task<IActionResult> ToggleVisibility(string mediaId)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new UnauthorizedAccessException("User not authenticated.");
+
+        await _mediaService.ToggleVisibilityAsync(mediaId, userId);
+        return Ok(new { message = "Visibility toggled successfully." });
     }
 }

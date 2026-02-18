@@ -102,7 +102,8 @@ public class UploadService : IUploadService
             FileSize = input.FileSize,
             ContentType = input.ContentType,
             UploadedAt = DateTime.UtcNow,
-            UserId = userId
+            UserId = userId,
+            IsPublic = input.IsPublic
         };
 
         await _dbContext.Media.AddAsync(mediaRecord);
@@ -116,7 +117,8 @@ public class UploadService : IUploadService
             ContentType = mediaRecord.ContentType,
             FileSize = mediaRecord.FileSize,
             UploadedAt = mediaRecord.UploadedAt,
-            Status = mediaRecord.Status
+            Status = mediaRecord.Status,
+            IsPublic = mediaRecord.IsPublic
         };
     }
 }

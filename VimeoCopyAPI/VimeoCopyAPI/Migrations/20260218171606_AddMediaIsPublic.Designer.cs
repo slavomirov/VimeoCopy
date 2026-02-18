@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using VimeoCopyApi.Data;
 
@@ -11,9 +12,11 @@ using VimeoCopyApi.Data;
 namespace VimeoCopyAPI.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260218171606_AddMediaIsPublic")]
+    partial class AddMediaIsPublic
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -334,40 +337,6 @@ namespace VimeoCopyAPI.Migrations
                     b.ToTable("RefreshTokens");
                 });
 
-            modelBuilder.Entity("VimeoCopyAPI.Models.SharedLink", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedByUserId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("MediaId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Token")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MediaId");
-
-                    b.HasIndex("Token")
-                        .IsUnique();
-
-                    b.ToTable("SharedLinks");
-                });
-
             modelBuilder.Entity("VimeoCopyApi.Models.Media", b =>
                 {
                     b.Property<Guid>("Id")
@@ -492,17 +461,6 @@ namespace VimeoCopyAPI.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("VimeoCopyAPI.Models.SharedLink", b =>
-                {
-                    b.HasOne("VimeoCopyApi.Models.Media", "Media")
-                        .WithMany()
-                        .HasForeignKey("MediaId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Media");
                 });
 
             modelBuilder.Entity("VimeoCopyApi.Models.Media", b =>

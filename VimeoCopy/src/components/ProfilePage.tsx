@@ -10,6 +10,7 @@ interface Media {
   fileSize: number;
   uploadedAt: string;
   status: string;
+  isPublic: boolean;
 }
 
 interface UserData {
@@ -44,6 +45,9 @@ export function ProfilePage() {
   const { authFetch, claims } = useAuth();
   const [user, setUser] = useState<UserData | null>(null);
   const [urls, setUrls] = useState<Record<string, string>>({});
+  const [shareLink, setShareLink] = useState<string | null>(null);
+  const [shareLinkExpiry, setShareLinkExpiry] = useState<string | null>(null);
+  const [shareLoading, setShareLoading] = useState(false);
 
   // Load user DTO
   useEffect(() => {
@@ -90,6 +94,58 @@ export function ProfilePage() {
       alert(
         err instanceof Error ? err.message : "Failed to delete media"
       );
+    }
+  }
+
+  // Handle toggling media visibility
+  async function handleToggleVisibility(mediaId: string) {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/api/media/${mediaId}/toggle-visibility`, {
+        method: "PATCH",
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to toggle visibility");
+      }
+
+      setUser((prevUser) => {
+        if (!prevUser) return prevUser;
+        return {
+          ...prevUser,
+          media: prevUser.media.map((m) =>
+            m.id === mediaId ? { ...m, isPublic: !m.isPublic } : m
+          ),
+        };
+      });
+    } catch (err) {
+      alert(
+        err instanceof Error ? err.message : "Failed to toggle visibility"
+      );
+    }
+  }
+
+  // Handle creating a share link for private media
+  async function handleShareMedia(mediaId: string) {
+    setShareLoading(true);
+    try {
+      const res = await authFetch(`${API_BASE_URL}/api/shared/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mediaId, expirationHours: 24 }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to create share link");
+      }
+
+      const data = await res.json();
+      const link = `${window.location.origin}/shared/${data.token}`;
+      setShareLink(link);
+      setShareLinkExpiry(new Date(data.expiresAt).toLocaleString());
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to create share link");
+    } finally {
+      setShareLoading(false);
     }
   }
 
@@ -166,11 +222,84 @@ export function ProfilePage() {
                 media={m}
                 url={urls[m.id]}
                 onDelete={() => handleDeleteMedia(m.id)}
+                onToggleVisibility={() => handleToggleVisibility(m.id)}
+                onShare={() => handleShareMedia(m.id)}
+                shareLoading={shareLoading}
               />
             ))}
           </div>
         )}
       </div>
+
+      {/* Share Link Modal */}
+      {shareLink && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+          onClick={() => { setShareLink(null); setShareLinkExpiry(null); }}
+        >
+          <div
+            className="card"
+            style={{ maxWidth: "500px", width: "90%", margin: "0 auto" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="card-header">
+              <h2 className="card-title" style={{ marginBottom: 0 }}>Temporary Share Link</h2>
+            </div>
+            <div className="card-body">
+              <p className="text-muted" style={{ fontSize: "var(--font-size-sm)", marginBottom: "var(--space-4)" }}>
+                Anyone with this link can view the media — no account required. The link expires on <strong>{shareLinkExpiry}</strong>.
+              </p>
+              <div style={{
+                display: "flex",
+                gap: "var(--space-2)",
+                alignItems: "center",
+              }}>
+                <input
+                  type="text"
+                  readOnly
+                  value={shareLink}
+                  style={{
+                    flex: 1,
+                    padding: "var(--space-3)",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border-color)",
+                    backgroundColor: "var(--bg-elevated)",
+                    color: "var(--text-primary)",
+                    fontSize: "var(--font-size-sm)",
+                  }}
+                  onFocus={(e) => e.target.select()}
+                />
+                <button
+                  className="btn-primary"
+                  style={{ whiteSpace: "nowrap" }}
+                  onClick={() => {
+                    navigator.clipboard.writeText(shareLink);
+                    alert("Link copied to clipboard!");
+                  }}
+                >
+                  Copy
+                </button>
+              </div>
+              <div style={{ marginTop: "var(--space-4)", textAlign: "right" }}>
+                <button
+                  className="btn-secondary"
+                  onClick={() => { setShareLink(null); setShareLinkExpiry(null); }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -179,10 +308,16 @@ function MediaItem({
   media,
   url,
   onDelete,
+  onToggleVisibility,
+  onShare,
+  shareLoading,
 }: {
   media: Media;
   url?: string;
   onDelete: () => void;
+  onToggleVisibility: () => void;
+  onShare: () => void;
+  shareLoading: boolean;
 }) {
   if (!url) return <div className="card" style={{ padding: "var(--space-8)", textAlign: "center" }}><div className="loading" style={{ margin: "0 auto" }}></div></div>;
 
@@ -201,12 +336,42 @@ function MediaItem({
         <p className="text-muted" style={{ fontSize: "var(--font-size-sm)", marginBottom: "var(--space-1)" }}>
           {(media.fileSize / (1024 * 1024)).toFixed(2)} MB
         </p>
-        <p className="text-muted" style={{ fontSize: "var(--font-size-xs)", marginBottom: 0 }}>
+        <p className="text-muted" style={{ fontSize: "var(--font-size-xs)", marginBottom: "var(--space-1)" }}>
           Status: <span style={{ color: "var(--success)", fontWeight: 600 }}>{media.status || 'Ready'}</span>
+        </p>
+        <p style={{ fontSize: "var(--font-size-xs)", marginBottom: 0 }}>
+          <span style={{
+            display: "inline-block",
+            padding: "2px 8px",
+            borderRadius: "var(--radius-sm)",
+            fontWeight: 600,
+            fontSize: "var(--font-size-xs)",
+            backgroundColor: media.isPublic ? "rgba(34, 197, 94, 0.15)" : "rgba(239, 68, 68, 0.15)",
+            color: media.isPublic ? "var(--success)" : "var(--danger)",
+          }}>
+            {media.isPublic ? "Public" : "Private"}
+          </span>
         </p>
       </div>
 
       <div style={{ display: "flex", gap: "var(--space-2)" }}>
+        <button
+          onClick={onToggleVisibility}
+          className={media.isPublic ? "btn-secondary" : "btn-primary"}
+          style={{ flex: 1, fontSize: "var(--font-size-sm)" }}
+        >
+          {media.isPublic ? "Make Private" : "Make Public"}
+        </button>
+        {!media.isPublic && (
+          <button
+            onClick={onShare}
+            disabled={shareLoading}
+            className="btn-primary"
+            style={{ flex: 1, fontSize: "var(--font-size-sm)" }}
+          >
+            {shareLoading ? "..." : "Share Link"}
+          </button>
+        )}
         <button onClick={onDelete} className="btn-danger" style={{ flex: 1, fontSize: "var(--font-size-sm)" }}>
           Delete
         </button>

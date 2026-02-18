@@ -30,9 +30,30 @@ public class MediaService : IMediaService
     }
 
     public async Task<IEnumerable<Media>> GetAllMediaAsync()
-        => await _dbContext.Media.OrderByDescending(m => m.UploadedAt).ToListAsync();
+        => await _dbContext.Media
+            .Where(m => m.IsPublic)
+            .OrderByDescending(m => m.UploadedAt)
+            .ToListAsync();
+
+    public async Task<IEnumerable<Media>> GetUserMediaAsync(string userId)
+        => await _dbContext.Media
+            .Where(m => m.UserId == userId)
+            .OrderByDescending(m => m.UploadedAt)
+            .ToListAsync();
 
     public async Task<Media?> GetMediaByIdAsync(string mediaId) => await _dbContext.Media.FirstOrDefaultAsync(x => x.Id.ToString() == mediaId);
+
+    public async Task ToggleVisibilityAsync(string mediaId, string userId)
+    {
+        var media = await _dbContext.Media.FirstOrDefaultAsync(m => m.Id.ToString() == mediaId)
+            ?? throw new Exception("Media not found!");
+
+        if (media.UserId != userId)
+            throw new UnauthorizedAccessException("You don't have permission to change visibility of this media.");
+
+        media.IsPublic = !media.IsPublic;
+        await _dbContext.SaveChangesAsync();
+    }
 
     public async Task<GetPresignedURLDTO> GetPresignedURLAsync(string mediaId)
     {

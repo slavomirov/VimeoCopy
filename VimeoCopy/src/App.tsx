@@ -7,6 +7,7 @@ import { useAuth } from "./Auth/useAuth";
 import SocialLoginPage from "./SocialLoginPage";
 import { Toaster } from "react-hot-toast";
 import { ProfilePage } from "./components/ProfilePage";
+import { SharedMediaViewer } from "./components/SharedMediaViewer";
 import { BuyPage } from "./Payments/BuyPage";
 import { ProfileAuthPage } from "./Auth/ProfileAuthPage";
 import { LandingPage } from "./LandingPage";
@@ -137,6 +138,7 @@ function MainLayout() {
             }
           />
           <Route path="/videos" element={<Videos />} />
+          <Route path="/shared/:token" element={<SharedMediaViewer />} />
           <Route path="/social-login" element={<SocialLoginPage />} />
           <Route path="/buy" element={<BuyPage />} />
 

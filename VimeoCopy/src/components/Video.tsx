@@ -10,6 +10,7 @@ interface Media {
   fileSize: number;
   uploadedAt: string;
   status: string;
+  isPublic: boolean;
 }
 
 export function Videos() {

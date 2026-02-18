@@ -13,6 +13,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<Plan> Plans { get; set; }
     public DbSet<PlanNotification> PlanNotifications { get; set; }
+    public DbSet<SharedLink> SharedLinks { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -31,5 +32,15 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .WithMany(p => p.Users)
             .HasForeignKey(u => u.PlanId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<SharedLink>()
+            .HasOne(sl => sl.Media)
+            .WithMany()
+            .HasForeignKey(sl => sl.MediaId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<SharedLink>()
+            .HasIndex(sl => sl.Token)
+            .IsUnique();
     }
 }

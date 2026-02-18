@@ -96,6 +96,7 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IUploadService, UploadService>();
 builder.Services.AddScoped<IPlanService, PlanService>();
+builder.Services.AddScoped<ISharedLinkService, SharedLinkService>();
 
 
 builder.Services.AddOptions<StripeOptions>().Bind(builder.Configuration.GetSection("Stripe"));

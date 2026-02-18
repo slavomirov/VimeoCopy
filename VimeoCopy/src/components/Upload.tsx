@@ -6,6 +6,7 @@ import "../App.css";
 export function Upload() {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [isPublic, setIsPublic] = useState(true);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error" | "">("");
   const { authFetch } = useAuth();
@@ -103,6 +104,7 @@ export function Upload() {
           mediaId: mediaId,
           fileSize: file.size,
           contentType: file.type,
+          isPublic: isPublic,
         }),
       });
 
@@ -198,6 +200,38 @@ export function Upload() {
                 </p>
               </div>
             )}
+
+            <div style={{ marginTop: "var(--space-4)", display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "var(--space-2)",
+                  cursor: "pointer",
+                  userSelect: "none",
+                  fontSize: "var(--font-size-sm)",
+                  color: "var(--gray-600)",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={isPublic}
+                  onChange={(e) => setIsPublic(e.target.checked)}
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    accentColor: "var(--success)",
+                    cursor: "pointer",
+                  }}
+                />
+                <span style={{ fontWeight: 500 }}>Public</span>
+              </label>
+              <span style={{ fontSize: "var(--font-size-xs)", color: "var(--gray-500)" }}>
+                {isPublic
+                  ? "Anyone can view this media"
+                  : "Only you can view this media"}
+              </span>
+            </div>
           </div>
 
           {message && (

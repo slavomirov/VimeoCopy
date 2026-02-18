@@ -30,7 +30,7 @@ public class Media
     [MaxLength(500)]
     public string? VideoUrl { get; set; }
 
-    //public bool Private { get; set; }
+    public bool IsPublic { get; set; } = true;
 
     // Owner FK and navigation
     public string UserId { get; set; }
