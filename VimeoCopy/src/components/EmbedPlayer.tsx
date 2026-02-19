@@ -5,6 +5,7 @@ import { API_BASE_URL } from "../config";
 interface MediaUrl {
   url: string;
   contentType: string;
+  thumbnailUrl?: string;
 }
 
 export function EmbedPlayer() {
@@ -63,6 +64,7 @@ export function EmbedPlayer() {
           src={data.url}
           controls
           autoPlay
+          poster={data.thumbnailUrl || undefined}
           className="embed-media"
           controlsList="nodownload noplaybackrate"
           onContextMenu={(e) => e.preventDefault()}

@@ -7,6 +7,9 @@ public class MediaUploadCompleteDTO
     public string ContentType { get; set; }
     public bool IsPublic { get; set; } = true;
 
+    /// <summary>True if the client uploaded a thumbnail to thumb_{MediaId}.</summary>
+    public bool HasThumbnail { get; set; }
+
     /// <summary>Optional: automatically add the uploaded media to this project.</summary>
     public Guid? ProjectId { get; set; }
 }

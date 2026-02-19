@@ -179,6 +179,7 @@
   transition: margin-left 0.3s ease;
   overflow: auto;
   background-color: var(--bg-base);
+  padding: var(--space-8) var(--space-6);
 }
 
 .sidebar.closed ~ .app-content {
@@ -233,6 +234,12 @@
   box-shadow: var(--shadow-lg), var(--glow-md);
   border-color: var(--border-glow);
   transform: translateY(-2px);
+}
+
+/* Cards used inside fixed modals — no hover shift */
+.modal-card,
+.modal-card:hover {
+  transform: none !important;
 }
 
 .card-header {
@@ -827,7 +834,8 @@
 
   .app-content {
     margin-left: 0 !important;
-    padding-top: 56px;
+    padding: var(--space-4);
+    padding-top: calc(56px + var(--space-4));
   }
 
   .sidebar.open ~ .app-content {

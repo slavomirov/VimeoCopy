@@ -41,4 +41,21 @@ public class MediaController : ControllerBase
         await _mediaService.ToggleVisibilityAsync(mediaId, userId);
         return Ok(new { message = "Visibility toggled successfully." });
     }
+
+    /// <summary>
+    /// Returns a pre-signed PUT URL for uploading a new/replacement thumbnail for the media.
+    /// </summary>
+    [HttpPost("{mediaId}/thumbnail/upload-url")]
+    public async Task<IActionResult> GetThumbnailUploadUrl(string mediaId)
+        => Ok(await _mediaService.GetThumbnailUploadUrlAsync(mediaId));
+
+    /// <summary>
+    /// Confirms thumbnail has been uploaded to S3, writes ThumbnailUrl column.
+    /// </summary>
+    [HttpPost("{mediaId}/thumbnail/confirm")]
+    public async Task<IActionResult> ConfirmThumbnail(string mediaId)
+    {
+        await _mediaService.ConfirmThumbnailAsync(mediaId);
+        return Ok(new { message = "Thumbnail updated successfully." });
+    }
 }

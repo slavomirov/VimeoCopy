@@ -282,7 +282,8 @@ namespace VimeoCopyAPI.Services
                     FileSize = m.FileSize,
                     UploadedAt = m.UploadedAt,
                     Status = m.Status,
-                    IsPublic = m.IsPublic
+                    IsPublic = m.IsPublic,
+                    HasThumbnail = !string.IsNullOrEmpty(m.ThumbnailUrl)
                 })]
             };
         }

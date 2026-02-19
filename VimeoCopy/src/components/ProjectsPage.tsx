@@ -58,7 +58,7 @@ export function ProjectsPage() {
           );
           if (res.ok) {
             const data = await res.json();
-            newUrls[p.thumbnailMediaId!] = data.url;
+            newUrls[p.thumbnailMediaId!] = data.thumbnailUrl || data.url;
           }
         } catch {
           /* skip */

@@ -7,6 +7,7 @@ interface SharedMediaData {
   url: string;
   contentType: string;
   expiresAt: string;
+  thumbnailUrl?: string;
 }
 
 export function SharedMediaViewer() {
@@ -97,6 +98,7 @@ export function SharedMediaViewer() {
               src={data.url}
               controls
               autoPlay
+              poster={data.thumbnailUrl || undefined}
               style={{
                 maxWidth: "100%",
                 maxHeight: "70vh",

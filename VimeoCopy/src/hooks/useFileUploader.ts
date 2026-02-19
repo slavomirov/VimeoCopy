@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { useAuth } from "../Auth/useAuth";
 import { API_BASE_URL } from "../config";
+import { generateThumbnail } from "../utils/thumbnailGenerator";
 
 /* ── Types ─────────────────────────────────── */
 
@@ -13,6 +14,8 @@ export interface FileEntry {
   isPublic: boolean;
   /** Populated after upload completes successfully */
   mediaId?: string;
+  /** User-picked thumbnail blob (overrides auto-generation) */
+  customThumbnail?: Blob;
 }
 
 export interface UseFileUploaderOptions {
@@ -120,6 +123,12 @@ export function useFileUploader(options: UseFileUploaderOptions = {}) {
     );
   }
 
+  function setCustomThumbnail(id: string, blob: Blob | undefined) {
+    setFiles((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, customThumbnail: blob } : f))
+    );
+  }
+
   function setGlobalPublic(value: boolean) {
     setGlobalPublicRaw(value);
     setFiles((prev) =>
@@ -146,14 +155,19 @@ export function useFileUploader(options: UseFileUploaderOptions = {}) {
 
       if (!presignRes.ok) throw new Error("Failed to get upload URLs");
 
-      const presignedUrls: { url: string; mediaId: string }[] = await presignRes.json();
+      const presignedUrls: { url: string; mediaId: string; thumbnailUploadUrl: string }[] = await presignRes.json();
 
       // Upload each file in parallel
       const uploads = queued.map(async (entry, idx) => {
-        const { url, mediaId } = presignedUrls[idx];
+        const { url, mediaId, thumbnailUploadUrl } = presignedUrls[idx];
 
         try {
-          updateEntry(entry.id, { status: "uploading", progress: 10 });
+          updateEntry(entry.id, { status: "uploading", progress: 5 });
+
+          // Use custom thumbnail if user picked one, otherwise auto-generate
+          const thumbnailPromise = entry.customThumbnail
+            ? Promise.resolve(entry.customThumbnail)
+            : generateThumbnail(entry.file);
 
           // Upload to S3 via XMLHttpRequest for progress tracking
           await new Promise<void>((resolve, reject) => {
@@ -163,7 +177,7 @@ export function useFileUploader(options: UseFileUploaderOptions = {}) {
 
             xhr.upload.onprogress = (e) => {
               if (e.lengthComputable) {
-                const pct = Math.round((e.loaded / e.total) * 90);
+                const pct = Math.round((e.loaded / e.total) * 85);
                 updateEntry(entry.id, { progress: pct });
               }
             };
@@ -177,6 +191,32 @@ export function useFileUploader(options: UseFileUploaderOptions = {}) {
             xhr.send(entry.file);
           });
 
+          // Upload thumbnail if generated
+          updateEntry(entry.id, { progress: 90 });
+          let hasThumbnail = false;
+          try {
+            const thumbBlob = await thumbnailPromise;
+            if (thumbBlob && thumbnailUploadUrl) {
+              const thumbXhr = new XMLHttpRequest();
+              await new Promise<void>((resolve, reject) => {
+                thumbXhr.open("PUT", thumbnailUploadUrl, true);
+                thumbXhr.setRequestHeader("Content-Type", "image/jpeg");
+                thumbXhr.onload = () => {
+                  if (thumbXhr.status >= 200 && thumbXhr.status < 300) {
+                    hasThumbnail = true;
+                    resolve();
+                  } else {
+                    resolve(); // thumbnail failure is non-fatal
+                  }
+                };
+                thumbXhr.onerror = () => resolve(); // non-fatal
+                thumbXhr.send(thumbBlob);
+              });
+            }
+          } catch {
+            // thumbnail generation/upload failure is non-fatal
+          }
+
           // Complete upload
           updateEntry(entry.id, { status: "completing", progress: 95 });
 
@@ -185,6 +225,7 @@ export function useFileUploader(options: UseFileUploaderOptions = {}) {
             fileSize: entry.file.size,
             contentType: entry.file.type,
             isPublic: entry.isPublic,
+            hasThumbnail,
           };
 
           if (options.projectId) {
@@ -251,6 +292,7 @@ export function useFileUploader(options: UseFileUploaderOptions = {}) {
     addFiles,
     removeFile,
     toggleFilePublic,
+    setCustomThumbnail,
     handleUploadAll,
     queuedCount,
     doneCount,

@@ -82,4 +82,5 @@ public class ProjectMediaItemDTO
     public DateTime UploadedAt { get; set; }
     public bool IsPublic { get; set; }
     public int SortOrder { get; set; }
+    public bool HasThumbnail { get; set; }
 }

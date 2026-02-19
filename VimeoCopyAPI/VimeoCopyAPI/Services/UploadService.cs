@@ -78,7 +78,21 @@ public class UploadService : IUploadService
             ContentType = "application/octet-stream"
         };
 
-        return new PresignRequestDTO { Url = _s3.GetPreSignedURL(request), MediaId = mediaId };
+        var thumbRequest = new GetPreSignedUrlRequest
+        {
+            BucketName = bucket,
+            Key = $"thumb_{mediaId}",
+            Verb = HttpVerb.PUT,
+            Expires = DateTime.UtcNow.AddMinutes(15),
+            ContentType = "image/jpeg"
+        };
+
+        return new PresignRequestDTO
+        {
+            Url = _s3.GetPreSignedURL(request),
+            MediaId = mediaId,
+            ThumbnailUploadUrl = _s3.GetPreSignedURL(thumbRequest)
+        };
     }
 
     public List<PresignRequestDTO> GetPresignedUrls(int count)
@@ -117,7 +131,8 @@ public class UploadService : IUploadService
             ContentType = input.ContentType,
             UploadedAt = DateTime.UtcNow,
             UserId = userId,
-            IsPublic = input.IsPublic
+            IsPublic = input.IsPublic,
+            ThumbnailUrl = input.HasThumbnail ? $"thumb_{input.MediaId}" : null
         };
 
         await _dbContext.Media.AddAsync(mediaRecord);
@@ -164,7 +179,8 @@ public class UploadService : IUploadService
             FileSize = mediaRecord.FileSize,
             UploadedAt = mediaRecord.UploadedAt,
             Status = mediaRecord.Status,
-            IsPublic = mediaRecord.IsPublic
+            IsPublic = mediaRecord.IsPublic,
+            HasThumbnail = !string.IsNullOrEmpty(mediaRecord.ThumbnailUrl)
         };
     }
 }

@@ -22,4 +22,5 @@ public class MediaDTO
     public DateTime UploadedAt { get; set; }
     public string Status { get; set; }
     public bool IsPublic { get; set; }
+    public bool HasThumbnail { get; set; }
 }

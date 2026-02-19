@@ -240,6 +240,7 @@ public class ProjectService : IProjectService
                     UploadedAt = pm.Media.UploadedAt,
                     IsPublic = pm.Media.IsPublic,
                     SortOrder = pm.SortOrder,
+                    HasThumbnail = !string.IsNullOrEmpty(pm.Media.ThumbnailUrl),
                 })
                 .ToList(),
         };

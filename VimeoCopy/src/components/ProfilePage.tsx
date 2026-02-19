@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useAuth } from "../Auth/useAuth";
 import { API_BASE_URL } from "../config";
+import { ThumbnailPicker } from "./ThumbnailPicker";
 import "../App.css";
 
 interface Media {
@@ -11,6 +13,7 @@ interface Media {
   uploadedAt: string;
   status: string;
   isPublic: boolean;
+  hasThumbnail: boolean;
 }
 
 interface UserData {
@@ -45,10 +48,13 @@ export function ProfilePage() {
   const { authFetch, claims } = useAuth();
   const [user, setUser] = useState<UserData | null>(null);
   const [urls, setUrls] = useState<Record<string, string>>({});
+  const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [shareLinkExpiry, setShareLinkExpiry] = useState<string | null>(null);
   const [shareLoading, setShareLoading] = useState(false);
   const [embedMedia, setEmbedMedia] = useState<Media | null>(null);
+  const [thumbPickerMediaId, setThumbPickerMediaId] = useState<string | null>(null);
+  const [thumbUploading, setThumbUploading] = useState(false);
 
   // Load user DTO
   useEffect(() => {
@@ -150,20 +156,72 @@ export function ProfilePage() {
     }
   }
 
+  // Handle uploading a custom thumbnail for an existing media
+  async function handleThumbnailCapture(blob: Blob) {
+    if (!thumbPickerMediaId) return;
+    setThumbUploading(true);
+    try {
+      // 1. Get presigned PUT URL
+      const urlRes = await authFetch(
+        `${API_BASE_URL}/api/media/${thumbPickerMediaId}/thumbnail/upload-url`,
+        { method: "POST" }
+      );
+      if (!urlRes.ok) throw new Error("Failed to get thumbnail upload URL");
+      const { uploadUrl } = await urlRes.json();
+
+      // 2. Upload thumbnail to S3
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", uploadUrl, true);
+        xhr.setRequestHeader("Content-Type", "image/jpeg");
+        xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error("Upload failed")));
+        xhr.onerror = () => reject(new Error("Network error"));
+        xhr.send(blob);
+      });
+
+      // 3. Confirm thumbnail on backend
+      const confirmRes = await authFetch(
+        `${API_BASE_URL}/api/media/${thumbPickerMediaId}/thumbnail/confirm`,
+        { method: "POST" }
+      );
+      if (!confirmRes.ok) throw new Error("Failed to confirm thumbnail");
+
+      // 4. Refresh thumbnail URL
+      const mediaRes = await authFetch(`${API_BASE_URL}/api/media/${thumbPickerMediaId}/url`);
+      if (mediaRes.ok) {
+        const data = await mediaRes.json();
+        if (data.thumbnailUrl) {
+          setThumbnailUrls((prev) => ({ ...prev, [thumbPickerMediaId]: data.thumbnailUrl }));
+        }
+      }
+
+      setThumbPickerMediaId(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update thumbnail");
+    } finally {
+      setThumbUploading(false);
+    }
+  }
+
   // Load AWS URLs for each media item
   useEffect(() => {
     async function loadUrls() {
       if (!user) return;
 
       const newUrls: Record<string, string> = {};
+      const newThumbs: Record<string, string> = {};
 
       for (const m of user.media) {
         const res = await authFetch(`${API_BASE_URL}/api/media/${m.id}/url`);
         const data = await res.json();
         newUrls[m.id] = data.url;
+        if (data.thumbnailUrl) {
+          newThumbs[m.id] = data.thumbnailUrl;
+        }
       }
 
       setUrls(newUrls);
+      setThumbnailUrls(newThumbs);
     }
 
     loadUrls();
@@ -222,10 +280,12 @@ export function ProfilePage() {
                 key={m.id}
                 media={m}
                 url={urls[m.id]}
+                thumbnailUrl={thumbnailUrls[m.id]}
                 onDelete={() => handleDeleteMedia(m.id)}
                 onToggleVisibility={() => handleToggleVisibility(m.id)}
                 onShare={() => handleShareMedia(m.id)}
                 onEmbed={() => setEmbedMedia(m)}
+                onChangeThumbnail={() => setThumbPickerMediaId(m.id)}
                 shareLoading={shareLoading}
               />
             ))}
@@ -310,6 +370,57 @@ export function ProfilePage() {
           onClose={() => setEmbedMedia(null)}
         />
       )}
+
+      {/* Thumbnail Picker Modal */}
+      {thumbPickerMediaId && urls[thumbPickerMediaId] && createPortal(
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "var(--space-4)",
+          }}
+          onClick={() => !thumbUploading && setThumbPickerMediaId(null)}
+        >
+          <div
+            className="card modal-card"
+            style={{ maxWidth: "700px", width: "100%", maxHeight: "90vh", overflowY: "auto" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h2 className="card-title" style={{ marginBottom: 0 }}>Change Thumbnail</h2>
+              <button
+                onClick={() => !thumbUploading && setThumbPickerMediaId(null)}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--gray-400)", padding: "4px", display: "flex" }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <div className="card-body">
+              {thumbUploading ? (
+                <div style={{ textAlign: "center", padding: "var(--space-8)" }}>
+                  <div className="loading" style={{ margin: "0 auto var(--space-4)" }}></div>
+                  <p className="text-muted">Uploading thumbnail...</p>
+                </div>
+              ) : (
+                <ThumbnailPicker
+                  videoUrl={urls[thumbPickerMediaId]}
+                  onCapture={handleThumbnailCapture}
+                  onCancel={() => setThumbPickerMediaId(null)}
+                />
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
@@ -317,29 +428,86 @@ export function ProfilePage() {
 function MediaItem({
   media,
   url,
+  thumbnailUrl,
   onDelete,
   onToggleVisibility,
   onShare,
   onEmbed,
+  onChangeThumbnail,
   shareLoading,
 }: {
   media: Media;
   url?: string;
+  thumbnailUrl?: string;
   onDelete: () => void;
   onToggleVisibility: () => void;
   onShare: () => void;
   onEmbed: () => void;
+  onChangeThumbnail: () => void;
   shareLoading: boolean;
 }) {
+  const [playing, setPlaying] = useState(false);
+
   if (!url) return <div className="card" style={{ padding: "var(--space-8)", textAlign: "center" }}><div className="loading" style={{ margin: "0 auto" }}></div></div>;
+
+  const isImage = media.contentType.startsWith("image/");
+  const isVideo = media.contentType.startsWith("video/");
+  const isAudio = media.contentType.startsWith("audio/");
 
   return (
     <div className="card">
-      <div style={{ width: "100%", height: "200px", borderRadius: "var(--radius-lg)", overflow: "hidden", backgroundColor: "var(--bg-deep)", marginBottom: "var(--space-4)" }}>
-        {media.contentType.startsWith("image/") ? (
-          <img src={url} alt={media.fileName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        ) : (
-          <video src={url} controls style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+      <div style={{ width: "100%", height: "200px", borderRadius: "var(--radius-lg)", overflow: "hidden", backgroundColor: "var(--bg-deep)", marginBottom: "var(--space-4)", position: "relative", cursor: isVideo && !playing ? "pointer" : "default" }}
+        onClick={() => { if (isVideo && !playing) setPlaying(true); }}
+      >
+        {isImage && (
+          <img src={thumbnailUrl || url} alt={media.fileName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        )}
+        {isVideo && !playing && (
+          <>
+            {thumbnailUrl ? (
+              <img src={thumbnailUrl} alt={media.fileName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              <video src={url} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+            )}
+            {/* Play button overlay */}
+            <div style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "rgba(0,0,0,0.3)",
+              transition: "background 0.2s",
+            }}>
+              <div style={{
+                width: "52px",
+                height: "52px",
+                borderRadius: "50%",
+                backgroundColor: "rgba(34, 197, 94, 0.9)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 2px 12px rgba(34, 197, 94, 0.4)",
+              }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="white" style={{ marginLeft: "2px" }}>
+                  <polygon points="5,3 19,12 5,21" />
+                </svg>
+              </div>
+            </div>
+          </>
+        )}
+        {isVideo && playing && (
+          <video src={url} controls autoPlay style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+        )}
+        {isAudio && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", flexDirection: "column", gap: "var(--space-3)" }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="1.5">
+              <path d="M9 18V5l12-2v13" />
+              <circle cx="6" cy="18" r="3" />
+              <circle cx="18" cy="16" r="3" />
+            </svg>
+            <audio src={url} controls style={{ width: "90%" }} />
+          </div>
         )}
       </div>
 
@@ -393,6 +561,15 @@ function MediaItem({
           </svg>
           Embed
         </button>
+        {media.contentType.startsWith("video/") && (
+          <button onClick={onChangeThumbnail} className="btn-outline" title="Change thumbnail">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: "4px", verticalAlign: "middle" }}>
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+              <circle cx="12" cy="13" r="4" />
+            </svg>
+            Thumbnail
+          </button>
+        )}
         <button onClick={onDelete} className="btn-danger">
           Delete
         </button>

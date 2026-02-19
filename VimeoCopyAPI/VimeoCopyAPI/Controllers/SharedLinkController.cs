@@ -66,11 +66,25 @@ public class SharedLinkController : ControllerBase
 
         var url = _s3.GetPreSignedURL(presignRequest);
 
+        string? thumbnailUrl = null;
+        if (!string.IsNullOrEmpty(link.Media.ThumbnailUrl))
+        {
+            var thumbRequest = new GetPreSignedUrlRequest
+            {
+                BucketName = bucket,
+                Key = link.Media.ThumbnailUrl,
+                Verb = HttpVerb.GET,
+                Expires = DateTime.UtcNow.AddMinutes(15)
+            };
+            thumbnailUrl = _s3.GetPreSignedURL(thumbRequest);
+        }
+
         return Ok(new
         {
             url,
             contentType = link.Media.ContentType,
-            expiresAt = link.ExpiresAt
+            expiresAt = link.ExpiresAt,
+            thumbnailUrl
         });
     }
 }

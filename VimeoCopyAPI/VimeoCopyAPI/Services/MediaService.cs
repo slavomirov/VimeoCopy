@@ -69,7 +69,20 @@ public class MediaService : IMediaService
 
         var url = _s3.GetPreSignedURL(request);
 
-        return new() { URL = url, ContentType = media.ContentType };
+        string? thumbnailUrl = null;
+        if (!string.IsNullOrEmpty(media.ThumbnailUrl))
+        {
+            var thumbRequest = new GetPreSignedUrlRequest
+            {
+                BucketName = bucket,
+                Key = media.ThumbnailUrl,
+                Verb = HttpVerb.GET,
+                Expires = DateTime.UtcNow.AddMinutes(15)
+            };
+            thumbnailUrl = _s3.GetPreSignedURL(thumbRequest);
+        }
+
+        return new() { URL = url, ContentType = media.ContentType, ThumbnailUrl = thumbnailUrl };
     }
 
     public async Task DeleteMediaAsync(string mediaId)
@@ -88,12 +101,69 @@ public class MediaService : IMediaService
         _dbContext.Remove(media);
         await _dbContext.SaveChangesAsync();
      
-        var result = await _s3.DeleteObjectAsync(new DeleteObjectRequest
+        // Delete original file from S3
+        await _s3.DeleteObjectAsync(new DeleteObjectRequest
         {
             BucketName = bucket,
             Key = mediaId
         });
 
-        ;
+        // Delete thumbnail from S3 if exists
+        if (!string.IsNullOrEmpty(media.ThumbnailUrl))
+        {
+            try
+            {
+                await _s3.DeleteObjectAsync(new DeleteObjectRequest
+                {
+                    BucketName = bucket,
+                    Key = media.ThumbnailUrl
+                });
+            }
+            catch { /* thumbnail delete is best-effort */ }
+        }
+    }
+
+    public async Task<ThumbnailUploadResponseDTO> GetThumbnailUploadUrlAsync(string mediaId)
+    {
+        var userId = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? throw new UnauthorizedAccessException("User not authenticated!");
+
+        var media = await _dbContext.Media.FirstOrDefaultAsync(m => m.Id.ToString() == mediaId)
+            ?? throw new Exception("Media not found!");
+
+        if (media.UserId != userId)
+            throw new UnauthorizedAccessException("You don't have permission to change this media's thumbnail.");
+
+        var thumbKey = $"thumb_{mediaId}";
+
+        var request = new GetPreSignedUrlRequest
+        {
+            BucketName = bucket,
+            Key = thumbKey,
+            Verb = HttpVerb.PUT,
+            Expires = DateTime.UtcNow.AddMinutes(15),
+            ContentType = "image/jpeg"
+        };
+
+        return new ThumbnailUploadResponseDTO
+        {
+            UploadUrl = _s3.GetPreSignedURL(request),
+            MediaId = mediaId,
+        };
+    }
+
+    public async Task ConfirmThumbnailAsync(string mediaId)
+    {
+        var userId = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? throw new UnauthorizedAccessException("User not authenticated!");
+
+        var media = await _dbContext.Media.FirstOrDefaultAsync(m => m.Id.ToString() == mediaId)
+            ?? throw new Exception("Media not found!");
+
+        if (media.UserId != userId)
+            throw new UnauthorizedAccessException("You don't have permission to change this media's thumbnail.");
+
+        media.ThumbnailUrl = $"thumb_{mediaId}";
+        await _dbContext.SaveChangesAsync();
     }
 }

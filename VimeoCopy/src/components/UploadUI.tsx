@@ -3,8 +3,10 @@
  * Uses the `useFileUploader` hook for all state & logic.
  */
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import type { FileEntry } from "../hooks/useFileUploader";
 import { ACCEPT_STRING, useFileUploader } from "../hooks/useFileUploader";
+import { ThumbnailPicker } from "./ThumbnailPicker";
 import "../App.css";
 
 /* ── FileRow ────────────────────────────────── */
@@ -13,10 +15,12 @@ export function FileRow({
   entry,
   onRemove,
   onTogglePublic,
+  onPickThumbnail,
 }: {
   entry: FileEntry;
   onRemove: () => void;
   onTogglePublic: () => void;
+  onPickThumbnail?: () => void;
 }) {
   const isActive = entry.status === "uploading" || entry.status === "completing";
   const isDone = entry.status === "done";
@@ -103,6 +107,28 @@ export function FileRow({
         </button>
       )}
 
+      {/* Pick thumbnail button for queued videos */}
+      {isQueued && entry.file.type.startsWith("video/") && onPickThumbnail && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onPickThumbnail(); }}
+          title={entry.customThumbnail ? "Custom thumbnail set ✓ — click to change" : "Pick a thumbnail frame"}
+          style={{
+            flexShrink: 0,
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            fontSize: "var(--font-size-xs)",
+            padding: "2px 8px",
+            borderRadius: "var(--radius-sm)",
+            fontWeight: 600,
+            backgroundColor: entry.customThumbnail ? "rgba(34, 197, 94, 0.15)" : "rgba(99, 102, 241, 0.15)",
+            color: entry.customThumbnail ? "var(--success)" : "var(--primary)",
+          }}
+        >
+          {entry.customThumbnail ? "✓ Thumb" : "🎞 Thumb"}
+        </button>
+      )}
+
       {isQueued && (
         <button
           onClick={onRemove}
@@ -162,6 +188,10 @@ export function UploadPanel({
 }) {
   const uploader = useFileUploader({ projectId });
   const [dragActive, setDragActive] = useState(false);
+  const [pickerFileId, setPickerFileId] = useState<string | null>(null);
+
+  // The file entry currently being picked for thumbnail
+  const pickerEntry = pickerFileId ? uploader.files.find((f) => f.id === pickerFileId) : null;
 
   function handleDrag(e: React.DragEvent) {
     e.preventDefault();
@@ -296,6 +326,11 @@ export function UploadPanel({
                 entry={entry}
                 onRemove={() => uploader.removeFile(entry.id)}
                 onTogglePublic={() => uploader.toggleFilePublic(entry.id)}
+                onPickThumbnail={
+                  entry.file.type.startsWith("video/") && entry.status === "queued"
+                    ? () => setPickerFileId(entry.id)
+                    : undefined
+                }
               />
             ))}
           </div>
@@ -317,6 +352,53 @@ export function UploadPanel({
               : `Upload ${uploader.queuedCount} file${uploader.queuedCount !== 1 ? "s" : ""}`}
         </button>
       </div>
+
+      {/* Thumbnail picker modal */}
+      {pickerEntry && createPortal(
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "var(--space-4)",
+          }}
+          onClick={() => setPickerFileId(null)}
+        >
+          <div
+            className="card modal-card"
+            style={{ maxWidth: "700px", width: "100%", maxHeight: "90vh", overflowY: "auto" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h2 className="card-title" style={{ marginBottom: 0 }}>Pick Thumbnail</h2>
+              <button
+                onClick={() => setPickerFileId(null)}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--gray-400)", padding: "4px", display: "flex" }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <div className="card-body">
+              <ThumbnailPicker
+                videoFile={pickerEntry.file}
+                onCapture={(blob) => {
+                  uploader.setCustomThumbnail(pickerEntry.id, blob);
+                  setPickerFileId(null);
+                }}
+                onCancel={() => setPickerFileId(null)}
+              />
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
