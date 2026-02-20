@@ -7,6 +7,9 @@ public class MediaUploadCompleteDTO
     public string ContentType { get; set; }
     public bool IsPublic { get; set; } = true;
 
+    /// <summary>Original file name from the client.</summary>
+    public string? FileName { get; set; }
+
     /// <summary>True if the client uploaded a thumbnail to thumb_{MediaId}.</summary>
     public bool HasThumbnail { get; set; }
 

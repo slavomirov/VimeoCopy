@@ -32,6 +32,17 @@ public class Media
 
     public bool IsPublic { get; set; } = true;
 
+    /// <summary>When true, the media appears on the public Media Gallery page.</summary>
+    public bool ShowOnMediaPage { get; set; } = true;
+
+    /// <summary>Optional user-provided description for the media.</summary>
+    [MaxLength(2000)]
+    public string? Description { get; set; }
+
+    /// <summary>Original file name preserved from upload.</summary>
+    [MaxLength(500)]
+    public string? FileName { get; set; }
+
     // Owner FK and navigation
     public string UserId { get; set; }
     [JsonIgnore]

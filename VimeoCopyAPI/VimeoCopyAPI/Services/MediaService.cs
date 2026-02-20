@@ -29,11 +29,59 @@ public class MediaService : IMediaService
         _userService = userService;
     }
 
-    public async Task<IEnumerable<Media>> GetAllMediaAsync()
-        => await _dbContext.Media
-            .Where(m => m.IsPublic)
+    public async Task<IEnumerable<PublicMediaDTO>> GetAllMediaAsync()
+    {
+        // Get all public media that owners want shown on the media page
+        var mediaList = await _dbContext.Media
+            .Include(m => m.User)
+            .Where(m => m.IsPublic && m.ShowOnMediaPage)
             .OrderByDescending(m => m.UploadedAt)
             .ToListAsync();
+
+        // Get all project-media associations in one query
+        var mediaIds = mediaList.Select(m => m.Id).ToList();
+        var projectMediaMap = await _dbContext.ProjectMedias
+            .Include(pm => pm.Project)
+            .Where(pm => mediaIds.Contains(pm.MediaId))
+            .GroupBy(pm => pm.MediaId)
+            .ToDictionaryAsync(g => g.Key, g => g.First().Project);
+
+        // Get project media counts
+        var projectIds = projectMediaMap.Values.Select(p => p.Id).Distinct().ToList();
+        var projectMediaCounts = await _dbContext.ProjectMedias
+            .Where(pm => projectIds.Contains(pm.ProjectId))
+            .GroupBy(pm => pm.ProjectId)
+            .ToDictionaryAsync(g => g.Key, g => g.Count());
+
+        return mediaList.Select(m =>
+        {
+            var dto = new PublicMediaDTO
+            {
+                Id = m.Id,
+                FileName = m.FileName,
+                ContentType = m.ContentType,
+                FileSize = m.FileSize,
+                UploadedAt = m.UploadedAt,
+                Status = m.Status,
+                IsPublic = m.IsPublic,
+                Description = m.Description,
+                HasThumbnail = !string.IsNullOrEmpty(m.ThumbnailUrl),
+                OwnerEmail = m.User?.Email ?? "Unknown",
+                OwnerUsername = m.User?.UserName,
+            };
+
+            if (projectMediaMap.TryGetValue(m.Id, out var project))
+            {
+                dto.ProjectId = project.Id;
+                dto.ProjectTitle = project.Title;
+                dto.ProjectDescription = project.Description;
+                dto.ProjectThumbnailMediaId = project.ThumbnailMediaId;
+                dto.ProjectMediaCount = projectMediaCounts.GetValueOrDefault(project.Id, 0);
+            }
+
+            return dto;
+        });
+    }
 
     public async Task<IEnumerable<Media>> GetUserMediaAsync(string userId)
         => await _dbContext.Media
@@ -52,6 +100,23 @@ public class MediaService : IMediaService
             throw new UnauthorizedAccessException("You don't have permission to change visibility of this media.");
 
         media.IsPublic = !media.IsPublic;
+        await _dbContext.SaveChangesAsync();
+    }
+
+    public async Task UpdateMediaDetailsAsync(string mediaId, string userId, UpdateMediaDetailsDTO dto)
+    {
+        var media = await _dbContext.Media.FirstOrDefaultAsync(m => m.Id.ToString() == mediaId)
+            ?? throw new Exception("Media not found!");
+
+        if (media.UserId != userId)
+            throw new UnauthorizedAccessException("You don't have permission to update this media.");
+
+        if (dto.Description is not null)
+            media.Description = dto.Description;
+
+        if (dto.ShowOnMediaPage.HasValue)
+            media.ShowOnMediaPage = dto.ShowOnMediaPage.Value;
+
         await _dbContext.SaveChangesAsync();
     }
 

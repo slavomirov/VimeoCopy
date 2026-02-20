@@ -283,7 +283,10 @@ namespace VimeoCopyAPI.Services
                     UploadedAt = m.UploadedAt,
                     Status = m.Status,
                     IsPublic = m.IsPublic,
-                    HasThumbnail = !string.IsNullOrEmpty(m.ThumbnailUrl)
+                    HasThumbnail = !string.IsNullOrEmpty(m.ThumbnailUrl),
+                    ShowOnMediaPage = m.ShowOnMediaPage,
+                    Description = m.Description,
+                    FileName = m.FileName,
                 })]
             };
         }

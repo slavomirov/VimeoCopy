@@ -14,6 +14,8 @@ interface Media {
   status: string;
   isPublic: boolean;
   hasThumbnail: boolean;
+  showOnMediaPage: boolean;
+  description: string | null;
 }
 
 interface UserData {
@@ -55,6 +57,8 @@ export function ProfilePage() {
   const [embedMedia, setEmbedMedia] = useState<Media | null>(null);
   const [thumbPickerMediaId, setThumbPickerMediaId] = useState<string | null>(null);
   const [thumbUploading, setThumbUploading] = useState(false);
+  const [editingDesc, setEditingDesc] = useState<string | null>(null);
+  const [descDraft, setDescDraft] = useState("");
 
   // Load user DTO
   useEffect(() => {
@@ -128,6 +132,57 @@ export function ProfilePage() {
       alert(
         err instanceof Error ? err.message : "Failed to toggle visibility"
       );
+    }
+  }
+
+  // Handle toggling ShowOnMediaPage
+  async function handleToggleShowOnMediaPage(mediaId: string, currentValue: boolean) {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/api/media/${mediaId}/details`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ showOnMediaPage: !currentValue }),
+      });
+
+      if (!res.ok) throw new Error("Failed to update media details");
+
+      setUser((prevUser) => {
+        if (!prevUser) return prevUser;
+        return {
+          ...prevUser,
+          media: prevUser.media.map((m) =>
+            m.id === mediaId ? { ...m, showOnMediaPage: !currentValue } : m
+          ),
+        };
+      });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update");
+    }
+  }
+
+  // Handle saving description
+  async function handleSaveDescription(mediaId: string, description: string) {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/api/media/${mediaId}/details`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description }),
+      });
+
+      if (!res.ok) throw new Error("Failed to update description");
+
+      setUser((prevUser) => {
+        if (!prevUser) return prevUser;
+        return {
+          ...prevUser,
+          media: prevUser.media.map((m) =>
+            m.id === mediaId ? { ...m, description } : m
+          ),
+        };
+      });
+      setEditingDesc(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update description");
     }
   }
 
@@ -283,10 +338,17 @@ export function ProfilePage() {
                 thumbnailUrl={thumbnailUrls[m.id]}
                 onDelete={() => handleDeleteMedia(m.id)}
                 onToggleVisibility={() => handleToggleVisibility(m.id)}
+                onToggleShowOnMediaPage={() => handleToggleShowOnMediaPage(m.id, m.showOnMediaPage)}
                 onShare={() => handleShareMedia(m.id)}
                 onEmbed={() => setEmbedMedia(m)}
                 onChangeThumbnail={() => setThumbPickerMediaId(m.id)}
                 shareLoading={shareLoading}
+                isEditingDesc={editingDesc === m.id}
+                descDraft={editingDesc === m.id ? descDraft : ""}
+                onStartEditDesc={() => { setEditingDesc(m.id); setDescDraft(m.description || ""); }}
+                onDescDraftChange={setDescDraft}
+                onSaveDesc={() => handleSaveDescription(m.id, descDraft)}
+                onCancelDesc={() => setEditingDesc(null)}
               />
             ))}
           </div>
@@ -431,20 +493,34 @@ function MediaItem({
   thumbnailUrl,
   onDelete,
   onToggleVisibility,
+  onToggleShowOnMediaPage,
   onShare,
   onEmbed,
   onChangeThumbnail,
   shareLoading,
+  isEditingDesc,
+  descDraft,
+  onStartEditDesc,
+  onDescDraftChange,
+  onSaveDesc,
+  onCancelDesc,
 }: {
   media: Media;
   url?: string;
   thumbnailUrl?: string;
   onDelete: () => void;
   onToggleVisibility: () => void;
+  onToggleShowOnMediaPage: () => void;
   onShare: () => void;
   onEmbed: () => void;
   onChangeThumbnail: () => void;
   shareLoading: boolean;
+  isEditingDesc: boolean;
+  descDraft: string;
+  onStartEditDesc: () => void;
+  onDescDraftChange: (v: string) => void;
+  onSaveDesc: () => void;
+  onCancelDesc: () => void;
 }) {
   const [playing, setPlaying] = useState(false);
 
@@ -532,6 +608,50 @@ function MediaItem({
             {media.isPublic ? "Public" : "Private"}
           </span>
         </p>
+
+        {/* Description */}
+        <div style={{ marginTop: "var(--space-2)" }}>
+          {isEditingDesc ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+              <textarea
+                className="media-desc-input"
+                rows={2}
+                placeholder="Add a description..."
+                value={descDraft}
+                onChange={(e) => onDescDraftChange(e.target.value)}
+              />
+              <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                <button className="btn-primary" style={{ fontSize: "var(--font-size-xs)", padding: "var(--space-1) var(--space-3)" }} onClick={onSaveDesc}>Save</button>
+                <button className="btn-secondary" style={{ fontSize: "var(--font-size-xs)", padding: "var(--space-1) var(--space-3)" }} onClick={onCancelDesc}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <p
+              onClick={onStartEditDesc}
+              style={{
+                fontSize: "var(--font-size-xs)",
+                color: media.description ? "var(--gray-400)" : "var(--gray-500)",
+                cursor: "pointer",
+                fontStyle: media.description ? "normal" : "italic",
+                marginBottom: 0,
+                transition: "color 0.2s ease",
+              }}
+              title="Click to edit description"
+            >
+              {media.description || "Click to add description..."}
+            </p>
+          )}
+        </div>
+
+        {/* Show on Media Page toggle */}
+        <label className="media-visibility-toggle" style={{ marginTop: "var(--space-2)" }}>
+          <input
+            type="checkbox"
+            checked={media.showOnMediaPage}
+            onChange={onToggleShowOnMediaPage}
+          />
+          Show on Media Gallery
+        </label>
       </div>
 
       <div className="media-actions">

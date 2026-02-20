@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using VimeoCopyApi.Data;
+using VimeoCopyAPI.Models.DTOs;
 using VimeoCopyAPI.Services.Interfaces;
 
 namespace VimeoCopyAPI.Controllers;
@@ -40,6 +41,16 @@ public class MediaController : ControllerBase
 
         await _mediaService.ToggleVisibilityAsync(mediaId, userId);
         return Ok(new { message = "Visibility toggled successfully." });
+    }
+
+    [HttpPatch("{mediaId}/details")]
+    public async Task<IActionResult> UpdateMediaDetails(string mediaId, [FromBody] UpdateMediaDetailsDTO dto)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new UnauthorizedAccessException("User not authenticated.");
+
+        await _mediaService.UpdateMediaDetailsAsync(mediaId, userId, dto);
+        return Ok(new { message = "Media details updated successfully." });
     }
 
     /// <summary>

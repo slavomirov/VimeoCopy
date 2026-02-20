@@ -132,6 +132,7 @@ public class UploadService : IUploadService
             UploadedAt = DateTime.UtcNow,
             UserId = userId,
             IsPublic = input.IsPublic,
+            FileName = input.FileName,
             ThumbnailUrl = input.HasThumbnail ? $"thumb_{input.MediaId}" : null
         };
 
@@ -180,7 +181,10 @@ public class UploadService : IUploadService
             UploadedAt = mediaRecord.UploadedAt,
             Status = mediaRecord.Status,
             IsPublic = mediaRecord.IsPublic,
-            HasThumbnail = !string.IsNullOrEmpty(mediaRecord.ThumbnailUrl)
+            HasThumbnail = !string.IsNullOrEmpty(mediaRecord.ThumbnailUrl),
+            ShowOnMediaPage = mediaRecord.ShowOnMediaPage,
+            Description = mediaRecord.Description,
+            FileName = mediaRecord.FileName,
         };
     }
 }

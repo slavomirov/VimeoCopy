@@ -226,6 +226,7 @@ export function useFileUploader(options: UseFileUploaderOptions = {}) {
             contentType: entry.file.type,
             isPublic: entry.isPublic,
             hasThumbnail,
+            fileName: entry.file.name,
           };
 
           if (options.projectId) {
