@@ -90,6 +90,20 @@
   color: var(--primary);
 }
 
+/* Mobile sidebar close button — hidden on desktop */
+.sidebar-close-btn {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--gray-500);
+  cursor: pointer;
+  padding: var(--space-1);
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 /* Sidebar Navigation */
 .sidebar-nav {
   flex: 1;
@@ -832,6 +846,12 @@
 
   .sidebar-toggle {
     display: block;
+  }
+
+  .sidebar-close-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .app-content {
