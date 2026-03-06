@@ -70,6 +70,7 @@ function MainLayout() {
       />
 
       {/* Mobile top bar */}
+      { isMobile() && !sidebarOpen &&
       <div className="mobile-topbar">
         <button
           className="mobile-menu-btn"
@@ -100,6 +101,7 @@ function MainLayout() {
         </Link>
       </div>
 
+      }
       {/* Backdrop overlay for mobile sidebar */}
       {sidebarOpen && (
         <div
