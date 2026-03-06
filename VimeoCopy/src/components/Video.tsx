@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../Auth/useAuth";
 import { API_BASE_URL } from "../config";
+import { EnhancedPlayer } from "./EnhancedPlayer";
 import "../App.css";
 
 /* ── Types ─────────────────────────────────── */
@@ -290,9 +291,16 @@ export function Videos() {
         </>
       )}
 
-      {selected && (
-        <FullscreenViewer
-          media={selected}
+      {selected && urls[selected.id] && (
+        <EnhancedPlayer
+          media={{
+            fileName: selected.fileName,
+            contentType: selected.contentType,
+            description: selected.description,
+            ownerName: selected.ownerUsername || selected.ownerEmail.split("@")[0],
+            ownerInitial: (selected.ownerUsername || selected.ownerEmail).charAt(0).toUpperCase(),
+            projectTitle: selected.projectTitle,
+          }}
           url={urls[selected.id]}
           onClose={() => setSelected(null)}
         />
@@ -460,92 +468,6 @@ function GalleryMediaItem({
           <span>{(media.fileSize / (1024 * 1024)).toFixed(1)} MB</span>
           <span>{new Date(media.uploadedAt).toLocaleDateString()}</span>
         </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── Fullscreen Viewer ─────────────────────── */
-
-function FullscreenViewer({
-  media,
-  url,
-  onClose,
-}: {
-  media: PublicMedia;
-  url?: string;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
-
-  if (!url) return null;
-
-  return (
-    <div className="media-fullscreen-overlay" onClick={onClose}>
-      {/* Close button */}
-      <button className="media-fullscreen-close" onClick={onClose}>
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-      </button>
-
-      {/* Media info bar */}
-      <div className="media-fullscreen-info" onClick={(e) => e.stopPropagation()}>
-        <div className="media-fullscreen-info-left">
-          <div className="media-owner-avatar" style={{ width: "32px", height: "32px", fontSize: "14px" }}>
-            {(media.ownerUsername || media.ownerEmail).charAt(0).toUpperCase()}
-          </div>
-          <div>
-            <p style={{ fontWeight: 600, margin: 0, color: "var(--gray-900)", fontSize: "var(--font-size-sm)" }}>
-              {media.fileName || "Untitled"}
-            </p>
-            <p style={{ margin: 0, color: "var(--gray-400)", fontSize: "var(--font-size-xs)" }}>
-              by {media.ownerUsername || media.ownerEmail.split("@")[0]}
-              {media.projectTitle && <> &middot; {media.projectTitle}</>}
-            </p>
-          </div>
-        </div>
-        {media.description && (
-          <p style={{ margin: 0, color: "var(--gray-500)", fontSize: "var(--font-size-xs)", maxWidth: "300px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {media.description}
-          </p>
-        )}
-      </div>
-
-      {/* Media content */}
-      <div className="media-fullscreen-content" onClick={(e) => e.stopPropagation()}>
-        {media.contentType.startsWith("image/") ? (
-          <img
-            src={url}
-            alt={media.fileName || "Media"}
-            className="media-fullscreen-media"
-          />
-        ) : media.contentType.startsWith("audio/") ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--space-6)" }}>
-            <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="1.5">
-              <path d="M9 18V5l12-2v13" />
-              <circle cx="6" cy="18" r="3" />
-              <circle cx="18" cy="16" r="3" />
-            </svg>
-            <audio src={url} controls autoPlay style={{ width: "80%", maxWidth: "500px" }} />
-          </div>
-        ) : (
-          <video
-            src={url}
-            controls
-            autoPlay
-            className="media-fullscreen-media"
-            controlsList="nodownload noplaybackrate"
-            onContextMenu={(e) => e.preventDefault()}
-          />
-        )}
       </div>
     </div>
   );

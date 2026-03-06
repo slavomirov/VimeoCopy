@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useAuth } from "../Auth/useAuth";
 import { API_BASE_URL } from "../config";
 import { ThumbnailPicker } from "./ThumbnailPicker";
+import { EnhancedPlayer } from "./EnhancedPlayer";
 import "../App.css";
 
 interface Media {
@@ -59,6 +60,7 @@ export function ProfilePage() {
   const [thumbUploading, setThumbUploading] = useState(false);
   const [editingDesc, setEditingDesc] = useState<string | null>(null);
   const [descDraft, setDescDraft] = useState("");
+  const [viewerMedia, setViewerMedia] = useState<{ media: Media; url: string } | null>(null);
 
   // Load user DTO
   useEffect(() => {
@@ -342,6 +344,7 @@ export function ProfilePage() {
                 onShare={() => handleShareMedia(m.id)}
                 onEmbed={() => setEmbedMedia(m)}
                 onChangeThumbnail={() => setThumbPickerMediaId(m.id)}
+                onExpand={() => urls[m.id] && setViewerMedia({ media: m, url: urls[m.id] })}
                 shareLoading={shareLoading}
                 isEditingDesc={editingDesc === m.id}
                 descDraft={editingDesc === m.id ? descDraft : ""}
@@ -433,6 +436,21 @@ export function ProfilePage() {
         />
       )}
 
+      {/* Enhanced Player */}
+      {viewerMedia && (
+        <EnhancedPlayer
+          media={{
+            fileName: viewerMedia.media.fileName,
+            contentType: viewerMedia.media.contentType,
+            description: viewerMedia.media.description,
+            ownerName: String(claims.name || claims.email || "You").split("@")[0],
+            ownerInitial: String(claims.name || claims.email || "U").charAt(0).toUpperCase(),
+          }}
+          url={viewerMedia.url}
+          onClose={() => setViewerMedia(null)}
+        />
+      )}
+
       {/* Thumbnail Picker Modal */}
       {thumbPickerMediaId && urls[thumbPickerMediaId] && createPortal(
         <div
@@ -497,6 +515,7 @@ function MediaItem({
   onShare,
   onEmbed,
   onChangeThumbnail,
+  onExpand,
   shareLoading,
   isEditingDesc,
   descDraft,
@@ -514,6 +533,7 @@ function MediaItem({
   onShare: () => void;
   onEmbed: () => void;
   onChangeThumbnail: () => void;
+  onExpand: () => void;
   shareLoading: boolean;
   isEditingDesc: boolean;
   descDraft: string;
@@ -522,7 +542,6 @@ function MediaItem({
   onSaveDesc: () => void;
   onCancelDesc: () => void;
 }) {
-  const [playing, setPlaying] = useState(false);
 
   if (!url) return <div className="card" style={{ padding: "var(--space-8)", textAlign: "center" }}><div className="loading" style={{ margin: "0 auto" }}></div></div>;
 
@@ -532,13 +551,30 @@ function MediaItem({
 
   return (
     <div className="card">
-      <div style={{ width: "100%", height: "200px", borderRadius: "var(--radius-lg)", overflow: "hidden", backgroundColor: "var(--bg-deep)", marginBottom: "var(--space-4)", position: "relative", cursor: isVideo && !playing ? "pointer" : "default" }}
-        onClick={() => { if (isVideo && !playing) setPlaying(true); }}
+      <div style={{ width: "100%", height: "200px", borderRadius: "var(--radius-lg)", overflow: "hidden", backgroundColor: "var(--bg-deep)", marginBottom: "var(--space-4)", position: "relative", cursor: (isVideo || isImage || isAudio) ? "pointer" : "default" }}
+        onClick={() => {
+          if (isVideo) { onExpand(); }
+          else if (isImage || isAudio) { onExpand(); }
+        }}
       >
         {isImage && (
-          <img src={thumbnailUrl || url} alt={media.fileName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          <>
+            <img src={thumbnailUrl || url} alt={media.fileName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            {/* Expand overlay */}
+            <div style={{
+              position: "absolute", top: "var(--space-2)", right: "var(--space-2)",
+              width: "32px", height: "32px", borderRadius: "50%",
+              backgroundColor: "rgba(0,0,0,0.5)", display: "flex",
+              alignItems: "center", justifyContent: "center",
+              opacity: 0.7, transition: "opacity 0.2s",
+            }} className="expand-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+              </svg>
+            </div>
+          </>
         )}
-        {isVideo && !playing && (
+        {isVideo && (
           <>
             {thumbnailUrl ? (
               <img src={thumbnailUrl} alt={media.fileName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -572,9 +608,7 @@ function MediaItem({
             </div>
           </>
         )}
-        {isVideo && playing && (
-          <video src={url} controls autoPlay style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-        )}
+
         {isAudio && (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", flexDirection: "column", gap: "var(--space-3)" }}>
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="1.5">
