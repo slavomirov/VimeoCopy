@@ -74,8 +74,8 @@ styleTag.textContent = `
   to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes buypage-glow-pulse {
-  0%, 100% { box-shadow: 0 0 20px rgba(34,197,94,0.15), 0 0 60px rgba(34,197,94,0.06); }
-  50%      { box-shadow: 0 0 30px rgba(34,197,94,0.30), 0 0 80px rgba(34,197,94,0.12); }
+  0%, 100% { box-shadow: 0 0 20px rgba(var(--primary-rgb),0.15), 0 0 60px rgba(var(--primary-rgb),0.06); }
+  50%      { box-shadow: 0 0 30px rgba(var(--primary-rgb),0.30), 0 0 80px rgba(var(--primary-rgb),0.12); }
 }
 @keyframes buypage-shimmer {
   0%   { background-position: -200% center; }
@@ -136,13 +136,13 @@ export function BuyPage() {
   /* ── helpers ──────────────────────────────── */
   const cardBorder = (plan: Plan) =>
     plan.popular
-      ? "1px solid rgba(34,197,94,0.55)"
-      : "1px solid rgba(34,197,94,0.18)";
+      ? "1px solid rgba(var(--primary-rgb),0.55)"
+      : "1px solid rgba(var(--primary-rgb),0.18)";
 
   const cardShadow = (plan: Plan) =>
     plan.popular
-      ? "0 0 30px rgba(34,197,94,0.22), 0 8px 32px rgba(0,0,0,0.5)"
-      : "0 4px 20px rgba(0,0,0,0.4)";
+      ? "0 0 30px rgba(var(--primary-rgb),0.22), 0 8px 32px rgba(0,0,0,0.2)"
+      : "0 4px 20px rgba(0,0,0,0.1)";
 
   return (
     <div
@@ -215,7 +215,7 @@ export function BuyPage() {
               style={{
                 position: "relative",
                 background: plan.popular
-                  ? "linear-gradient(170deg, rgba(34,197,94,0.12) 0%, var(--bg-card) 40%, var(--bg-surface) 100%)"
+                  ? "linear-gradient(170deg, rgba(var(--primary-rgb),0.12) 0%, var(--bg-card) 40%, var(--bg-surface) 100%)"
                   : "linear-gradient(170deg, var(--bg-card) 0%, var(--bg-surface) 100%)",
                 border: cardBorder(plan),
                 borderRadius: "var(--radius-xl)",
@@ -231,15 +231,15 @@ export function BuyPage() {
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = plan.popular ? "translateY(-8px) scale(1.03)" : "translateY(-6px)";
                 e.currentTarget.style.boxShadow =
-                  "0 0 40px rgba(34,197,94,0.28), 0 14px 40px rgba(0,0,0,0.55)";
-                e.currentTarget.style.borderColor = "rgba(34,197,94,0.6)";
+                  "0 0 40px rgba(var(--primary-rgb),0.28), 0 14px 40px rgba(0,0,0,0.25)";
+                e.currentTarget.style.borderColor = "rgba(var(--primary-rgb),0.6)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = "";
                 e.currentTarget.style.boxShadow = cardShadow(plan);
                 e.currentTarget.style.borderColor = plan.popular
-                  ? "rgba(34,197,94,0.55)"
-                  : "rgba(34,197,94,0.18)";
+                  ? "rgba(var(--primary-rgb),0.55)"
+                  : "rgba(var(--primary-rgb),0.18)";
               }}
             >
               {/* Popular badge */}
@@ -251,14 +251,14 @@ export function BuyPage() {
                     left: "50%",
                     transform: "translateX(-50%)",
                     background: "linear-gradient(135deg, var(--primary), var(--secondary))",
-                    color: "#000",
+                    color: "var(--btn-primary-text)",
                     fontWeight: 700,
                     fontSize: "var(--font-size-xs)",
                     textTransform: "uppercase",
                     letterSpacing: "1.5px",
                     padding: "4px 18px",
                     borderRadius: 999,
-                    boxShadow: "0 0 14px rgba(34,197,94,0.45)",
+                    boxShadow: "0 0 14px rgba(var(--primary-rgb),0.45)",
                     animation: "buypage-badge-pulse 3s ease-in-out infinite",
                   }}
                 >
@@ -297,7 +297,7 @@ export function BuyPage() {
                     fontSize: "2rem",
                     fontWeight: 800,
                     color: "var(--primary)",
-                    textShadow: "0 0 18px rgba(34,197,94,0.35)",
+                    textShadow: "0 0 18px rgba(var(--primary-rgb),0.35)",
                     lineHeight: 1,
                   }}
                 >
@@ -324,8 +324,8 @@ export function BuyPage() {
                   <div
                     key={b.sub}
                     style={{
-                      background: "rgba(34,197,94,0.08)",
-                      border: "1px solid rgba(34,197,94,0.18)",
+                      background: "rgba(var(--primary-rgb),0.08)",
+                      border: "1px solid rgba(var(--primary-rgb),0.18)",
                       borderRadius: "var(--radius-sm)",
                       padding: "var(--space-1) var(--space-3)",
                       textAlign: "center",
@@ -346,7 +346,7 @@ export function BuyPage() {
               <div
                 style={{
                   height: 1,
-                  background: "linear-gradient(90deg, transparent, rgba(34,197,94,0.25), transparent)",
+                  background: "linear-gradient(90deg, transparent, rgba(var(--primary-rgb),0.25), transparent)",
                   margin: "0",
                 }}
               />
@@ -395,20 +395,20 @@ export function BuyPage() {
                   background: plan.popular
                     ? "linear-gradient(135deg, var(--primary), var(--secondary))"
                     : undefined,
-                  color: plan.popular ? "#000" : undefined,
-                  boxShadow: plan.popular ? "0 0 20px rgba(34,197,94,0.35)" : undefined,
+                  color: plan.popular ? "var(--btn-primary-text)" : undefined,
+                  boxShadow: plan.popular ? "0 0 20px rgba(var(--primary-rgb),0.35)" : undefined,
                   transition: "transform 0.2s ease, box-shadow 0.2s ease",
                   position: "relative",
                   overflow: "hidden",
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = "scale(1.03)";
-                  e.currentTarget.style.boxShadow = "0 0 28px rgba(34,197,94,0.45)";
+                  e.currentTarget.style.boxShadow = "0 0 28px rgba(var(--primary-rgb),0.45)";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = "";
                   e.currentTarget.style.boxShadow = plan.popular
-                    ? "0 0 20px rgba(34,197,94,0.35)"
+                    ? "0 0 20px rgba(var(--primary-rgb),0.35)"
                     : "";
                 }}
               >
@@ -424,8 +424,8 @@ export function BuyPage() {
                       style={{
                         width: 16,
                         height: 16,
-                        border: "2px solid rgba(255,255,255,0.3)",
-                        borderTop: "2px solid #fff",
+                        border: "2px solid rgba(var(--primary-rgb),0.3)",
+                        borderTop: "2px solid var(--toaster-text)",
                         borderRadius: "50%",
                         display: "inline-block",
                         animation: "buypage-shimmer 0.8s linear infinite",

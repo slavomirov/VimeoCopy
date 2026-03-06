@@ -271,7 +271,7 @@ namespace VimeoCopyAPI.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Plans");
+                    b.ToTable("Plans", (string)null);
                 });
 
             modelBuilder.Entity("VimeoCopyAPI.Models.PlanNotification", b =>
@@ -299,7 +299,7 @@ namespace VimeoCopyAPI.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("PlanNotifications");
+                    b.ToTable("PlanNotifications", (string)null);
                 });
 
             modelBuilder.Entity("VimeoCopyAPI.Models.ProjectMedia", b =>
@@ -329,7 +329,7 @@ namespace VimeoCopyAPI.Migrations
                     b.HasIndex("ProjectId", "MediaId")
                         .IsUnique();
 
-                    b.ToTable("ProjectMedias");
+                    b.ToTable("ProjectMedias", (string)null);
                 });
 
             modelBuilder.Entity("VimeoCopyAPI.Models.RefreshToken", b =>
@@ -361,7 +361,7 @@ namespace VimeoCopyAPI.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("RefreshTokens");
+                    b.ToTable("RefreshTokens", (string)null);
                 });
 
             modelBuilder.Entity("VimeoCopyAPI.Models.SharedLink", b =>
@@ -395,7 +395,7 @@ namespace VimeoCopyAPI.Migrations
                     b.HasIndex("Token")
                         .IsUnique();
 
-                    b.ToTable("SharedLinks");
+                    b.ToTable("SharedLinks", (string)null);
                 });
 
             modelBuilder.Entity("VimeoCopyApi.Models.Media", b =>
@@ -449,7 +449,7 @@ namespace VimeoCopyAPI.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Media");
+                    b.ToTable("Media", (string)null);
                 });
 
             modelBuilder.Entity("VimeoCopyApi.Models.Project", b =>
@@ -484,7 +484,7 @@ namespace VimeoCopyAPI.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Projects");
+                    b.ToTable("Projects", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>

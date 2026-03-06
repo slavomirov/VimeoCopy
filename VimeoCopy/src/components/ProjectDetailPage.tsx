@@ -415,7 +415,7 @@ export function ProjectDetailPage() {
       {/* Delete Confirmation */}
       {confirmDelete && (
         <div
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "var(--space-4)" }}
+          style={{ position: "fixed", inset: 0, background: "var(--overlay-medium)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "var(--space-4)" }}
           onClick={() => setConfirmDelete(false)}
         >
           <div className="card" style={{ maxWidth: "400px", width: "100%" }} onClick={(e) => e.stopPropagation()}>
@@ -443,7 +443,7 @@ export function ProjectDetailPage() {
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.7)",
+            background: "var(--overlay-medium)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -555,19 +555,19 @@ function MediaCard({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: "rgba(0,0,0,0.3)",
+              background: "var(--overlay-light)",
             }}>
               <div style={{
                 width: "44px",
                 height: "44px",
                 borderRadius: "50%",
-                backgroundColor: "rgba(34, 197, 94, 0.9)",
+                backgroundColor: "rgba(var(--primary-rgb), 0.9)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                boxShadow: "0 2px 12px rgba(34, 197, 94, 0.4)",
+                boxShadow: "0 2px 12px rgba(var(--primary-rgb), 0.4)",
               }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="white" style={{ marginLeft: "2px" }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="var(--btn-primary-text)" style={{ marginLeft: "2px" }}>
                   <polygon points="5,3 19,12 5,21" />
                 </svg>
               </div>
@@ -595,7 +595,7 @@ function MediaCard({
             borderRadius: "var(--radius-sm)",
             fontWeight: 600,
             fontSize: "10px",
-            backgroundColor: media.isPublic ? "rgba(34, 197, 94, 0.15)" : "rgba(239, 68, 68, 0.15)",
+            backgroundColor: media.isPublic ? "rgba(var(--primary-rgb), 0.15)" : "rgba(var(--danger-rgb), 0.15)",
             color: media.isPublic ? "var(--success)" : "var(--danger)",
           }}>
             {media.isPublic ? "Public" : "Private"}
@@ -641,7 +641,7 @@ function UploadToProjectModal({
 
   return (
     <div
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "var(--space-4)" }}
+      style={{ position: "fixed", inset: 0, background: "var(--overlay-medium)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "var(--space-4)" }}
       onClick={onClose}
     >
       <div
@@ -790,7 +790,7 @@ function AddMediaModal({
 
   return (
     <div
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "var(--space-4)" }}
+      style={{ position: "fixed", inset: 0, background: "var(--overlay-medium)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "var(--space-4)" }}
       onClick={onClose}
     >
       <div

@@ -41,12 +41,12 @@ export function FileRow({
         gap: "var(--space-3)",
         padding: "var(--space-3) var(--space-4)",
         backgroundColor: isError
-          ? "rgba(239, 68, 68, 0.06)"
+          ? "rgba(var(--danger-rgb), 0.06)"
           : isDone
-            ? "rgba(34, 197, 94, 0.06)"
+            ? "rgba(var(--primary-rgb), 0.06)"
             : "var(--bg-elevated)",
         borderRadius: "var(--radius-md)",
-        border: `1px solid ${isError ? "rgba(239, 68, 68, 0.2)" : isDone ? "rgba(34, 197, 94, 0.2)" : "var(--border-color)"}`,
+        border: `1px solid ${isError ? "rgba(var(--danger-rgb), 0.2)" : isDone ? "rgba(var(--primary-rgb), 0.2)" : "var(--border-color)"}`,
         position: "relative",
         overflow: "hidden",
       }}
@@ -58,7 +58,7 @@ export function FileRow({
             position: "absolute",
             inset: 0,
             width: `${entry.progress}%`,
-            backgroundColor: "rgba(34, 197, 94, 0.08)",
+            backgroundColor: "rgba(var(--primary-rgb), 0.08)",
             transition: "width 0.3s ease",
             pointerEvents: "none",
           }}
@@ -99,7 +99,7 @@ export function FileRow({
             padding: "2px 8px",
             borderRadius: "var(--radius-sm)",
             fontWeight: 600,
-            backgroundColor: entry.isPublic ? "rgba(34, 197, 94, 0.15)" : "rgba(239, 68, 68, 0.15)",
+            backgroundColor: entry.isPublic ? "rgba(var(--primary-rgb), 0.15)" : "rgba(var(--danger-rgb), 0.15)",
             color: entry.isPublic ? "var(--success)" : "var(--danger)",
           }}
         >
@@ -121,7 +121,7 @@ export function FileRow({
             padding: "2px 8px",
             borderRadius: "var(--radius-sm)",
             fontWeight: 600,
-            backgroundColor: entry.customThumbnail ? "rgba(34, 197, 94, 0.15)" : "rgba(99, 102, 241, 0.15)",
+            backgroundColor: entry.customThumbnail ? "rgba(var(--primary-rgb), 0.15)" : "rgba(99, 102, 241, 0.15)",
             color: entry.customThumbnail ? "var(--success)" : "var(--primary)",
           }}
         >
@@ -248,7 +248,7 @@ export function UploadPanel({
           style={{ display: "none" }}
         />
 
-        <svg width={compact ? "32" : "48"} height={compact ? "32" : "48"} viewBox="0 0 24 24" fill="none" stroke={dragActive ? "#22C55E" : "#64748B"} strokeWidth="2" style={{ marginBottom: "var(--space-2)", transition: "stroke 0.2s" }}>
+        <svg width={compact ? "32" : "48"} height={compact ? "32" : "48"} viewBox="0 0 24 24" fill="none" stroke={dragActive ? "var(--primary)" : "var(--gray-400)"} strokeWidth="2" style={{ marginBottom: "var(--space-2)", transition: "stroke 0.2s" }}>
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
           <polyline points="17 8 12 3 7 8" />
           <line x1="12" y1="3" x2="12" y2="15" />
@@ -359,7 +359,7 @@ export function UploadPanel({
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.7)",
+            background: "var(--overlay-medium)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",

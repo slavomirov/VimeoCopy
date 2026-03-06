@@ -248,7 +248,7 @@ function CreateProjectModal({
 
   return (
     <div
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "var(--space-4)" }}
+      style={{ position: "fixed", inset: 0, background: "var(--overlay-medium)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "var(--space-4)" }}
       onClick={step === "details" ? onClose : undefined}
     >
       <div

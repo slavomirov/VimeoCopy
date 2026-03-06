@@ -503,17 +503,17 @@ function FullscreenViewer({
             {(media.ownerUsername || media.ownerEmail).charAt(0).toUpperCase()}
           </div>
           <div>
-            <p style={{ fontWeight: 600, margin: 0, color: "white", fontSize: "var(--font-size-sm)" }}>
+            <p style={{ fontWeight: 600, margin: 0, color: "var(--gray-900)", fontSize: "var(--font-size-sm)" }}>
               {media.fileName || "Untitled"}
             </p>
-            <p style={{ margin: 0, color: "rgba(255,255,255,0.6)", fontSize: "var(--font-size-xs)" }}>
+            <p style={{ margin: 0, color: "var(--gray-400)", fontSize: "var(--font-size-xs)" }}>
               by {media.ownerUsername || media.ownerEmail.split("@")[0]}
               {media.projectTitle && <> &middot; {media.projectTitle}</>}
             </p>
           </div>
         </div>
         {media.description && (
-          <p style={{ margin: 0, color: "rgba(255,255,255,0.5)", fontSize: "var(--font-size-xs)", maxWidth: "300px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <p style={{ margin: 0, color: "var(--gray-500)", fontSize: "var(--font-size-xs)", maxWidth: "300px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {media.description}
           </p>
         )}

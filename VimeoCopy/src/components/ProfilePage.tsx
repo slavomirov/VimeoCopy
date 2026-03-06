@@ -361,7 +361,7 @@ export function ProfilePage() {
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.7)",
+            background: "var(--overlay-medium)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -439,7 +439,7 @@ export function ProfilePage() {
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.7)",
+            background: "var(--overlay-medium)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -552,20 +552,20 @@ function MediaItem({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: "rgba(0,0,0,0.3)",
+              background: "var(--overlay-light)",
               transition: "background 0.2s",
             }}>
               <div style={{
                 width: "52px",
                 height: "52px",
                 borderRadius: "50%",
-                backgroundColor: "rgba(34, 197, 94, 0.9)",
+                backgroundColor: "rgba(var(--primary-rgb), 0.9)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                boxShadow: "0 2px 12px rgba(34, 197, 94, 0.4)",
+                boxShadow: "0 2px 12px rgba(var(--primary-rgb), 0.4)",
               }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="white" style={{ marginLeft: "2px" }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="var(--btn-primary-text)" style={{ marginLeft: "2px" }}>
                   <polygon points="5,3 19,12 5,21" />
                 </svg>
               </div>
@@ -602,7 +602,7 @@ function MediaItem({
             borderRadius: "var(--radius-sm)",
             fontWeight: 600,
             fontSize: "var(--font-size-xs)",
-            backgroundColor: media.isPublic ? "rgba(34, 197, 94, 0.15)" : "rgba(239, 68, 68, 0.15)",
+            backgroundColor: media.isPublic ? "rgba(var(--primary-rgb), 0.15)" : "rgba(var(--danger-rgb), 0.15)",
             color: media.isPublic ? "var(--success)" : "var(--danger)",
           }}>
             {media.isPublic ? "Public" : "Private"}
@@ -717,7 +717,7 @@ function EmbedModal({ media, onClose }: { media: Media; onClose: () => void }) {
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.7)",
+        background: "var(--overlay-medium)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -748,8 +748,8 @@ function EmbedModal({ media, onClose }: { media: Media; onClose: () => void }) {
             <div style={{
               padding: "var(--space-3) var(--space-4)",
               borderRadius: "var(--radius-sm)",
-              backgroundColor: "rgba(245, 158, 11, 0.1)",
-              border: "1px solid rgba(245, 158, 11, 0.3)",
+              backgroundColor: "rgba(var(--warning-rgb), 0.1)",
+              border: "1px solid rgba(var(--warning-rgb), 0.3)",
               color: "var(--warning)",
               fontSize: "var(--font-size-sm)",
               marginBottom: "var(--space-4)",
