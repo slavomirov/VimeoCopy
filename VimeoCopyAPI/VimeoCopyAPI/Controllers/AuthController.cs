@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using VimeoCopyAPI.Models.DTOs;
 using VimeoCopyAPI.Services.Interfaces;
 
@@ -7,6 +8,7 @@ namespace VimeoCopyAPI.Controllers;
 
 [ApiController]
 [Route("api/auth")]
+[EnableRateLimiting("auth")]
 public class AuthController : ControllerBase
 {
     private readonly IUserService _userService;

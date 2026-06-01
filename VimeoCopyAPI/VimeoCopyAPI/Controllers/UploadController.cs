@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using VimeoCopyAPI.Models;
 using VimeoCopyAPI.Models.DTOs;
 using VimeoCopyAPI.Services.Interfaces;
@@ -7,6 +8,7 @@ namespace VimeoCopyAPI.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize] // minting presigned PUT URLs must require a logged-in user
 public class UploadController : ControllerBase
 {
     private readonly IUploadService _uploadService;

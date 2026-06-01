@@ -39,7 +39,7 @@ public class PlanService : IPlanService
                 Name = "Free",
                 Description = "Free Plan",
                 StorageLimitMB = 10240, // 10 GB
-                BandwithMB = 30720, // 30 GB
+                BandwidthMB = 30720, // 30 GB
                 Price = 0
             });
         }
@@ -51,7 +51,7 @@ public class PlanService : IPlanService
                 Name = "Silver",
                 Description = "Silver Plan",
                 StorageLimitMB = 204800, //200 GB
-                BandwithMB = 819200, //800 GB
+                BandwidthMB = 819200, //800 GB
                 Price = 1500 // $15.00
             });
         }
@@ -63,7 +63,7 @@ public class PlanService : IPlanService
                 Name = "Gold",
                 Description = "Gold Plan",
                 StorageLimitMB = 1048576, //1 TB
-                BandwithMB = 2097152, //2 TB
+                BandwidthMB = 2097152, //2 TB
                 Price = 3500 // $35.00
             });
         }
@@ -75,7 +75,7 @@ public class PlanService : IPlanService
                 Name = "Platinum",
                 Description = "Platinum Plan",
                 StorageLimitMB = 2097152, //2 TB
-                BandwithMB = 4194304, //4 TB
+                BandwidthMB = 4194304, //4 TB
                 Price = 6000 // $60.00
             });
         }

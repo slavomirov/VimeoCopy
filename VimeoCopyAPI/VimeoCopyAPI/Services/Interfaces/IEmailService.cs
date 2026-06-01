@@ -5,4 +5,5 @@ public interface IEmailService
     Task SendPlanExpiringIn1DayAsync(string email, string userName);
     Task SendPlanExpiringIn3DaysAsync(string email, string userName);
     Task SendPlanExpiredAsync(string email, string userName);
+    Task SendBandwidthExceededAsync(string email, string userName);
 }

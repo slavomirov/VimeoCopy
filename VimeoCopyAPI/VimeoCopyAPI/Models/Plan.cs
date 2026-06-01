@@ -16,7 +16,7 @@ public class Plan
     public long StorageLimitMB { get; set; }
 
     [Required]
-    public long BandwithMB { get; set; }
+    public long BandwidthMB { get; set; }
 
     [MaxLength(1000)]
     public string? Description { get; set; }

@@ -90,6 +90,29 @@ namespace VimeoCopyAPI.Services
             }
         }
 
+        public async Task SendBandwidthExceededAsync(string email, string userName)
+        {
+            try
+            {
+                var subject = "You've reached your bandwidth limit";
+                var body = BuildEmailTemplate($@"
+                    <h1>Hello {userName},</h1>
+                    <p>Your media has used up the bandwidth included in your current plan for this cycle.</p>
+                    <p>Your work is still being served, but to guarantee smooth playback for your audience we recommend
+                       <strong><a href='https://vimeocopy.com/buy'>upgrading your plan or adding a bandwidth top-up</a></strong>.</p>
+                    <p>Your allowance resets at the start of your next cycle.</p>
+                ");
+
+                await SendEmailAsync(email, subject, body);
+                _logger.LogInformation($"Bandwidth exceeded email sent to {email}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Failed to send bandwidth exceeded email to {email}: {ex.Message}");
+                // best-effort: never let a notification failure break media delivery
+            }
+        }
+
         private async Task SendEmailAsync(string recipientEmail, string subject, string htmlBody)
         {
             if (_emailProvider.Equals("Resend", StringComparison.OrdinalIgnoreCase))

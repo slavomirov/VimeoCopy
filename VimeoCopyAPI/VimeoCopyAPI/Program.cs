@@ -4,7 +4,9 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Text;
+using System.Threading.RateLimiting;
 using VimeoCopyApi.Data;
 using VimeoCopyAPI.Addons;
 using VimeoCopyAPI.Middlewares;
@@ -18,6 +20,16 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Rate limiting — throttle abuse-prone endpoints (registration floods, credential stuffing).
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+});
 
 // AWS S3 storage config
 var awsConfig = builder.Configuration.GetSection("AWS");
@@ -36,13 +48,17 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(buil
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
-    options.SignIn.RequireConfirmedEmail = false; //email confirmation!!!
-    options.Password.RequiredUniqueChars = 0;
+    options.SignIn.RequireConfirmedEmail = false; // TODO: enable before launch (needs an email-verify flow)
+    options.Password.RequiredUniqueChars = 1;
     options.Password.RequireNonAlphanumeric = false;
-    options.Password.RequireDigit = false;
-    options.Password.RequireLowercase = false;
+    options.Password.RequireDigit = true;
+    options.Password.RequireLowercase = true;
     options.Password.RequireUppercase = false;
-    options.Password.RequiredLength = 5;
+    options.Password.RequiredLength = 8;
+    // Lock the account after repeated failed logins to stop brute-force / credential stuffing.
+    options.Lockout.MaxFailedAccessAttempts = 5;
+    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+    options.Lockout.AllowedForNewUsers = true;
 })
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
@@ -50,6 +66,7 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 
 builder.Services.AddHostedService<RefreshTokenCleanupService>();
 builder.Services.AddHostedService<PlanExpirationService>();
+builder.Services.AddHostedService<StorageBandwidthMaintenanceService>();
 
 var allowedFrontendOrigins = builder.Configuration.GetSection("Frontend:AllowedOrigins").Get<string[]>()
     ?? ["http://localhost:5173"];
@@ -135,6 +152,15 @@ using (var scope = app.Services.CreateScope())
         }
     }
 }
+
+// Enforce HTTPS + HSTS outside development (dev may run plain http).
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+    app.UseHttpsRedirection();
+}
+
+app.UseRateLimiter();
 
 app.UseCors("AllowFrontend");
 

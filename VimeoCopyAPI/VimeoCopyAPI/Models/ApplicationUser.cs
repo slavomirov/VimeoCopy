@@ -9,10 +9,17 @@ namespace VimeoCopyAPI.Models;
 
 public class ApplicationUser : IdentityUser
 {
+    // Storage & bandwidth are tracked in BYTES (source of truth). Convert only for display.
     public long? UsedMemory { get; set; }
     public long? BuyedMemory { get; set; }
     public long? BuyedBandwidth { get; set; }
     public long? UsedBandwidth { get; set; }
+
+    /// <summary>Start of the current bandwidth billing cycle; UsedBandwidth resets when it rolls over.</summary>
+    public DateTime? BandwidthCycleStart { get; set; }
+
+    /// <summary>Last time the owner was emailed about exceeding bandwidth this cycle (throttles notifications).</summary>
+    public DateTime? BandwidthOverageNotifiedAt { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

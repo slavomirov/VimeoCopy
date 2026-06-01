@@ -45,6 +45,7 @@ export function Videos() {
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<PublicMedia | null>(null);
+  const [playerUrl, setPlayerUrl] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterMode>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedProject, setExpandedProject] = useState<string | null>(null);
@@ -70,7 +71,8 @@ export function Videos() {
     for (const m of mediaList) {
       if (urls[m.id]) continue;
       try {
-        const res = await authFetch(`${API_BASE_URL}/api/media/${m.id}/url`);
+        // Preview is unmetered — browsing the grid must not charge the owner's bandwidth.
+        const res = await authFetch(`${API_BASE_URL}/api/media/${m.id}/preview`);
         const data = await res.json();
         newUrls[m.id] = data.url;
         if (data.thumbnailUrl) {
@@ -81,6 +83,19 @@ export function Videos() {
 
     if (Object.keys(newUrls).length > 0) setUrls(prev => ({ ...prev, ...newUrls }));
     if (Object.keys(newThumbs).length > 0) setThumbnailUrls(prev => ({ ...prev, ...newThumbs }));
+  }, [authFetch, urls]);
+
+  // Opening the player is the metered action — fetch the real (charged) streaming URL here.
+  const openMedia = useCallback(async (m: PublicMedia) => {
+    setSelected(m);
+    setPlayerUrl(urls[m.id] ?? null); // optimistic: show preview URL while the metered one loads
+    try {
+      const res = await authFetch(`${API_BASE_URL}/api/media/${m.id}/url`);
+      if (res.ok) {
+        const data = await res.json();
+        setPlayerUrl(data.url);
+      }
+    } catch { /* keep optimistic url */ }
   }, [authFetch, urls]);
 
   useEffect(() => {
@@ -101,7 +116,7 @@ export function Videos() {
       const newUrls: Record<string, string> = {};
       for (const id of thumbMediaIds) {
         try {
-          const res = await authFetch(`${API_BASE_URL}/api/media/${id}/url`);
+          const res = await authFetch(`${API_BASE_URL}/api/media/${id}/preview`);
           const data = await res.json();
           newUrls[id] = data.thumbnailUrl || data.url;
         } catch { /* skip */ }
@@ -250,7 +265,7 @@ export function Videos() {
                     onToggle={() => setExpandedProject(expandedProject === pg.projectId ? null : pg.projectId)}
                     mediaUrls={urls}
                     mediaThumbUrls={thumbnailUrls}
-                    onMediaClick={setSelected}
+                    onMediaClick={openMedia}
                     index={i}
                   />
                 ))}
@@ -277,7 +292,7 @@ export function Videos() {
                     media={m}
                     url={urls[m.id]}
                     thumbnailUrl={thumbnailUrls[m.id]}
-                    onClick={() => setSelected(m)}
+                    onClick={() => openMedia(m)}
                     index={i}
                   />
                 ))}
@@ -293,7 +308,7 @@ export function Videos() {
         </>
       )}
 
-      {selected && urls[selected.id] && (
+      {selected && playerUrl && (
         <EnhancedPlayer
           media={{
             fileName: selected.fileName,
@@ -303,8 +318,8 @@ export function Videos() {
             ownerInitial: (selected.ownerUsername || selected.ownerEmail).charAt(0).toUpperCase(),
             projectTitle: selected.projectTitle,
           }}
-          url={urls[selected.id]}
-          onClose={() => setSelected(null)}
+          url={playerUrl}
+          onClose={() => { setSelected(null); setPlayerUrl(null); }}
         />
       )}
     </div>

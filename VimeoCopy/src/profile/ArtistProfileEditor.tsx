@@ -80,7 +80,7 @@ export function ArtistProfileEditor() {
           // fetch thumbnails/urls for image-ish previews
           for (const m of list) {
             try {
-              const r = await authFetch(`${API_BASE_URL}/api/media/${m.id}/url`);
+              const r = await authFetch(`${API_BASE_URL}/api/media/${m.id}/preview`);
               if (!r.ok) continue;
               const u = await r.json();
               setThumbs((prev) => ({ ...prev, [m.id]: u.thumbnailUrl || u.url }));

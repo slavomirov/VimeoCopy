@@ -16,7 +16,7 @@ public interface IUserService
     Task IncreaseUsedMemoryAsync(string userId, long mediaSize);
     Task AssignPlanToUserAsync(string userId, string planName);
     Task DecreaseUsedMemoryAsync(string userId, long mediaSize);
-    Task IncreaseUsedBandwidthAsync(string userId, long mediaSizeMB);
+    Task IncreaseUsedBandwidthAsync(string userId, long bytes);
     Task AddBandwidthAddonAsync(string userId, long bandwidthMB);
     Task<string> CanUserUploadAsync(string userId, long fileSize);
 

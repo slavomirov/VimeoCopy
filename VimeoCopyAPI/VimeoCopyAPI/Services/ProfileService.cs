@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Amazon.S3;
 using Amazon.S3.Model;
@@ -157,7 +158,7 @@ public partial class ProfileService : IProfileService
         user.Location = Trim(dto.Location, 100);
         user.AvatarMediaId = await ValidateOwnedMediaAsync(userId, dto.AvatarMediaId);
         user.BannerMediaId = await ValidateOwnedMediaAsync(userId, dto.BannerMediaId);
-        user.ThemeJson = string.IsNullOrWhiteSpace(dto.ThemeJson) ? null : dto.ThemeJson;
+        user.ThemeJson = SanitizeThemeJson(dto.ThemeJson);
         user.IsProfilePublic = dto.IsProfilePublic;
 
         await _db.SaveChangesAsync();
@@ -197,6 +198,68 @@ public partial class ProfileService : IProfileService
         return value.Length > max ? value[..max] : value;
     }
 
+    private static readonly HashSet<string> AllowedFonts = new(StringComparer.Ordinal)
+    {
+        "Inter", "Fraunces", "Playfair Display", "Space Grotesk",
+        "DM Sans", "DM Mono", "Cormorant Garamond", "Archivo Black",
+    };
+
+    /// <summary>
+    /// Re-builds the theme from only known, type-checked tokens (hex colors, allow-listed fonts, enum
+    /// radius/background). This blocks CSS-value injection — e.g. an "accent" of "url(http://x)" that
+    /// would otherwise beacon every profile visitor's IP — since values are applied as CSS variables.
+    /// </summary>
+    private static string? SanitizeThemeJson(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+
+        JsonElement root;
+        try { root = JsonDocument.Parse(json).RootElement; }
+        catch { throw new Exception("Invalid theme."); }
+        if (root.ValueKind != JsonValueKind.Object) throw new Exception("Invalid theme.");
+
+        var clean = new Dictionary<string, string>();
+
+        foreach (var key in new[] { "bg", "surface", "text", "textMuted", "accent", "border" })
+        {
+            if (root.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String &&
+                HexColorRegex().IsMatch(v.GetString()!))
+                clean[key] = v.GetString()!;
+            else
+                throw new Exception($"Theme color '{key}' must be a hex value.");
+        }
+
+        foreach (var key in new[] { "headingFont", "bodyFont" })
+        {
+            if (root.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String &&
+                AllowedFonts.Contains(v.GetString()!))
+                clean[key] = v.GetString()!;
+            else
+                throw new Exception($"Theme font '{key}' is not allowed.");
+        }
+
+        if (root.TryGetProperty("radius", out var r) && r.ValueKind == JsonValueKind.String &&
+            r.GetString() is "sharp" or "soft" or "round")
+            clean["radius"] = r.GetString()!;
+        else
+            throw new Exception("Invalid theme radius.");
+
+        if (root.TryGetProperty("backgroundKind", out var b) && b.ValueKind == JsonValueKind.String &&
+            b.GetString() is "solid" or "banner")
+            clean["backgroundKind"] = b.GetString()!;
+        else
+            throw new Exception("Invalid theme background.");
+
+        if (root.TryGetProperty("preset", out var p) && p.ValueKind == JsonValueKind.String &&
+            p.GetString()!.Length <= 40)
+            clean["preset"] = p.GetString()!;
+
+        return JsonSerializer.Serialize(clean);
+    }
+
     [GeneratedRegex("^[a-z0-9_-]{3,30}$")]
     private static partial Regex HandleRegex();
+
+    [GeneratedRegex("^#[0-9a-fA-F]{3,8}$")]
+    private static partial Regex HexColorRegex();
 }

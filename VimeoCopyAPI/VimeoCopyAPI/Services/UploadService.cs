@@ -66,7 +66,7 @@ public class UploadService : IUploadService
         return new MediaURLDTO()
         {
             MediaId = media.Id,
-            URL = url,
+            Url = url,
             ContentType = media.ContentType
         };
     }
@@ -121,20 +121,32 @@ public class UploadService : IUploadService
         var userId = _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? throw new Exception("Authentication required to complete upload.");
 
-        if (input.FileSize <= 0)
-            throw new Exception("Invalid file size.");
-
         if (!allowedUploadContentTypes.Contains(input.ContentType))
             throw new Exception("Unsupported content type");
 
-        var result = await _userService.CanUserUploadAsync(userId, input.FileSize);
+        // Trust the bucket, not the client: read the real object size so the storage quota can't be spoofed.
+        long actualSize;
+        try
+        {
+            var meta = await _s3.GetObjectMetadataAsync(_config["AWS:BucketName"], input.MediaId);
+            actualSize = meta.ContentLength;
+        }
+        catch
+        {
+            throw new Exception("Uploaded file was not found in storage.");
+        }
+
+        if (actualSize <= 0)
+            throw new Exception("Invalid file size.");
+
+        var result = await _userService.CanUserUploadAsync(userId, actualSize);
         if (result != "Yes")
             throw new Exception(result);
 
         var mediaRecord = new Media
         {
             Id = Guid.Parse(input.MediaId),
-            FileSize = input.FileSize,
+            FileSize = actualSize,
             ContentType = input.ContentType,
             UploadedAt = DateTime.UtcNow,
             UserId = userId,
@@ -144,7 +156,7 @@ public class UploadService : IUploadService
         };
 
         await _dbContext.Media.AddAsync(mediaRecord);
-        await _userService.IncreaseUsedMemoryAsync(userId, (input.FileSize / 1000000)); //kb -> mb
+        await _userService.IncreaseUsedMemoryAsync(userId, actualSize); // real bytes from storage
 
         // Auto-link to project if ProjectId provided
         if (input.ProjectId.HasValue)

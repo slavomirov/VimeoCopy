@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using VimeoCopyAPI.Services.Interfaces;
 
 namespace VimeoCopyAPI.Controllers;
@@ -15,6 +17,16 @@ public class UserController : ControllerBase
         _userService = userService;
     }
 
+    // Requires auth and only returns the caller's own data — this DTO holds email,
+    // storage/bandwidth and the full (incl. private) media list.
+    [Authorize]
     [HttpGet("/getData/{userId}")]
-    public async Task<IActionResult> GetUserData(string userId) => Ok(await _userService.GetUserDataAsync(userId)); //po-skoro s username, da e po-gotino v url-a
+    public async Task<IActionResult> GetUserData(string userId)
+    {
+        var callerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(callerId) || callerId != userId)
+            return Forbid();
+
+        return Ok(await _userService.GetUserDataAsync(userId));
+    }
 }

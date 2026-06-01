@@ -22,6 +22,12 @@ namespace VimeoCopyAPI.Services
         private readonly IConfiguration _config;
         private readonly AppDbContext _dbContext;
 
+        /// <summary>Bytes per megabyte (binary). Storage/bandwidth are stored in bytes; plan limits are in MB.</summary>
+        public const long BytesPerMb = 1024L * 1024L;
+
+        /// <summary>Length of a bandwidth billing cycle before UsedBandwidth resets.</summary>
+        public static readonly TimeSpan BandwidthCycleLength = TimeSpan.FromDays(30);
+
         public UserService(
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
@@ -38,8 +44,9 @@ namespace VimeoCopyAPI.Services
         {
             var user = await _userManager.FindByEmailAsync(input.Email);
 
+            // Generic message — don't reveal whether an email is already registered (user enumeration).
             if (user is not null)
-                throw new Exception("User already exists");
+                throw new Exception("Unable to register with the provided details.");
 
             user = new ApplicationUser
             {
@@ -62,7 +69,9 @@ namespace VimeoCopyAPI.Services
         {
             var user = await _userManager.FindByEmailAsync(input.Email) ?? throw new Exception("Invalid credentials");
 
-            var result = await _signInManager.CheckPasswordSignInAsync(user, input.Password, false);
+            var result = await _signInManager.CheckPasswordSignInAsync(user, input.Password, lockoutOnFailure: true);
+            if (result.IsLockedOut)
+                throw new Exception("Account temporarily locked due to too many failed attempts. Please try again later.");
             if (!result.Succeeded)
                 throw new Exception("Invalid credentials");
 
@@ -260,6 +269,10 @@ namespace VimeoCopyAPI.Services
 
             if (user == null) return null;
 
+            // Lazily roll the bandwidth cycle so the dashboard reflects a fresh allowance.
+            if (RollBandwidthCycleIfDue(user))
+                await _dbContext.SaveChangesAsync();
+
             var usedMemory = user.UsedMemory ?? 0;
             var buyedMemory = user.BuyedMemory;
             var freeMemory = buyedMemory.HasValue ? (long?)Math.Max(0, buyedMemory.Value - usedMemory) : null;
@@ -314,13 +327,29 @@ namespace VimeoCopyAPI.Services
                     )
                 );
 
-        public async Task IncreaseUsedBandwidthAsync(string userId, long mediaSizeMB)
+        public async Task IncreaseUsedBandwidthAsync(string userId, long bytes)
             => await _dbContext.Users.Where(u => u.Id == userId)
-                .ExecuteUpdateAsync(u => u.SetProperty(user => user.UsedBandwidth, user => (user.UsedBandwidth ?? 0) + mediaSizeMB));
+                .ExecuteUpdateAsync(u => u.SetProperty(user => user.UsedBandwidth, user => (user.UsedBandwidth ?? 0) + bytes));
 
         public async Task AddBandwidthAddonAsync(string userId, long bandwidthMB)
             => await _dbContext.Users.Where(u => u.Id == userId)
-                .ExecuteUpdateAsync(u => u.SetProperty(user => user.BuyedBandwidth, user => (user.BuyedBandwidth ?? 0) + bandwidthMB));
+                .ExecuteUpdateAsync(u => u.SetProperty(user => user.BuyedBandwidth, user => (user.BuyedBandwidth ?? 0) + bandwidthMB * BytesPerMb));
+
+        /// <summary>
+        /// Resets UsedBandwidth to 0 when the current cycle has rolled over (≥ <see cref="BandwidthCycleLength"/>).
+        /// Mutates the tracked entity; the caller is responsible for persisting. Returns true when a reset occurred.
+        /// </summary>
+        public static bool RollBandwidthCycleIfDue(ApplicationUser user)
+        {
+            if (user.BuyedBandwidth is null) return false; // no active plan to meter
+            var start = user.BandwidthCycleStart ?? user.CreatedAt;
+            if (DateTime.UtcNow - start < BandwidthCycleLength) return false;
+
+            user.UsedBandwidth = 0;
+            user.BandwidthCycleStart = DateTime.UtcNow;
+            user.BandwidthOverageNotifiedAt = null;
+            return true;
+        }
 
 
         public async Task AssignPlanToUserAsync(string userId, string planName)
@@ -329,9 +358,11 @@ namespace VimeoCopyAPI.Services
             var plan = await _dbContext.Plans.FirstOrDefaultAsync(p => p.Name == planName) ?? throw new Exception("Plan not found");
 
             user.PlanId = plan.Id;
-            user.BuyedMemory = plan.StorageLimitMB;
-            user.BuyedBandwidth = plan.BandwithMB;
+            user.BuyedMemory = plan.StorageLimitMB * BytesPerMb;
+            user.BuyedBandwidth = plan.BandwidthMB * BytesPerMb;
             user.UsedBandwidth = 0;
+            user.BandwidthCycleStart = DateTime.UtcNow;
+            user.BandwidthOverageNotifiedAt = null;
             user.PlanExpiration = planName == "Free" ? DateTime.UtcNow.AddDays(7) : DateTime.UtcNow.AddMonths(1);
             _dbContext.Users.Update(user);
             await _dbContext.SaveChangesAsync();
@@ -360,9 +391,8 @@ namespace VimeoCopyAPI.Services
                 await UnassingPlanFromUserAsync(userId);
                 return "User's plan has expired!";
             }
-            // UsedMemory/BuyedMemory are tracked in MB, but fileSize arrives in bytes.
-            var fileSizeMB = fileSize / 1_000_000;
-            if ((user.UsedMemory ?? 0) + fileSizeMB > user.BuyedMemory)
+            // UsedMemory, BuyedMemory and fileSize are all in bytes.
+            if ((user.UsedMemory ?? 0) + fileSize > user.BuyedMemory)
                 return "User doesn't have enough storage!";
 
             return "Yes";

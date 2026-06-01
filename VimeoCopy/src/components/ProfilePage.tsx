@@ -34,10 +34,10 @@ interface UserData {
   media: Media[];
 }
 
-function formatMemoryFromMb(value: number | null | undefined) {
+function formatBytes(value: number | null | undefined) {
   if (value === null || value === undefined) return "N/A";
 
-  const units = ["MB", "GB", "TB", "PB"];
+  const units = ["B", "KB", "MB", "GB", "TB", "PB"];
   let size = value;
   let unitIndex = 0;
 
@@ -315,19 +315,19 @@ export function ProfilePage() {
               <span style={{ fontWeight: 600 }}>Plan:</span> {user.planName ?? "N/A"}
             </p>
             <p style={{ color: "var(--gray-600)" }}>
-              <span style={{ fontWeight: 600 }}>Buyed Memory:</span> {formatMemoryFromMb(user.buyedMemory)}
+              <span style={{ fontWeight: 600 }}>Buyed Memory:</span> {formatBytes(user.buyedMemory)}
             </p>
             <p style={{ color: "var(--gray-600)" }}>
-              <span style={{ fontWeight: 600 }}>Used Memory:</span> {formatMemoryFromMb(user.usedMemory)}
+              <span style={{ fontWeight: 600 }}>Used Memory:</span> {formatBytes(user.usedMemory)}
             </p>
             <p style={{ color: "var(--gray-600)" }}>
-              <span style={{ fontWeight: 600 }}>Free Memory:</span> {formatMemoryFromMb(user.freeMemory)}
+              <span style={{ fontWeight: 600 }}>Free Memory:</span> {formatBytes(user.freeMemory)}
             </p>
             <p style={{ color: "var(--gray-600)" }}>
               <span style={{ fontWeight: 600 }}>Bandwidth:</span>{" "}
-              {formatMemoryFromMb(user.usedBandwidth)} used / {formatMemoryFromMb(user.buyedBandwidth)} total
+              {formatBytes(user.usedBandwidth)} used / {formatBytes(user.buyedBandwidth)} total
               {user.freeBandwidth !== null && user.freeBandwidth !== undefined && (
-                <> · {formatMemoryFromMb(user.freeBandwidth)} remaining</>
+                <> · {formatBytes(user.freeBandwidth)} remaining</>
               )}
             </p>
             {user.buyedBandwidth ? (

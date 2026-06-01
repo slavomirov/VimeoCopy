@@ -44,6 +44,7 @@ export function ArtistProfile() {
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Work | null>(null);
+  const [playerUrl, setPlayerUrl] = useState<string | null>(null);
 
   // Load profile
   useEffect(() => {
@@ -81,7 +82,8 @@ export function ArtistProfile() {
       for (const w of profile.works) {
         if (urls[w.id]) continue;
         try {
-          const res = await fetch(`${API_BASE_URL}/api/media/${w.id}/url`);
+          // Unmetered preview — rendering the gallery must not burn the artist's bandwidth.
+          const res = await fetch(`${API_BASE_URL}/api/media/${w.id}/preview`);
           if (!res.ok) continue;
           const data = await res.json();
           if (cancelled) return;
@@ -93,6 +95,19 @@ export function ArtistProfile() {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
+
+  // Opening a work is the metered action — fetch the charged streaming URL here.
+  async function openWork(w: Work) {
+    setSelected(w);
+    setPlayerUrl(urls[w.id] ?? null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/media/${w.id}/url`);
+      if (res.ok) {
+        const data = await res.json();
+        setPlayerUrl(data.url);
+      }
+    } catch { /* keep optimistic preview url */ }
+  }
 
   if (status === "loading") {
     return (
@@ -180,7 +195,7 @@ export function ArtistProfile() {
               work={w}
               url={urls[w.id]}
               thumb={thumbs[w.id]}
-              onOpen={() => urls[w.id] && setSelected(w)}
+              onOpen={() => openWork(w)}
             />
           ))}
         </div>
@@ -192,7 +207,7 @@ export function ArtistProfile() {
         </div>
       )}
 
-      {selected && urls[selected.id] && (
+      {selected && playerUrl && (
         <EnhancedPlayer
           media={{
             fileName: selected.fileName,
@@ -202,8 +217,8 @@ export function ArtistProfile() {
             ownerInitial: profile.displayName.charAt(0).toUpperCase(),
             projectTitle: selected.projectTitle,
           }}
-          url={urls[selected.id]}
-          onClose={() => setSelected(null)}
+          url={playerUrl}
+          onClose={() => { setSelected(null); setPlayerUrl(null); }}
         />
       )}
     </div>

@@ -18,17 +18,20 @@ public class ErrorHandlingMiddleware
         {
             await _next(context);
         }
+        catch (UnauthorizedAccessException ex)
+        {
+            await WriteError(context, HttpStatusCode.Unauthorized, ex.Message);
+        }
         catch (Exception ex)
         {
-            context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-            context.Response.ContentType = "application/json";
-
-            var result = JsonSerializer.Serialize(new
-            {
-                message = ex.Message
-            });
-
-            await context.Response.WriteAsync(result);
+            await WriteError(context, HttpStatusCode.InternalServerError, ex.Message);
         }
+    }
+
+    private static async Task WriteError(HttpContext context, HttpStatusCode status, string message)
+    {
+        context.Response.StatusCode = (int)status;
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsync(JsonSerializer.Serialize(new { message }));
     }
 }

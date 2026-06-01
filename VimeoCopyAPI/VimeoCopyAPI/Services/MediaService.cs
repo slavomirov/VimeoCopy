@@ -123,39 +123,66 @@ public class MediaService : IMediaService
         await _dbContext.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// Returns a presigned URL for actually streaming the media. This is the metered path —
+    /// it charges the owner's bandwidth. Call it only when the viewer opens/plays the media.
+    /// </summary>
     public async Task<GetPresignedURLDTO> GetPresignedURLAsync(string mediaId)
     {
         var media = await GetMediaByIdAsync(mediaId) ?? throw new Exception("Media with this id not found!");
+        EnsureViewable(media);
 
         var source = media.IsPublic ? VimeoCopyAPI.Models.BandwidthSource.Public : VimeoCopyAPI.Models.BandwidthSource.Owner;
         var allowed = await _bandwidthService.TrackPresignAsync(media, source);
         if (!allowed)
             throw new Exception("This media's owner has exceeded their monthly bandwidth allowance.");
 
-        var request = new GetPreSignedUrlRequest
+        return BuildPresignedDto(media);
+    }
+
+    /// <summary>
+    /// Unmetered presigned URL for previews (thumbnails / video posters in galleries).
+    /// Browsing a grid must NOT charge the owner the full file size, so this skips bandwidth tracking.
+    /// </summary>
+    public async Task<GetPresignedURLDTO> GetPreviewURLAsync(string mediaId)
+    {
+        var media = await GetMediaByIdAsync(mediaId) ?? throw new Exception("Media with this id not found!");
+        EnsureViewable(media);
+        return BuildPresignedDto(media);
+    }
+
+    /// <summary>Private media may only be presigned by its owner. Public media is open (shared links use their own flow).</summary>
+    private void EnsureViewable(Media media)
+    {
+        if (media.IsPublic) return;
+        var viewerId = _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (viewerId != media.UserId)
+            throw new UnauthorizedAccessException("This media is private.");
+    }
+
+    private GetPresignedURLDTO BuildPresignedDto(Media media)
+    {
+        var url = _s3.GetPreSignedURL(new GetPreSignedUrlRequest
         {
             BucketName = bucket,
-            Key = mediaId,
+            Key = media.Id.ToString(),
             Verb = HttpVerb.GET,
             Expires = DateTime.UtcNow.AddMinutes(15)
-        };
-
-        var url = _s3.GetPreSignedURL(request);
+        });
 
         string? thumbnailUrl = null;
         if (!string.IsNullOrEmpty(media.ThumbnailUrl))
         {
-            var thumbRequest = new GetPreSignedUrlRequest
+            thumbnailUrl = _s3.GetPreSignedURL(new GetPreSignedUrlRequest
             {
                 BucketName = bucket,
                 Key = media.ThumbnailUrl,
                 Verb = HttpVerb.GET,
                 Expires = DateTime.UtcNow.AddMinutes(15)
-            };
-            thumbnailUrl = _s3.GetPreSignedURL(thumbRequest);
+            });
         }
 
-        return new() { URL = url, ContentType = media.ContentType, ThumbnailUrl = thumbnailUrl };
+        return new() { Url = url, ContentType = media.ContentType, ThumbnailUrl = thumbnailUrl };
     }
 
     public async Task DeleteMediaAsync(string mediaId)
@@ -170,7 +197,7 @@ public class MediaService : IMediaService
         if (media.UserId.ToString() != userId)
             throw new UnauthorizedAccessException("You don't have permission to delete this media.");
 
-        await _userService.DecreaseUsedMemoryAsync(userId, media.FileSize / 1_000_000); // bytes -> mb (matches upload accounting)
+        await _userService.DecreaseUsedMemoryAsync(userId, media.FileSize); // bytes (matches upload accounting)
         _dbContext.Remove(media);
         await _dbContext.SaveChangesAsync();
      

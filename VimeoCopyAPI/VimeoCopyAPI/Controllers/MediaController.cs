@@ -1,5 +1,6 @@
 ﻿using Amazon.S3;
 using Amazon.S3.Model;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
@@ -11,6 +12,7 @@ namespace VimeoCopyAPI.Controllers;
 
 [ApiController]
 [Route("api/media")]
+[Authorize] // mutations require auth; public reads opt out with [AllowAnonymous]
 public class MediaController : ControllerBase
 {
     private readonly IMediaService _mediaService;
@@ -20,11 +22,19 @@ public class MediaController : ControllerBase
         _mediaService = mediaService;
     }
 
+    [AllowAnonymous]
     [HttpGet]
     public async Task<IActionResult> GetAll() => Ok(await _mediaService.GetAllMediaAsync());
 
+    /// <summary>Metered streaming URL — call when the viewer actually opens/plays the media. Private media is owner-only.</summary>
+    [AllowAnonymous]
     [HttpGet("{id}/url")]
     public async Task<IActionResult> GetPresignedGetUrl(string id) => Ok(await _mediaService.GetPresignedURLAsync(id));
+
+    /// <summary>Unmetered preview URL — call to render thumbnails/posters in a gallery. Private media is owner-only.</summary>
+    [AllowAnonymous]
+    [HttpGet("{id}/preview")]
+    public async Task<IActionResult> GetPreviewUrl(string id) => Ok(await _mediaService.GetPreviewURLAsync(id));
 
     [HttpDelete("Media/Delete/{mediaId}")]
     public async Task<IActionResult> DeleteMediaAsync(string mediaId)
