@@ -19,6 +19,7 @@ import { ArtistsPage } from "./profile/ArtistsPage";
 import { ArtistProfileEditor } from "./profile/ArtistProfileEditor";
 import { UploadProvider } from "./components/UploadProvider";
 import { UploadDock } from "./components/UploadDock";
+import { AudiencePage } from "./components/AudiencePage";
 import { useTheme } from "./theme/useTheme";
 import "./App.css";
 
@@ -199,6 +200,17 @@ function MainLayout() {
             </Link>
           )}
 
+          {isLoggedIn && (
+            <Link to="/audience" className="nav-item" title="Audience">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="20" x2="18" y2="10" />
+                <line x1="12" y1="20" x2="12" y2="4" />
+                <line x1="6" y1="20" x2="6" y2="14" />
+              </svg>
+              <span className="nav-label">Audience</span>
+            </Link>
+          )}
+
           <Link to="/buy" className="nav-item" title={isLoggedIn ? "Buy" : "Pricing"}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="9" cy="21" r="1"></circle>
@@ -286,6 +298,10 @@ function MainLayout() {
           <Route path="/social-login" element={<SocialLoginPage />} />
           <Route path="/buy" element={<BuyPage />} />
 
+          <Route
+            path="/audience"
+            element={isLoggedIn ? <AudiencePage /> : <Navigate to="/profile" replace />}
+          />
           <Route path="/artists" element={<ArtistsPage />} />
           <Route path="/u/:handle" element={<ArtistProfile />} />
           <Route
