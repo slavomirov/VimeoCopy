@@ -14,11 +14,13 @@ public class StripeWebhookController : ControllerBase
 {
     private readonly StripeOptions _stripeOptions;
     private readonly IUserService _userService;
+    private readonly IPlanService _planService;
 
-    public StripeWebhookController(IOptionsSnapshot<StripeOptions> stripeOptions, IUserService userService)
+    public StripeWebhookController(IOptionsSnapshot<StripeOptions> stripeOptions, IUserService userService, IPlanService planService)
     {
         _stripeOptions = stripeOptions.Value;
         _userService = userService;
+        _planService = planService;
     }
 
     [HttpPost]
@@ -68,31 +70,52 @@ public class StripeWebhookController : ControllerBase
 
         Console.WriteLine("➡ checkout.session.completed received");
 
-        var lineItems = await new SessionService().ListLineItemsAsync(session.Id);
-        var item = lineItems.Data.FirstOrDefault();
-
-        if (item == null)
+        var userId = session.ClientReferenceId;
+        if (string.IsNullOrEmpty(userId))
         {
-            Console.WriteLine("⚠ No line items found for session");
+            Console.WriteLine("⚠ Session missing ClientReferenceId");
             return;
         }
 
-        var productName = item.Description;
-        var price = item.AmountTotal / 100m;
-        var currency = item.Currency;
-        var quantity = item.Quantity;
-        var userId = session.ClientReferenceId;
-        var email = session.CustomerEmail;
-        
-        await _userService.AssignPlanToUserAsync(userId, productName);
+        // Prefer session metadata (set explicitly when we created the session).
+        // Fall back to line item description for legacy plan sessions created before metadata was added.
+        session.Metadata ??= new Dictionary<string, string>();
+        session.Metadata.TryGetValue("type", out var type);
+        session.Metadata.TryGetValue("targetName", out var targetName);
 
-        // Тук можеш да добавиш идемпотентност:
-        // if (_db.Payments.Any(p => p.SessionId == session.Id)) return;
+        if (string.IsNullOrEmpty(targetName))
+        {
+            var lineItems = await new SessionService().ListLineItemsAsync(session.Id);
+            targetName = lineItems.Data.FirstOrDefault()?.Description;
+            type ??= "plan";
+        }
 
-        Console.WriteLine($"✔ Product: {productName}, Price: {price} {currency}, Qty: {quantity}");
-        Console.WriteLine($"✔ User: {userId}, Email: {email}");
+        if (string.IsNullOrEmpty(targetName))
+        {
+            Console.WriteLine("⚠ Could not determine product target for session");
+            return;
+        }
 
-        // Тук е моментът, в който плащането е напълно успешно
+        switch (type)
+        {
+            case "bandwidth-addon":
+                var addon = await _planService.GetBandwidthAddonByNameAsync(targetName);
+                if (addon == null)
+                {
+                    Console.WriteLine($"⚠ Unknown bandwidth add-on: {targetName}");
+                    return;
+                }
+                await _userService.AddBandwidthAddonAsync(userId, addon.BandwidthMB);
+                Console.WriteLine($"✔ Bandwidth add-on '{targetName}' (+{addon.BandwidthMB} MB) granted to user {userId}");
+                break;
+
+            case "plan":
+            default:
+                await _userService.AssignPlanToUserAsync(userId, targetName);
+                Console.WriteLine($"✔ Plan '{targetName}' assigned to user {userId}");
+                break;
+        }
+
         Console.WriteLine("🎉 PAYMENT SUCCESS");
     }
 

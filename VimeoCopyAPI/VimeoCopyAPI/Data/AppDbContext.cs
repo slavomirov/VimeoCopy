@@ -16,6 +16,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<SharedLink> SharedLinks { get; set; }
     public DbSet<Project> Projects { get; set; }
     public DbSet<ProjectMedia> ProjectMedias { get; set; }
+    public DbSet<BandwidthLog> BandwidthLogs { get; set; }
+    public DbSet<BandwidthAddon> BandwidthAddons { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -67,6 +69,16 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
 
         modelBuilder.Entity<ProjectMedia>()
             .HasIndex(pm => new { pm.ProjectId, pm.MediaId })
+            .IsUnique();
+
+        modelBuilder.Entity<BandwidthLog>()
+            .HasIndex(b => new { b.MediaId, b.HourBucket });
+
+        modelBuilder.Entity<BandwidthLog>()
+            .HasIndex(b => new { b.OwnerUserId, b.CreatedAt });
+
+        modelBuilder.Entity<BandwidthAddon>()
+            .HasIndex(a => a.Name)
             .IsUnique();
     }
 }
