@@ -21,7 +21,13 @@ public class PlanService : IPlanService
     }
 
     public async Task<Plan?> GetPlayByNameAsync(string name) => await _dbContext.Plans.Where(x => x.Name.Equals(name)).FirstOrDefaultAsync();
- 
+
+    public async Task<BandwidthAddon?> GetBandwidthAddonByNameAsync(string name)
+        => await _dbContext.BandwidthAddons.FirstOrDefaultAsync(a => a.Name == name);
+
+    public async Task<IEnumerable<BandwidthAddon>> GetBandwidthAddonsAsync()
+        => await _dbContext.BandwidthAddons.OrderBy(a => a.BandwidthMB).ToListAsync();
+
     public async Task EnsurePlanExists()
     {
         var plans = await _dbContext.Plans.ToListAsync();
@@ -71,6 +77,41 @@ public class PlanService : IPlanService
                 StorageLimitMB = 2097152, //2 TB
                 BandwithMB = 4194304, //4 TB
                 Price = 6000 // $60.00
+            });
+        }
+
+        var addons = await _dbContext.BandwidthAddons.ToListAsync();
+
+        if (!addons.Any(a => a.Name == "Bandwidth-50GB"))
+        {
+            _dbContext.BandwidthAddons.Add(new BandwidthAddon
+            {
+                Name = "Bandwidth-50GB",
+                Description = "+50 GB bandwidth top-up",
+                BandwidthMB = 51200,
+                Price = 300 // €3.00
+            });
+        }
+
+        if (!addons.Any(a => a.Name == "Bandwidth-200GB"))
+        {
+            _dbContext.BandwidthAddons.Add(new BandwidthAddon
+            {
+                Name = "Bandwidth-200GB",
+                Description = "+200 GB bandwidth top-up",
+                BandwidthMB = 204800,
+                Price = 1000 // €10.00
+            });
+        }
+
+        if (!addons.Any(a => a.Name == "Bandwidth-1TB"))
+        {
+            _dbContext.BandwidthAddons.Add(new BandwidthAddon
+            {
+                Name = "Bandwidth-1TB",
+                Description = "+1 TB bandwidth top-up",
+                BandwidthMB = 1048576,
+                Price = 4000 // €40.00
             });
         }
 

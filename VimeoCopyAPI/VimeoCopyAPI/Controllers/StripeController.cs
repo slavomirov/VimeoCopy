@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Stripe;
@@ -41,16 +41,21 @@ public class StripeController : ControllerBase
             {
                 Mode = "payment",
                 ClientReferenceId = userId,
-                SuccessUrl = $"{origin}/upload",
-                CancelUrl = $"{origin}/",
+                SuccessUrl = $"{origin}/profile",
+                CancelUrl = $"{origin}/buy",
                 CustomerEmail = userEmail,
+                Metadata = new Dictionary<string, string>
+                {
+                    { "type", "plan" },
+                    { "targetName", plan.Name },
+                },
                 LineItems =
                 [
                     new ()
                     {
                         PriceData = new ()
                         {
-                            UnitAmountDecimal = plan.Price, // in cents 
+                            UnitAmountDecimal = plan.Price, // in cents
                             Currency = "EUR",
                             ProductData = new ()
                             {
@@ -62,9 +67,61 @@ public class StripeController : ControllerBase
                 ]
             });
 
-        // Placeholder implementation
         return Ok(new { RedirectUrl = stripeCheckoutSession.Url });
     }
+
+    [Authorize]
+    [HttpPost("bandwidth-addon")]
+    public async Task<IActionResult> BuyBandwidthAddon([FromBody] PaymentRequest request)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var userEmail = User.FindFirst(ClaimTypes.Email)?.Value;
+
+        var addon = await _planService.GetBandwidthAddonByNameAsync(request.Name)
+            ?? throw new Exception("Bandwidth add-on not available!");
+
+        var origin = $"http://localhost:5173";
+
+        StripeConfiguration.ApiKey = _stripeOptions.SecretKey;
+        var stripeSessionService = new SessionService();
+
+        var session = await stripeSessionService.CreateAsync(new SessionCreateOptions
+        {
+            Mode = "payment",
+            ClientReferenceId = userId,
+            SuccessUrl = $"{origin}/profile",
+            CancelUrl = $"{origin}/buy",
+            CustomerEmail = userEmail,
+            Metadata = new Dictionary<string, string>
+            {
+                { "type", "bandwidth-addon" },
+                { "targetName", addon.Name },
+            },
+            LineItems =
+            [
+                new ()
+                {
+                    PriceData = new ()
+                    {
+                        UnitAmountDecimal = addon.Price,
+                        Currency = "EUR",
+                        ProductData = new ()
+                        {
+                            Name = addon.Name,
+                            Description = addon.Description,
+                        },
+                    },
+                    Quantity = 1
+                }
+            ]
+        });
+
+        return Ok(new { RedirectUrl = session.Url });
+    }
+
+    [HttpGet("bandwidth-addons")]
+    public async Task<IActionResult> ListBandwidthAddons()
+        => Ok(await _planService.GetBandwidthAddonsAsync());
 }
 
-public record PaymentRequest(string Name); //add description, price, name for products
+public record PaymentRequest(string Name);

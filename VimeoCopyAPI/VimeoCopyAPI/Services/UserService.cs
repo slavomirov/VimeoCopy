@@ -264,6 +264,10 @@ namespace VimeoCopyAPI.Services
             var buyedMemory = user.BuyedMemory;
             var freeMemory = buyedMemory.HasValue ? (long?)Math.Max(0, buyedMemory.Value - usedMemory) : null;
 
+            var usedBandwidth = user.UsedBandwidth ?? 0;
+            var buyedBandwidth = user.BuyedBandwidth;
+            var freeBandwidth = buyedBandwidth.HasValue ? (long?)Math.Max(0, buyedBandwidth.Value - usedBandwidth) : null;
+
             return new UserDataDTO
             {
                 Id = user.Id,
@@ -272,6 +276,9 @@ namespace VimeoCopyAPI.Services
                 BuyedMemory = buyedMemory,
                 UsedMemory = usedMemory,
                 FreeMemory = freeMemory,
+                BuyedBandwidth = buyedBandwidth,
+                UsedBandwidth = usedBandwidth,
+                FreeBandwidth = freeBandwidth,
                 PlanExpiration = user.PlanExpiration,
                 PlanName = user.Plan?.Name,
                 PlanDescription = user.Plan?.Description,
@@ -293,7 +300,7 @@ namespace VimeoCopyAPI.Services
 
         public async Task IncreaseUsedMemoryAsync(string userId, long mediaSize)
             => await _dbContext.Users.Where(u => u.Id == userId)
-                .ExecuteUpdateAsync(u => u.SetProperty(user => user.UsedMemory, user => user.UsedMemory ?? 0 + mediaSize));
+                .ExecuteUpdateAsync(u => u.SetProperty(user => user.UsedMemory, user => (user.UsedMemory ?? 0) + mediaSize));
 
         public async Task DecreaseUsedMemoryAsync(string userId, long mediaSize)
             => await _dbContext.Users
@@ -307,6 +314,14 @@ namespace VimeoCopyAPI.Services
                     )
                 );
 
+        public async Task IncreaseUsedBandwidthAsync(string userId, long mediaSizeMB)
+            => await _dbContext.Users.Where(u => u.Id == userId)
+                .ExecuteUpdateAsync(u => u.SetProperty(user => user.UsedBandwidth, user => (user.UsedBandwidth ?? 0) + mediaSizeMB));
+
+        public async Task AddBandwidthAddonAsync(string userId, long bandwidthMB)
+            => await _dbContext.Users.Where(u => u.Id == userId)
+                .ExecuteUpdateAsync(u => u.SetProperty(user => user.BuyedBandwidth, user => (user.BuyedBandwidth ?? 0) + bandwidthMB));
+
 
         public async Task AssignPlanToUserAsync(string userId, string planName)
         {
@@ -315,6 +330,8 @@ namespace VimeoCopyAPI.Services
 
             user.PlanId = plan.Id;
             user.BuyedMemory = plan.StorageLimitMB;
+            user.BuyedBandwidth = plan.BandwithMB;
+            user.UsedBandwidth = 0;
             user.PlanExpiration = planName == "Free" ? DateTime.UtcNow.AddDays(7) : DateTime.UtcNow.AddMonths(1);
             _dbContext.Users.Update(user);
             await _dbContext.SaveChangesAsync();
@@ -327,6 +344,7 @@ namespace VimeoCopyAPI.Services
             user.BuyedMemory = null;
             user.PlanExpiration = null;
             user.BuyedBandwidth = null;
+            user.UsedBandwidth = null;
             _dbContext.Users.Update(user);
             await _dbContext.SaveChangesAsync();
         }
@@ -343,11 +361,9 @@ namespace VimeoCopyAPI.Services
                 return "User's plan has expired!";
             }
             if ((user.UsedMemory ?? 0) + fileSize > user.BuyedMemory)
-                return "Yes";
+                return "User doesn't have enough storage!";
 
-            return "User doesn't have enough storage!";
+            return "Yes";
         }
-
-        private static long GetPositiveOrZero(long value) => value < 0 ? 0 : value;
     }
 }

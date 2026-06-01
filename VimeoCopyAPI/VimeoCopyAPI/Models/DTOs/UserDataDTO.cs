@@ -8,6 +8,9 @@ public class UserDataDTO
     public long? BuyedMemory { get; set; }
     public long? UsedMemory { get; set; }
     public long? FreeMemory { get; set; }
+    public long? BuyedBandwidth { get; set; }
+    public long? UsedBandwidth { get; set; }
+    public long? FreeBandwidth { get; set; }
     public DateTime? PlanExpiration { get; set; }
     public string? PlanName { get; set; }
     public string? PlanDescription { get; set; }

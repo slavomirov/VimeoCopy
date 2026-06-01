@@ -18,8 +18,9 @@ public class MediaService : IMediaService
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly string? bucket;
     private readonly IUserService _userService;
+    private readonly IBandwidthService _bandwidthService;
 
-    public MediaService(AppDbContext dbContext, IAmazonS3 s3, IConfiguration config, IHttpContextAccessor httpContextAccessor, IUserService userService)
+    public MediaService(AppDbContext dbContext, IAmazonS3 s3, IConfiguration config, IHttpContextAccessor httpContextAccessor, IUserService userService, IBandwidthService bandwidthService)
     {
         _dbContext = dbContext;
         _s3 = s3;
@@ -27,6 +28,7 @@ public class MediaService : IMediaService
         _httpContextAccessor = httpContextAccessor;
         bucket = _config["AWS:BucketName"];
         _userService = userService;
+        _bandwidthService = bandwidthService;
     }
 
     public async Task<IEnumerable<PublicMediaDTO>> GetAllMediaAsync()
@@ -123,6 +125,11 @@ public class MediaService : IMediaService
     public async Task<GetPresignedURLDTO> GetPresignedURLAsync(string mediaId)
     {
         var media = await GetMediaByIdAsync(mediaId) ?? throw new Exception("Media with this id not found!");
+
+        var source = media.IsPublic ? VimeoCopyAPI.Models.BandwidthSource.Public : VimeoCopyAPI.Models.BandwidthSource.Owner;
+        var allowed = await _bandwidthService.TrackPresignAsync(media, source);
+        if (!allowed)
+            throw new Exception("This media's owner has exceeded their monthly bandwidth allowance.");
 
         var request = new GetPreSignedUrlRequest
         {

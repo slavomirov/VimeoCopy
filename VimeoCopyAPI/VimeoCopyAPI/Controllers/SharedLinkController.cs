@@ -3,6 +3,7 @@ using Amazon.S3.Model;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using VimeoCopyAPI.Models;
 using VimeoCopyAPI.Services.Interfaces;
 
 namespace VimeoCopyAPI.Controllers;
@@ -14,12 +15,14 @@ public class SharedLinkController : ControllerBase
     private readonly ISharedLinkService _sharedLinkService;
     private readonly IAmazonS3 _s3;
     private readonly IConfiguration _config;
+    private readonly IBandwidthService _bandwidthService;
 
-    public SharedLinkController(ISharedLinkService sharedLinkService, IAmazonS3 s3, IConfiguration config)
+    public SharedLinkController(ISharedLinkService sharedLinkService, IAmazonS3 s3, IConfiguration config, IBandwidthService bandwidthService)
     {
         _sharedLinkService = sharedLinkService;
         _s3 = s3;
         _config = config;
+        _bandwidthService = bandwidthService;
     }
 
     /// <summary>
@@ -54,6 +57,10 @@ public class SharedLinkController : ControllerBase
         var link = await _sharedLinkService.GetValidSharedLinkAsync(token);
         if (link == null)
             return NotFound(new { message = "This shared link is invalid or has expired." });
+
+        var allowed = await _bandwidthService.TrackPresignAsync(link.Media, BandwidthSource.Shared);
+        if (!allowed)
+            return StatusCode(402, new { message = "This media's owner has exceeded their monthly bandwidth allowance." });
 
         var bucket = _config["AWS:BucketName"];
         var presignRequest = new GetPreSignedUrlRequest

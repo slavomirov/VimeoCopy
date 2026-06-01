@@ -21,6 +21,7 @@ public class UploadService : IUploadService
     private readonly IMediaService _mediaService;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IUserService _userService;
+    private readonly IBandwidthService _bandwidthService;
     private record PresignedRequest(string url, string mediaId);
 
 
@@ -30,7 +31,8 @@ public class UploadService : IUploadService
         AppDbContext dbContext,
         IMediaService mediaService,
         IHttpContextAccessor httpContextAccessor,
-        IUserService userService)
+        IUserService userService,
+        IBandwidthService bandwidthService)
     {
         _s3 = s3;
         _config = config;
@@ -38,11 +40,16 @@ public class UploadService : IUploadService
         _mediaService = mediaService;
         _httpContextAccessor = httpContextAccessor;
         _userService = userService;
+        _bandwidthService = bandwidthService;
     }
 
     public async Task<MediaURLDTO> GetMediaURLAsync(string mediaId)
     {
         var media = await _mediaService.GetMediaByIdAsync(mediaId) ?? throw new Exception("Media with this id not found!");
+
+        var allowed = await _bandwidthService.TrackPresignAsync(media, BandwidthSource.Owner);
+        if (!allowed)
+            throw new Exception("This media's owner has exceeded their monthly bandwidth allowance.");
 
         var bucket = _config["Aws:BucketName"];
 
