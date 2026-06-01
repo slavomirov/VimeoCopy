@@ -5,7 +5,8 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { FileEntry } from "../hooks/useFileUploader";
-import { ACCEPT_STRING, useFileUploader } from "../hooks/useFileUploader";
+import { ACCEPT_STRING } from "../hooks/useFileUploader";
+import { useUpload } from "./UploadProvider";
 import { ThumbnailPicker } from "./ThumbnailPicker";
 import "../App.css";
 
@@ -186,7 +187,7 @@ export function UploadPanel({
   onAllUploaded?: (mediaIds: string[]) => void;
   compact?: boolean;
 }) {
-  const uploader = useFileUploader({ projectId });
+  const uploader = useUpload();
   const [dragActive, setDragActive] = useState(false);
   const [pickerFileId, setPickerFileId] = useState<string | null>(null);
 
@@ -212,7 +213,7 @@ export function UploadPanel({
     e.stopPropagation();
     setDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      uploader.addFiles(e.dataTransfer.files);
+      uploader.addFiles(e.dataTransfer.files, projectId);
       e.dataTransfer.clearData();
     }
   }
@@ -242,7 +243,7 @@ export function UploadPanel({
           accept={ACCEPT_STRING}
           multiple
           onChange={(e) => {
-            if (e.target.files) uploader.addFiles(e.target.files);
+            if (e.target.files) uploader.addFiles(e.target.files, projectId);
             e.target.value = "";
           }}
           style={{ display: "none" }}

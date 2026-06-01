@@ -16,6 +16,8 @@ export interface FileEntry {
   mediaId?: string;
   /** User-picked thumbnail blob (overrides auto-generation) */
   customThumbnail?: Blob;
+  /** Optional project this file should be linked to on completion. */
+  projectId?: string;
 }
 
 export interface UseFileUploaderOptions {
@@ -81,7 +83,7 @@ export function useFileUploader(options: UseFileUploaderOptions = {}) {
   /* ── Add files ────────────── */
 
   const addFiles = useCallback(
-    (incoming: FileList | File[]) => {
+    (incoming: FileList | File[], projectId?: string) => {
       const newEntries: FileEntry[] = [];
       const invalid: string[] = [];
 
@@ -94,6 +96,7 @@ export function useFileUploader(options: UseFileUploaderOptions = {}) {
             progress: 0,
             message: "",
             isPublic: globalPublic,
+            projectId,
           });
         } else {
           invalid.push(f.name);
@@ -229,8 +232,9 @@ export function useFileUploader(options: UseFileUploaderOptions = {}) {
             fileName: entry.file.name,
           };
 
-          if (options.projectId) {
-            completeBody.projectId = options.projectId;
+          const linkProjectId = entry.projectId ?? options.projectId;
+          if (linkProjectId) {
+            completeBody.projectId = linkProjectId;
           }
 
           const completeRes = await authFetch(`${API_BASE_URL}/api/Upload/complete`, {

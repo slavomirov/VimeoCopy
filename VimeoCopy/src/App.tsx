@@ -17,16 +17,20 @@ import { ProjectDetailPage } from "./components/ProjectDetailPage";
 import { ArtistProfile } from "./profile/ArtistProfile";
 import { ArtistsPage } from "./profile/ArtistsPage";
 import { ArtistProfileEditor } from "./profile/ArtistProfileEditor";
+import { UploadProvider } from "./components/UploadProvider";
+import { UploadDock } from "./components/UploadDock";
 import { useTheme } from "./theme/useTheme";
 import "./App.css";
 
 function App() {
   return (
     <AuthProvider>
-      <Routes>
-        <Route path="/embed/:mediaId" element={<EmbedPlayer />} />
-        <Route path="/*" element={<MainLayout />} />
-      </Routes>
+      <UploadProvider>
+        <Routes>
+          <Route path="/embed/:mediaId" element={<EmbedPlayer />} />
+          <Route path="/*" element={<MainLayout />} />
+        </Routes>
+      </UploadProvider>
     </AuthProvider>
   );
 }
@@ -300,6 +304,8 @@ function MainLayout() {
           <Route path="/register" element={<Navigate to="/profile" replace />} />
         </Routes>
       </main>
+
+      <UploadDock />
     </div>
   );
 }

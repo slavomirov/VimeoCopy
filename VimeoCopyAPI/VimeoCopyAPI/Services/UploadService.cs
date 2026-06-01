@@ -81,7 +81,7 @@ public class UploadService : IUploadService
             BucketName = bucket,
             Key = mediaId,
             Verb = HttpVerb.PUT,
-            Expires = DateTime.UtcNow.AddMinutes(15),
+            Expires = DateTime.UtcNow.AddHours(2), // large files on slow links can exceed a short window
             ContentType = "application/octet-stream"
         };
 
@@ -90,7 +90,7 @@ public class UploadService : IUploadService
             BucketName = bucket,
             Key = $"thumb_{mediaId}",
             Verb = HttpVerb.PUT,
-            Expires = DateTime.UtcNow.AddMinutes(15),
+            Expires = DateTime.UtcNow.AddHours(2), // large files on slow links can exceed a short window
             ContentType = "image/jpeg"
         };
 
