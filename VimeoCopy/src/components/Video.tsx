@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../Auth/useAuth";
 import { API_BASE_URL } from "../config";
 import { EnhancedPlayer } from "./EnhancedPlayer";
@@ -18,6 +19,7 @@ interface PublicMedia {
   hasThumbnail: boolean;
   ownerEmail: string;
   ownerUsername: string | null;
+  ownerHandle: string | null;
   projectId: string | null;
   projectTitle: string | null;
   projectDescription: string | null;
@@ -455,14 +457,31 @@ function GalleryMediaItem({
         )}
 
         {/* Owner */}
-        <div className="media-gallery-owner">
-          <div className="media-owner-avatar">
-            {(media.ownerUsername || media.ownerEmail).charAt(0).toUpperCase()}
+        {media.ownerHandle ? (
+          <Link
+            to={`/u/${media.ownerHandle}`}
+            className="media-gallery-owner"
+            onClick={(e) => e.stopPropagation()}
+            style={{ textDecoration: "none", color: "inherit" }}
+            title={`View ${media.ownerUsername || media.ownerHandle}'s profile`}
+          >
+            <div className="media-owner-avatar">
+              {(media.ownerUsername || media.ownerEmail).charAt(0).toUpperCase()}
+            </div>
+            <span className="media-owner-name">
+              {media.ownerUsername || media.ownerEmail.split("@")[0]}
+            </span>
+          </Link>
+        ) : (
+          <div className="media-gallery-owner">
+            <div className="media-owner-avatar">
+              {(media.ownerUsername || media.ownerEmail).charAt(0).toUpperCase()}
+            </div>
+            <span className="media-owner-name">
+              {media.ownerUsername || media.ownerEmail.split("@")[0]}
+            </span>
           </div>
-          <span className="media-owner-name">
-            {media.ownerUsername || media.ownerEmail.split("@")[0]}
-          </span>
-        </div>
+        )}
 
         <div className="media-gallery-meta">
           <span>{(media.fileSize / (1024 * 1024)).toFixed(1)} MB</span>

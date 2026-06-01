@@ -37,6 +37,12 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .HasForeignKey(u => u.PlanId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        // Unique handle (filtered so multiple users may still have NULL handles)
+        modelBuilder.Entity<ApplicationUser>()
+            .HasIndex(u => u.Handle)
+            .IsUnique()
+            .HasFilter("[Handle] IS NOT NULL");
+
         modelBuilder.Entity<SharedLink>()
             .HasOne(sl => sl.Media)
             .WithMany()

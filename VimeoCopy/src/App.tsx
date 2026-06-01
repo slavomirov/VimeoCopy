@@ -14,6 +14,9 @@ import { LandingPage } from "./LandingPage";
 import { EmbedPlayer } from "./components/EmbedPlayer";
 import { ProjectsPage } from "./components/ProjectsPage";
 import { ProjectDetailPage } from "./components/ProjectDetailPage";
+import { ArtistProfile } from "./profile/ArtistProfile";
+import { ArtistsPage } from "./profile/ArtistsPage";
+import { ArtistProfileEditor } from "./profile/ArtistProfileEditor";
 import { useTheme } from "./theme/useTheme";
 import "./App.css";
 
@@ -173,6 +176,16 @@ function MainLayout() {
             <span className="nav-label">Media</span>
           </Link>
 
+          <Link to="/artists" className="nav-item" title="Artists">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"></path>
+              <circle cx="18" cy="8" r="2.5"></circle>
+              <path d="M16.5 21v-1.5a3 3 0 0 1 3-3"></path>
+            </svg>
+            <span className="nav-label">Artists</span>
+          </Link>
+
           {isLoggedIn && (
             <Link to="/projects" className="nav-item" title="Projects">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -268,6 +281,13 @@ function MainLayout() {
           <Route path="/shared/:token" element={<SharedMediaViewer />} />
           <Route path="/social-login" element={<SocialLoginPage />} />
           <Route path="/buy" element={<BuyPage />} />
+
+          <Route path="/artists" element={<ArtistsPage />} />
+          <Route path="/u/:handle" element={<ArtistProfile />} />
+          <Route
+            path="/profile/customize"
+            element={isLoggedIn ? <ArtistProfileEditor /> : <ProfileAuthPage />}
+          />
 
           <Route
             path="/profile"

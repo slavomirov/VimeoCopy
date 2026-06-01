@@ -360,7 +360,9 @@ namespace VimeoCopyAPI.Services
                 await UnassingPlanFromUserAsync(userId);
                 return "User's plan has expired!";
             }
-            if ((user.UsedMemory ?? 0) + fileSize > user.BuyedMemory)
+            // UsedMemory/BuyedMemory are tracked in MB, but fileSize arrives in bytes.
+            var fileSizeMB = fileSize / 1_000_000;
+            if ((user.UsedMemory ?? 0) + fileSizeMB > user.BuyedMemory)
                 return "User doesn't have enough storage!";
 
             return "Yes";

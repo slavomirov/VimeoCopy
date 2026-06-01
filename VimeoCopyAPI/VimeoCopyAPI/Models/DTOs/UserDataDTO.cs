@@ -47,6 +47,7 @@ public class PublicMediaDTO
     // Owner info
     public string OwnerEmail { get; set; } = default!;
     public string? OwnerUsername { get; set; }
+    public string? OwnerHandle { get; set; }
 
     // If the media belongs to a project, include project info
     public Guid? ProjectId { get; set; }

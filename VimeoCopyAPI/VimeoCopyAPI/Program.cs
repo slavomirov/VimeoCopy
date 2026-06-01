@@ -99,6 +99,7 @@ builder.Services.AddScoped<IPlanService, PlanService>();
 builder.Services.AddScoped<ISharedLinkService, SharedLinkService>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IBandwidthService, BandwidthService>();
+builder.Services.AddScoped<IProfileService, ProfileService>();
 
 
 builder.Services.AddOptions<StripeOptions>().Bind(builder.Configuration.GetSection("Stripe"));

@@ -70,6 +70,7 @@ public class MediaService : IMediaService
                 HasThumbnail = !string.IsNullOrEmpty(m.ThumbnailUrl),
                 OwnerEmail = m.User?.Email ?? "Unknown",
                 OwnerUsername = m.User?.UserName,
+                OwnerHandle = m.User?.Handle,
             };
 
             if (projectMediaMap.TryGetValue(m.Id, out var project))
@@ -169,7 +170,7 @@ public class MediaService : IMediaService
         if (media.UserId.ToString() != userId)
             throw new UnauthorizedAccessException("You don't have permission to delete this media.");
 
-        await _userService.DecreaseUsedMemoryAsync(userId, media.FileSize);
+        await _userService.DecreaseUsedMemoryAsync(userId, media.FileSize / 1_000_000); // bytes -> mb (matches upload accounting)
         _dbContext.Remove(media);
         await _dbContext.SaveChangesAsync();
      

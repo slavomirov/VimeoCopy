@@ -198,7 +198,7 @@ export function useFileUploader(options: UseFileUploaderOptions = {}) {
             const thumbBlob = await thumbnailPromise;
             if (thumbBlob && thumbnailUploadUrl) {
               const thumbXhr = new XMLHttpRequest();
-              await new Promise<void>((resolve, reject) => {
+              await new Promise<void>((resolve) => {
                 thumbXhr.open("PUT", thumbnailUploadUrl, true);
                 thumbXhr.setRequestHeader("Content-Type", "image/jpeg");
                 thumbXhr.onload = () => {
