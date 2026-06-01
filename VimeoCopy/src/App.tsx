@@ -20,6 +20,7 @@ import { ArtistProfileEditor } from "./profile/ArtistProfileEditor";
 import { UploadProvider } from "./components/UploadProvider";
 import { UploadDock } from "./components/UploadDock";
 import { AudiencePage } from "./components/AudiencePage";
+import { ModerationPage } from "./components/ModerationPage";
 import { useTheme } from "./theme/useTheme";
 import "./App.css";
 
@@ -37,9 +38,10 @@ function App() {
 }
 
 function MainLayout() {
-  const { accessToken, logout } = useAuth();
+  const { accessToken, logout, roles } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const isLoggedIn = !!accessToken;
+  const isStaff = roles.includes("Admin") || roles.includes("Moderator");
   const location = useLocation();
 
   const isMobile = useCallback(() => window.innerWidth <= 768, []);
@@ -211,6 +213,15 @@ function MainLayout() {
             </Link>
           )}
 
+          {isStaff && (
+            <Link to="/moderation" className="nav-item" title="Moderation">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              <span className="nav-label">Moderation</span>
+            </Link>
+          )}
+
           <Link to="/buy" className="nav-item" title={isLoggedIn ? "Buy" : "Pricing"}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="9" cy="21" r="1"></circle>
@@ -301,6 +312,10 @@ function MainLayout() {
           <Route
             path="/audience"
             element={isLoggedIn ? <AudiencePage /> : <Navigate to="/profile" replace />}
+          />
+          <Route
+            path="/moderation"
+            element={isStaff ? <ModerationPage /> : <Navigate to="/" replace />}
           />
           <Route path="/artists" element={<ArtistsPage />} />
           <Route path="/u/:handle" element={<ArtistProfile />} />

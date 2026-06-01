@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../Auth/useAuth";
 import { API_BASE_URL } from "../config";
 import { EnhancedPlayer } from "./EnhancedPlayer";
+import { ReportButton } from "./ReportButton";
 import "../App.css";
 
 /* ── Types ─────────────────────────────────── */
@@ -500,7 +501,10 @@ function GalleryMediaItem({
 
         <div className="media-gallery-meta">
           <span>{(media.fileSize / (1024 * 1024)).toFixed(1)} MB</span>
-          <span>{new Date(media.uploadedAt).toLocaleDateString()}</span>
+          <span style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+            {new Date(media.uploadedAt).toLocaleDateString()}
+            <ReportButton mediaId={media.id} />
+          </span>
         </div>
       </div>
     </div>

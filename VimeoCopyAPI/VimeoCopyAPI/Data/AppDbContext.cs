@@ -18,6 +18,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ProjectMedia> ProjectMedias { get; set; }
     public DbSet<BandwidthLog> BandwidthLogs { get; set; }
     public DbSet<BandwidthAddon> BandwidthAddons { get; set; }
+    public DbSet<MediaReport> MediaReports { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -86,5 +87,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<BandwidthAddon>()
             .HasIndex(a => a.Name)
             .IsUnique();
+
+        modelBuilder.Entity<MediaReport>()
+            .HasIndex(r => new { r.Status, r.CreatedAt });
     }
 }
