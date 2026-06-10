@@ -328,33 +328,6 @@ export function ProfilePage() {
               <span style={{ fontWeight: 600 }}>Free Memory:</span> {formatBytes(user.freeMemory)}
             </p>
             <p style={{ color: "var(--gray-600)" }}>
-              <span style={{ fontWeight: 600 }}>Bandwidth:</span>{" "}
-              {formatBytes(user.usedBandwidth)} used / {formatBytes(user.buyedBandwidth)} total
-              {user.freeBandwidth !== null && user.freeBandwidth !== undefined && (
-                <> · {formatBytes(user.freeBandwidth)} remaining</>
-              )}
-            </p>
-            {user.buyedBandwidth ? (
-              <div style={{
-                height: 8,
-                width: "100%",
-                background: "var(--bg-elevated)",
-                borderRadius: 4,
-                overflow: "hidden",
-                marginTop: -4,
-                marginBottom: "var(--space-2)",
-              }}>
-                <div style={{
-                  height: "100%",
-                  width: `${Math.min(100, ((user.usedBandwidth ?? 0) / user.buyedBandwidth) * 100)}%`,
-                  background: ((user.usedBandwidth ?? 0) / user.buyedBandwidth) >= 0.9
-                    ? "var(--danger)"
-                    : "linear-gradient(90deg, var(--primary), var(--secondary))",
-                  transition: "width 0.3s ease",
-                }} />
-              </div>
-            ) : null}
-            <p style={{ color: "var(--gray-600)" }}>
               <span style={{ fontWeight: 600 }}>Plan Expiration:</span> {user.planExpiration ? new Date(user.planExpiration).toLocaleString() : "N/A"}
             </p>
             <p style={{ color: "var(--gray-600)", marginBottom: 0 }}>

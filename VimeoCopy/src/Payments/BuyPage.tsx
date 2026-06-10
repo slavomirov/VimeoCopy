@@ -9,7 +9,6 @@ type PlanName = "Silver" | "Gold" | "Platinum";
 interface Plan {
   name: PlanName;
   storage: string;
-  bandwidth: string;
   priceEur: number;
   icon: string;
   tagline: string;
@@ -21,13 +20,11 @@ const plans: Plan[] = [
   {
     name: "Silver",
     storage: "200GB",
-    bandwidth: "800GB/mo",
     priceEur: 15,
     icon: "🥈",
     tagline: "Perfect for creators just getting started",
     features: [
       "200GB cloud storage",
-      "800GB bandwidth per month",
       "Full quality video hosting",
       "Basic analytics",
     ],
@@ -35,14 +32,12 @@ const plans: Plan[] = [
   {
     name: "Gold",
     storage: "1TB",
-    bandwidth: "2TB/mo",
     priceEur: 35,
     icon: "🥇",
     tagline: "For growing channels that need more power",
     popular: true,
     features: [
       "1TB cloud storage",
-      "2TB bandwidth per month",
       "Full quality video hosting",
       "Advanced analytics",
       "Priority support",
@@ -51,13 +46,11 @@ const plans: Plan[] = [
   {
     name: "Platinum",
     storage: "2TB",
-    bandwidth: "4TB/mo",
     priceEur: 60,
     icon: "💎",
     tagline: "Unlimited ambition, enterprise-grade delivery",
     features: [
       "2TB cloud storage",
-      "4TB bandwidth per month",
       "Full quality video hosting",
       "Premium analytics suite",
       "Dedicated support",
@@ -319,7 +312,6 @@ export function BuyPage() {
               >
                 {[
                   { label: plan.storage, sub: "Storage" },
-                  { label: plan.bandwidth, sub: "Bandwidth" },
                 ].map((b) => (
                   <div
                     key={b.sub}

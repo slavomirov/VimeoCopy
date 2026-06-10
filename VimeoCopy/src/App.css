@@ -1502,24 +1502,22 @@
   position: absolute;
   top: var(--space-4);
   right: var(--space-4);
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: var(--radius-full);
-  width: 40px;
-  height: 40px;
+  background: none;
+  border: none;
+  padding: 4px;
   cursor: pointer;
   z-index: 20;
-  transition: all 0.25s ease;
+  transition: color 0.2s ease, transform 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, 0.85);
+  /* subtle shadow so the bare X stays visible over light media */
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
 }
 .vp-close:hover {
-  background: rgba(255, 255, 255, 0.18);
-  border-color: rgba(255, 255, 255, 0.35);
   color: white;
-  transform: scale(1.1) rotate(90deg);
+  transform: scale(1.15);
 }
 
 /* ── Top Info Bar ──────────────────────────── */
@@ -1848,20 +1846,32 @@
   -webkit-appearance: none;
   appearance: none;
   width: 80px;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 2px;
+  height: 12px;            /* control height = hit area; track is drawn thin below */
+  background: transparent;
   outline: none;
   cursor: pointer;
+  vertical-align: middle;
 }
+/* Thin YouTube-style track */
+.vp-volume-slider::-webkit-slider-runnable-track {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 2px;
+}
+.vp-volume-slider::-moz-range-track {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 2px;
+}
+/* Small round knob centred on the thin track */
 .vp-volume-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 12px;
   height: 12px;
+  margin-top: -4.5px;
   background: white;
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
 }
 .vp-volume-slider::-moz-range-thumb {
   width: 12px;
@@ -1870,7 +1880,6 @@
   border-radius: 50%;
   cursor: pointer;
   border: none;
-  box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
 }
 
 /* ── Speed Menu ────────────────────────────── */
