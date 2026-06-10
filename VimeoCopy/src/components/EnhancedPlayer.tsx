@@ -79,6 +79,7 @@ export function EnhancedPlayer({
     const handler = (e: KeyboardEvent) => {
       const v = videoRef.current;
       if (!v) return;
+      unlockAudio();
       switch (e.key) {
         case " ":
         case "k":
@@ -251,25 +252,35 @@ export function EnhancedPlayer({
     }
   }, []);
 
-  const ensureAudioGraph = useCallback(() => {
+  // Must be called from a USER GESTURE. createMediaElementSource() reroutes the element's audio
+  // exclusively through the graph, and a freshly-created AudioContext is "suspended" until a gesture
+  // resumes it — so building it on autoplay would silence the player. Until the first gesture the
+  // element plays natively (via applyVolume's element.volume fallback); after it, the gain boost kicks in.
+  const unlockAudio = useCallback(() => {
     const v = videoRef.current;
-    if (!v || audioCtxRef.current) return;
-    try {
-      const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (!Ctor) return;
-      const ctx = new Ctor();
-      const source = ctx.createMediaElementSource(v);
-      const gain = ctx.createGain();
-      source.connect(gain);
-      gain.connect(ctx.destination);
-      audioCtxRef.current = ctx;
-      gainRef.current = gain;
-      sourceRef.current = source;
-      applyVolume(volume, muted);
-    } catch {
-      /* Web Audio unavailable — keep using element.volume */
+    if (!v) return;
+    if (!audioCtxRef.current) {
+      try {
+        const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (!Ctor) return;
+        const ctx = new Ctor();
+        const source = ctx.createMediaElementSource(v);
+        const gain = ctx.createGain();
+        source.connect(gain);
+        gain.connect(ctx.destination);
+        audioCtxRef.current = ctx;
+        gainRef.current = gain;
+        sourceRef.current = source;
+        applyVolume(volumeRef.current, v.muted);
+      } catch {
+        /* Web Audio unavailable — keep using element.volume */
+        return;
+      }
     }
-  }, [applyVolume, volume, muted]);
+    if (audioCtxRef.current.state === "suspended") {
+      audioCtxRef.current.resume().catch(() => {});
+    }
+  }, [applyVolume]);
 
   useEffect(() => { volumeRef.current = volume; }, [volume]);
 
@@ -297,12 +308,7 @@ export function EnhancedPlayer({
     if (v) setDuration(v.duration);
   };
 
-  const handlePlay = () => {
-    setPlaying(true);
-    // Build/resume the boost chain on first playback (needs a user-gesture-adjacent moment).
-    ensureAudioGraph();
-    audioCtxRef.current?.resume?.().catch(() => {});
-  };
+  const handlePlay = () => setPlaying(true);
   const handlePause = () => {
     setPlaying(false);
     setControlsVisible(true);
@@ -311,6 +317,7 @@ export function EnhancedPlayer({
   const togglePlay = () => {
     const v = videoRef.current;
     if (!v) return;
+    unlockAudio();
     v.paused ? v.play() : v.pause();
   };
 
@@ -333,6 +340,7 @@ export function EnhancedPlayer({
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!videoRef.current) return;
+    unlockAudio();
     const val = parseFloat(e.target.value);
     const isMuted = val === 0;
     applyVolume(val, isMuted);
@@ -342,6 +350,7 @@ export function EnhancedPlayer({
 
   const toggleMute = () => {
     if (!videoRef.current) return;
+    unlockAudio();
     const next = !muted;
     applyVolume(volume, next);
     setMuted(next);
