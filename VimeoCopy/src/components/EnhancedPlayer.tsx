@@ -32,9 +32,18 @@ export function EnhancedPlayer({
   onClose: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Web Audio chain so we can amplify past the element's native 1.0 volume ceiling —
+  // the bare <video>/<audio> plays noticeably quieter than desktop players.
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const gainRef = useRef<GainNode | null>(null);
+  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const volumeRef = useRef(1); // mirrors `volume` for the stale-closure keyboard handler
+  const VOLUME_BOOST = 2;
 
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -84,20 +93,28 @@ export function EnhancedPlayer({
           e.preventDefault();
           v.currentTime = Math.min(v.duration, v.currentTime + 5);
           break;
-        case "ArrowUp":
+        case "ArrowUp": {
           e.preventDefault();
-          v.volume = Math.min(1, v.volume + 0.1);
-          setVolume(v.volume);
+          const next = Math.min(1, volumeRef.current + 0.1);
+          applyVolume(next, false);
+          setVolume(next);
+          setMuted(false);
           break;
-        case "ArrowDown":
+        }
+        case "ArrowDown": {
           e.preventDefault();
-          v.volume = Math.max(0, v.volume - 0.1);
-          setVolume(v.volume);
+          const next = Math.max(0, volumeRef.current - 0.1);
+          applyVolume(next, next === 0);
+          setVolume(next);
+          setMuted(next === 0);
           break;
-        case "m":
-          v.muted = !v.muted;
-          setMuted(v.muted);
+        }
+        case "m": {
+          const next = !v.muted;
+          applyVolume(volumeRef.current, next);
+          setMuted(next);
           break;
+        }
         case "f":
           toggleFullscreen();
           break;
@@ -218,6 +235,53 @@ export function EnhancedPlayer({
     return () => clearTimeout(t);
   }, [castError]);
 
+  // ── Audio boost (Web Audio) ──
+  // Loudness is driven by the gain node (allows >1.0); the element's own volume stays at 1
+  // so the two don't multiply. Falls back to element.volume if Web Audio is unavailable.
+  const applyVolume = useCallback((vol: number, isMuted: boolean) => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (gainRef.current && audioCtxRef.current) {
+      gainRef.current.gain.value = isMuted ? 0 : vol * VOLUME_BOOST;
+      v.muted = isMuted;
+      v.volume = 1;
+    } else {
+      v.volume = vol;
+      v.muted = isMuted;
+    }
+  }, []);
+
+  const ensureAudioGraph = useCallback(() => {
+    const v = videoRef.current;
+    if (!v || audioCtxRef.current) return;
+    try {
+      const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!Ctor) return;
+      const ctx = new Ctor();
+      const source = ctx.createMediaElementSource(v);
+      const gain = ctx.createGain();
+      source.connect(gain);
+      gain.connect(ctx.destination);
+      audioCtxRef.current = ctx;
+      gainRef.current = gain;
+      sourceRef.current = source;
+      applyVolume(volume, muted);
+    } catch {
+      /* Web Audio unavailable — keep using element.volume */
+    }
+  }, [applyVolume, volume, muted]);
+
+  useEffect(() => { volumeRef.current = volume; }, [volume]);
+
+  // Tear down the audio context on unmount.
+  useEffect(() => {
+    return () => {
+      sourceRef.current?.disconnect();
+      gainRef.current?.disconnect();
+      audioCtxRef.current?.close().catch(() => {});
+    };
+  }, []);
+
   // ── Event handlers ──
   const handleTimeUpdate = () => {
     const v = videoRef.current;
@@ -233,7 +297,12 @@ export function EnhancedPlayer({
     if (v) setDuration(v.duration);
   };
 
-  const handlePlay = () => setPlaying(true);
+  const handlePlay = () => {
+    setPlaying(true);
+    // Build/resume the boost chain on first playback (needs a user-gesture-adjacent moment).
+    ensureAudioGraph();
+    audioCtxRef.current?.resume?.().catch(() => {});
+  };
   const handlePause = () => {
     setPlaying(false);
     setControlsVisible(true);
@@ -263,24 +332,25 @@ export function EnhancedPlayer({
   };
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = videoRef.current;
-    if (!v) return;
+    if (!videoRef.current) return;
     const val = parseFloat(e.target.value);
-    v.volume = val;
-    v.muted = val === 0;
+    const isMuted = val === 0;
+    applyVolume(val, isMuted);
     setVolume(val);
-    setMuted(val === 0);
+    setMuted(isMuted);
   };
 
   const toggleMute = () => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.muted = !v.muted;
-    setMuted(v.muted);
+    if (!videoRef.current) return;
+    const next = !muted;
+    applyVolume(volume, next);
+    setMuted(next);
   };
 
   const toggleFullscreen = () => {
-    const el = playerRef.current;
+    // Fullscreen the whole overlay (not just the video box) so the media fills the entire
+    // display and the close button / top bar stay reachable in fullscreen.
+    const el = overlayRef.current;
     if (!el) return;
     if (document.fullscreenElement) {
       document.exitFullscreen();
@@ -448,9 +518,9 @@ export function EnhancedPlayer({
   );
 
   return (
-    <div className="vp-overlay" onClick={onClose}>
+    <div className="vp-overlay" ref={overlayRef} onClick={onClose}>
       {/* Close button */}
-      <button className="vp-close" onClick={onClose} title="Close (Esc)">
+      <button className="vp-close" onClick={(e) => { e.stopPropagation(); onClose(); }} title="Close (Esc)">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
           <line x1="18" y1="6" x2="6" y2="18" />
           <line x1="6" y1="6" x2="18" y2="18" />

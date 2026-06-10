@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "../Auth/useAuth";
 import { API_BASE_URL } from "../config";
 import { ThumbnailPicker } from "./ThumbnailPicker";
@@ -294,13 +295,16 @@ export function ProfilePage() {
       <div className="card">
         <div className="card-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--space-3)" }}>
           <h1 style={{ marginBottom: 0 }}>Creator Dashboard</h1>
-          <a href="/profile/customize" className="btn-primary">
+          <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
+          <Link to="/settings" className="btn-secondary">Account settings</Link>
+          <Link to="/profile/customize" className="btn-primary">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
             Customize public profile
-          </a>
+          </Link>
+          </div>
         </div>
 
         <div className="card-body">
@@ -365,7 +369,7 @@ export function ProfilePage() {
 
         {user.media.length === 0 ? (
           <div className="card" style={{ textAlign: "center", padding: "var(--space-12)" }}>
-            <p className="text-muted">Your media library is empty. <a href="/upload">Upload your first video</a> to get started!</p>
+            <p className="text-muted">Your media library is empty. <Link to="/upload">Upload your first video</Link> to get started!</p>
           </div>
         ) : (
           <div className="grid grid-2">

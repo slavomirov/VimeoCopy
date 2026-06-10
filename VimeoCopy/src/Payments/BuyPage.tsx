@@ -1,22 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../config";
 import { useAuth } from "../Auth/useAuth";
 import "../App.css";
-
-interface BandwidthAddon {
-  id: number;
-  name: string;
-  description: string | null;
-  bandwidthMB: number;
-  price: number;
-}
-
-function formatMb(mb: number) {
-  if (mb >= 1024 * 1024) return `${(mb / 1024 / 1024).toFixed(0)} TB`;
-  if (mb >= 1024) return `${(mb / 1024).toFixed(0)} GB`;
-  return `${mb} MB`;
-}
 
 type PlanName = "Silver" | "Gold" | "Platinum";
 
@@ -110,45 +96,6 @@ export function BuyPage() {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [loadingPlan, setLoadingPlan] = useState<PlanName | null>(null);
-  const [addons, setAddons] = useState<BandwidthAddon[]>([]);
-  const [loadingAddon, setLoadingAddon] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch(`${API_BASE_URL}/api/payments/bandwidth-addons`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setAddons)
-      .catch(() => setAddons([]));
-  }, []);
-
-  async function handleBuyAddon(addonName: string) {
-    if (!accessToken) {
-      navigate("/profile");
-      return;
-    }
-    setError(null);
-    setLoadingAddon(addonName);
-    try {
-      const res = await authFetch(`${API_BASE_URL}/api/payments/bandwidth-addon`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: addonName }),
-      });
-      if (!res.ok) {
-        setError("Server returned an error");
-        return;
-      }
-      const data = await res.json();
-      if (!data.redirectUrl) {
-        setError("No redirect URL returned from backend");
-        return;
-      }
-      window.location.href = data.redirectUrl;
-    } catch {
-      setError("Network error");
-    } finally {
-      setLoadingAddon(null);
-    }
-  }
 
   async function handleBuy(planName: PlanName) {
     if (!accessToken) {
@@ -494,113 +441,6 @@ export function BuyPage() {
           );
         })}
       </div>
-
-      {/* ── Bandwidth top-up packs ──────────── */}
-      {addons.length > 0 && (
-        <div style={{ marginTop: "var(--space-8)", marginBottom: "var(--space-6)" }}>
-          <div style={{ textAlign: "center", marginBottom: "var(--space-5)" }}>
-            <p
-              style={{
-                fontSize: "var(--font-size-xs)",
-                textTransform: "uppercase",
-                letterSpacing: "3px",
-                color: "var(--secondary)",
-                marginBottom: "var(--space-2)",
-                fontWeight: 600,
-              }}
-            >
-              Need more headroom?
-            </p>
-            <h2
-              style={{
-                fontSize: "clamp(1.2rem, 2.4vw, 1.8rem)",
-                fontWeight: 700,
-                marginBottom: "var(--space-2)",
-              }}
-            >
-              One-time bandwidth top-ups
-            </h2>
-            <p
-              style={{
-                color: "var(--gray-400)",
-                fontSize: "var(--font-size-sm)",
-                maxWidth: 540,
-                margin: "0 auto",
-              }}
-            >
-              Going viral? Stay on your current plan and add extra bandwidth that
-              lasts until your next renewal.
-            </p>
-          </div>
-
-          <div
-            className="buypage-grid"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: "var(--space-4)",
-            }}
-          >
-            {addons.map((a) => {
-              const isLoading = loadingAddon === a.name;
-              const priceEur = (a.price / 100).toFixed(0);
-              return (
-                <div
-                  key={a.id}
-                  style={{
-                    background: "linear-gradient(170deg, var(--bg-card) 0%, var(--bg-surface) 100%)",
-                    border: "1px solid rgba(var(--primary-rgb),0.18)",
-                    borderRadius: "var(--radius-lg)",
-                    padding: "var(--space-4)",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "var(--space-2)",
-                    textAlign: "center",
-                  }}
-                >
-                  <div style={{ fontSize: "1.4rem" }}>📦</div>
-                  <h3 style={{ margin: 0, fontWeight: 700, color: "var(--gray-900)" }}>
-                    +{formatMb(a.bandwidthMB)}
-                  </h3>
-                  {a.description && (
-                    <p style={{ color: "var(--gray-400)", fontSize: "var(--font-size-xs)", margin: 0 }}>
-                      {a.description}
-                    </p>
-                  )}
-                  <div>
-                    <span
-                      style={{
-                        fontSize: "1.4rem",
-                        fontWeight: 800,
-                        color: "var(--primary)",
-                      }}
-                    >
-                      €{priceEur}
-                    </span>
-                    <span style={{ color: "var(--gray-400)", fontSize: "var(--font-size-sm)", marginLeft: 4 }}>
-                      one-time
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => handleBuyAddon(a.name)}
-                    disabled={loadingAddon !== null}
-                    className="btn-primary"
-                    style={{
-                      width: "100%",
-                      padding: "var(--space-2)",
-                      fontSize: "var(--font-size-sm)",
-                      fontWeight: 600,
-                      borderRadius: "var(--radius-md)",
-                    }}
-                  >
-                    {isLoading ? "Processing…" : "Add to my plan"}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {/* ── Error ───────────────────────────── */}
       {error && (

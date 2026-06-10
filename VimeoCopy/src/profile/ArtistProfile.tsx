@@ -23,6 +23,14 @@ interface Work {
   projectTitle: string | null;
 }
 
+interface Album {
+  id: string;
+  title: string;
+  description: string | null;
+  workCount: number;
+  coverUrl: string | null;
+}
+
 interface PublicProfile {
   handle: string;
   displayName: string;
@@ -34,6 +42,7 @@ interface PublicProfile {
   bannerUrl: string | null;
   themeJson: string | null;
   works: Work[];
+  albums: Album[];
 }
 
 export function ArtistProfile() {
@@ -45,6 +54,7 @@ export function ArtistProfile() {
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Work | null>(null);
   const [playerUrl, setPlayerUrl] = useState<string | null>(null);
+  const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
 
   // Load profile
   useEffect(() => {
@@ -131,6 +141,13 @@ export function ArtistProfile() {
   const isOwner = !!claims?.sub && profile.handle === (claims.handle as string | undefined);
   const cssVars = themeToCssVars(theme);
 
+  const visibleWorks = selectedAlbum
+    ? profile.works.filter((w) => w.projectId === selectedAlbum)
+    : profile.works;
+  const selectedAlbumTitle = selectedAlbum
+    ? profile.albums.find((a) => a.id === selectedAlbum)?.title ?? null
+    : null;
+
   return (
     <div className="artist-profile" style={cssVars}>
       {profile.bannerUrl && (
@@ -180,16 +197,53 @@ export function ArtistProfile() {
         </div>
       </div>
 
+      {profile.albums.length > 0 && (
+        <>
+          <div className="ap-section-head">
+            <h2>Albums</h2>
+            <span className="ap-count">{profile.albums.length} album{profile.albums.length !== 1 ? "s" : ""}</span>
+          </div>
+          <div className="ap-albums">
+            {profile.albums.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                className={`ap-album ${selectedAlbum === a.id ? "active" : ""}`}
+                onClick={() => setSelectedAlbum(selectedAlbum === a.id ? null : a.id)}
+              >
+                <div className="ap-album-cover">
+                  {a.coverUrl
+                    ? <img src={a.coverUrl} alt={a.title} loading="lazy" />
+                    : <div className="ap-album-cover-empty" />}
+                  <span className="ap-album-count">{a.workCount}</span>
+                </div>
+                <div className="ap-album-info">
+                  <p className="ap-album-title">{a.title}</p>
+                  {a.description && <p className="ap-album-desc">{a.description}</p>}
+                </div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
       <div className="ap-section-head">
-        <h2>Works</h2>
-        <span className="ap-count">{profile.works.length} piece{profile.works.length !== 1 ? "s" : ""}</span>
+        <h2>{selectedAlbumTitle ?? "Works"}</h2>
+        <div className="ap-section-actions">
+          {selectedAlbum && (
+            <button type="button" className="ap-show-all" onClick={() => setSelectedAlbum(null)}>
+              Show all
+            </button>
+          )}
+          <span className="ap-count">{visibleWorks.length} piece{visibleWorks.length !== 1 ? "s" : ""}</span>
+        </div>
       </div>
 
-      {profile.works.length === 0 ? (
+      {visibleWorks.length === 0 ? (
         <div className="ap-empty">This artist hasn’t published any public works yet.</div>
       ) : (
         <div className="ap-gallery">
-          {profile.works.map((w) => (
+          {visibleWorks.map((w) => (
             <WorkTile
               key={w.id}
               work={w}

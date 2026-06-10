@@ -14,13 +14,11 @@ public class StripeWebhookController : ControllerBase
 {
     private readonly StripeOptions _stripeOptions;
     private readonly IUserService _userService;
-    private readonly IPlanService _planService;
 
-    public StripeWebhookController(IOptionsSnapshot<StripeOptions> stripeOptions, IUserService userService, IPlanService planService)
+    public StripeWebhookController(IOptionsSnapshot<StripeOptions> stripeOptions, IUserService userService)
     {
         _stripeOptions = stripeOptions.Value;
         _userService = userService;
-        _planService = planService;
     }
 
     [HttpPost]
@@ -80,14 +78,12 @@ public class StripeWebhookController : ControllerBase
         // Prefer session metadata (set explicitly when we created the session).
         // Fall back to line item description for legacy plan sessions created before metadata was added.
         session.Metadata ??= new Dictionary<string, string>();
-        session.Metadata.TryGetValue("type", out var type);
         session.Metadata.TryGetValue("targetName", out var targetName);
 
         if (string.IsNullOrEmpty(targetName))
         {
             var lineItems = await new SessionService().ListLineItemsAsync(session.Id);
             targetName = lineItems.Data.FirstOrDefault()?.Description;
-            type ??= "plan";
         }
 
         if (string.IsNullOrEmpty(targetName))
@@ -96,25 +92,9 @@ public class StripeWebhookController : ControllerBase
             return;
         }
 
-        switch (type)
-        {
-            case "bandwidth-addon":
-                var addon = await _planService.GetBandwidthAddonByNameAsync(targetName);
-                if (addon == null)
-                {
-                    Console.WriteLine($"⚠ Unknown bandwidth add-on: {targetName}");
-                    return;
-                }
-                await _userService.AddBandwidthAddonAsync(userId, addon.BandwidthMB);
-                Console.WriteLine($"✔ Bandwidth add-on '{targetName}' (+{addon.BandwidthMB} MB) granted to user {userId}");
-                break;
-
-            case "plan":
-            default:
-                await _userService.AssignPlanToUserAsync(userId, targetName);
-                Console.WriteLine($"✔ Plan '{targetName}' assigned to user {userId}");
-                break;
-        }
+        // Only plan purchases remain (bandwidth add-ons removed — R2 egress is free).
+        await _userService.AssignPlanToUserAsync(userId, targetName);
+        Console.WriteLine($"✔ Plan '{targetName}' assigned to user {userId}");
 
         Console.WriteLine("🎉 PAYMENT SUCCESS");
     }

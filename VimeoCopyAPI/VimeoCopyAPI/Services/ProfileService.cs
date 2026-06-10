@@ -48,6 +48,30 @@ public partial class ProfileService : IProfileService
             .GroupBy(pm => pm.MediaId)
             .ToDictionaryAsync(g => g.Key, g => g.First().Project);
 
+        // Group the public works into albums (projects). Cover = project thumbnail when it's a public
+        // work, otherwise the album's most recent work; prefer the cheap thumbnail object.
+        var albums = new List<ProfileAlbumDTO>();
+        foreach (var grp in works
+            .Where(w => projectByMedia.ContainsKey(w.Id))
+            .GroupBy(w => projectByMedia[w.Id].Id))
+        {
+            var project = projectByMedia[grp.First().Id];
+            var cover = (project.ThumbnailMediaId.HasValue
+                            ? works.FirstOrDefault(w => w.Id == project.ThumbnailMediaId.Value)
+                            : null)
+                        ?? grp.First();
+            albums.Add(new ProfileAlbumDTO
+            {
+                Id = project.Id,
+                Title = project.Title,
+                Description = project.Description,
+                WorkCount = grp.Count(),
+                CoverUrl = !string.IsNullOrEmpty(cover.ThumbnailUrl)
+                    ? PresignKey(cover.ThumbnailUrl)
+                    : PresignKey(cover.Id.ToString()),
+            });
+        }
+
         var dto = new PublicProfileDTO
         {
             Handle = user.Handle!,
@@ -74,6 +98,7 @@ public partial class ProfileService : IProfileService
                     ProjectTitle = project?.Title,
                 };
             }).ToList(),
+            Albums = albums,
         };
 
         return dto;
@@ -181,15 +206,18 @@ public partial class ProfileService : IProfileService
             .FirstOrDefaultAsync(m => m.Id == mediaId && m.UserId == userId);
         if (media == null) return null;
 
-        var key = mediaId.Value.ToString();
-        return _s3.GetPreSignedURL(new GetPreSignedUrlRequest
+        return PresignKey(mediaId.Value.ToString());
+    }
+
+    /// <summary>Presigns an arbitrary storage key (60-min GET) for read-only profile imagery.</summary>
+    private string PresignKey(string key)
+        => _s3.GetPreSignedURL(new GetPreSignedUrlRequest
         {
             BucketName = _bucket,
             Key = key,
             Verb = HttpVerb.GET,
             Expires = DateTime.UtcNow.AddMinutes(60),
         });
-    }
 
     private static string? Trim(string? value, int max)
     {

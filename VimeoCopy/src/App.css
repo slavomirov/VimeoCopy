@@ -1605,6 +1605,32 @@
   border-radius: var(--radius-lg);
 }
 
+/* ── Fullscreen: media fills the whole display (no centered 1200px frame) ── */
+.vp-overlay:fullscreen,
+.vp-overlay:-webkit-full-screen {
+  width: 100vw;
+  height: 100vh;
+}
+.vp-overlay:fullscreen .vp-player,
+.vp-overlay:-webkit-full-screen .vp-player {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+}
+.vp-overlay:fullscreen .vp-video,
+.vp-overlay:-webkit-full-screen .vp-video {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+}
+.vp-overlay:fullscreen .vp-media-img,
+.vp-overlay:-webkit-full-screen .vp-media-img {
+  max-width: 100vw;
+  max-height: 100vh;
+}
+
 /* ── Audio display ─────────────────────────── */
 .vp-audio-display {
   display: flex;

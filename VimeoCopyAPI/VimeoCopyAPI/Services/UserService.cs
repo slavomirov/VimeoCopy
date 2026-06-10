@@ -331,10 +331,6 @@ namespace VimeoCopyAPI.Services
             => await _dbContext.Users.Where(u => u.Id == userId)
                 .ExecuteUpdateAsync(u => u.SetProperty(user => user.UsedBandwidth, user => (user.UsedBandwidth ?? 0) + bytes));
 
-        public async Task AddBandwidthAddonAsync(string userId, long bandwidthMB)
-            => await _dbContext.Users.Where(u => u.Id == userId)
-                .ExecuteUpdateAsync(u => u.SetProperty(user => user.BuyedBandwidth, user => (user.BuyedBandwidth ?? 0) + bandwidthMB * BytesPerMb));
-
         /// <summary>
         /// Resets UsedBandwidth to 0 when the current cycle has rolled over (≥ <see cref="BandwidthCycleLength"/>).
         /// Mutates the tracked entity; the caller is responsible for persisting. Returns true when a reset occurred.

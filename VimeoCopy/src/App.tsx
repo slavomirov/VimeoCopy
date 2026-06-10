@@ -7,6 +7,7 @@ import { useAuth } from "./Auth/useAuth";
 import SocialLoginPage from "./SocialLoginPage";
 import { Toaster } from "react-hot-toast";
 import { ProfilePage } from "./components/ProfilePage";
+import { SettingsPage } from "./components/SettingsPage";
 import { SharedMediaViewer } from "./components/SharedMediaViewer";
 import { BuyPage } from "./Payments/BuyPage";
 import { ProfileAuthPage } from "./Auth/ProfileAuthPage";
@@ -329,6 +330,10 @@ function MainLayout() {
             element={
               isLoggedIn ? <ProfilePage /> : <ProfileAuthPage />
             }
+          />
+          <Route
+            path="/settings"
+            element={isLoggedIn ? <SettingsPage /> : <ProfileAuthPage />}
           />
 
           <Route path="/login" element={<Navigate to="/profile" replace />} />

@@ -20,6 +20,23 @@ public class PublicProfileDTO
     public string? ThemeJson { get; set; }
 
     public List<ProfileWorkDTO> Works { get; set; } = [];
+
+    /// <summary>Projects (albums) that the artist's public works belong to.</summary>
+    public List<ProfileAlbumDTO> Albums { get; set; } = [];
+}
+
+/// <summary>A project/album surfaced on a public artist profile.</summary>
+public class ProfileAlbumDTO
+{
+    public Guid Id { get; set; }
+    public string Title { get; set; } = default!;
+    public string? Description { get; set; }
+
+    /// <summary>Number of the artist's public works in this album.</summary>
+    public int WorkCount { get; set; }
+
+    /// <summary>Presigned cover image (project thumbnail, else first work's thumbnail/original).</summary>
+    public string? CoverUrl { get; set; }
 }
 
 /// <summary>A single public work shown on an artist profile.</summary>
