@@ -71,6 +71,12 @@ public class MyProfileDTO
     public string? Location { get; set; }
     public Guid? AvatarMediaId { get; set; }
     public Guid? BannerMediaId { get; set; }
+
+    /// <summary>Presigned previews, so the editor can show images the owner can't reach any other
+    /// way — a profile-only upload never appears in their media library.</summary>
+    public string? AvatarUrl { get; set; }
+    public string? BannerUrl { get; set; }
+
     public string? ThemeJson { get; set; }
     public bool IsProfilePublic { get; set; }
 }
@@ -87,4 +93,36 @@ public class UpdateProfileDTO
     public Guid? BannerMediaId { get; set; }
     public string? ThemeJson { get; set; }
     public bool IsProfilePublic { get; set; } = true;
+}
+
+/// <summary>Asks for a presigned PUT to upload an avatar/banner straight from the owner's device.</summary>
+public class ProfileImageUploadRequestDTO
+{
+    public string ContentType { get; set; } = default!;
+}
+
+/// <summary>Where to PUT the file, and the id to confirm it with afterwards.</summary>
+public class ProfileImageUploadUrlDTO
+{
+    public string UploadUrl { get; set; } = default!;
+    public Guid MediaId { get; set; }
+}
+
+/// <summary>Confirms a finished profile-image upload and attaches it to the profile.</summary>
+public class ConfirmProfileImageDTO
+{
+    public Guid MediaId { get; set; }
+
+    /// <summary>"avatar" or "banner".</summary>
+    public string Kind { get; set; } = default!;
+
+    public string ContentType { get; set; } = default!;
+    public string? FileName { get; set; }
+}
+
+/// <summary>The attached profile image plus a presigned preview URL.</summary>
+public class ProfileImageDTO
+{
+    public Guid MediaId { get; set; }
+    public string Url { get; set; } = default!;
 }

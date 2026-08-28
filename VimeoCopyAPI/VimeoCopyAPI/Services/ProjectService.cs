@@ -69,7 +69,7 @@ public class ProjectService : IProjectService
         if (dto.MediaIds is { Count: > 0 })
         {
             var ownedMediaIds = await _db.Media
-                .Where(m => dto.MediaIds.Contains(m.Id) && m.UserId == userId)
+                .Where(m => dto.MediaIds.Contains(m.Id) && m.UserId == userId && !m.IsProfileAsset)
                 .Select(m => m.Id)
                 .ToListAsync();
 
@@ -148,7 +148,7 @@ public class ProjectService : IProjectService
         int maxSort = project.ProjectMedias.Any() ? project.ProjectMedias.Max(pm => pm.SortOrder) : -1;
 
         var ownedMediaIds = await _db.Media
-            .Where(m => dto.MediaIds.Contains(m.Id) && m.UserId == userId)
+            .Where(m => dto.MediaIds.Contains(m.Id) && m.UserId == userId && !m.IsProfileAsset)
             .Select(m => m.Id)
             .ToListAsync();
 

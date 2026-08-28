@@ -36,7 +36,7 @@ public class MediaService : IMediaService
         // Get all public media that owners want shown on the media page
         var mediaList = await _dbContext.Media
             .Include(m => m.User)
-            .Where(m => m.IsPublic && m.ShowOnMediaPage)
+            .Where(m => m.IsPublic && m.ShowOnMediaPage && !m.IsProfileAsset)
             .OrderByDescending(m => m.UploadedAt)
             .ToListAsync();
 
@@ -88,7 +88,7 @@ public class MediaService : IMediaService
 
     public async Task<IEnumerable<Media>> GetUserMediaAsync(string userId)
         => await _dbContext.Media
-            .Where(m => m.UserId == userId)
+            .Where(m => m.UserId == userId && !m.IsProfileAsset)
             .OrderByDescending(m => m.UploadedAt)
             .ToListAsync();
 

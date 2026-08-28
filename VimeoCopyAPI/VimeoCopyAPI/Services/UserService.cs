@@ -307,7 +307,7 @@ namespace VimeoCopyAPI.Services
                 PlanExpiration = user.PlanExpiration,
                 PlanName = user.Plan?.Name,
                 PlanDescription = user.Plan?.Description,
-                Media = [.. user.Media.Select(m => new MediaDTO
+                Media = [.. user.Media.Where(m => !m.IsProfileAsset).Select(m => new MediaDTO
                 {
                     Id = m.Id,
                     ContentType = m.ContentType,

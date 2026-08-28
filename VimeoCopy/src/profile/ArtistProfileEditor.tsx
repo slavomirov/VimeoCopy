@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useAuth } from "../Auth/useAuth";
@@ -15,6 +15,9 @@ interface MediaLite {
   fileName: string | null;
   contentType: string;
 }
+
+const PROFILE_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const MAX_PROFILE_IMAGE_BYTES = 10 * 1024 * 1024;
 
 const COLOR_FIELDS: { key: keyof ArtistTheme; label: string }[] = [
   { key: "bg", label: "Background" },
@@ -47,6 +50,7 @@ export function ArtistProfileEditor() {
   // media for avatar/banner picking
   const [media, setMedia] = useState<MediaLite[]>([]);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  const [uploading, setUploading] = useState<"avatar" | "banner" | null>(null);
 
   // Load current profile + media
   useEffect(() => {
@@ -69,6 +73,13 @@ export function ArtistProfileEditor() {
           setAvatarMediaId(p.avatarMediaId ?? null);
           setBannerMediaId(p.bannerMediaId ?? null);
           setTheme(parseTheme(p.themeJson));
+
+          // An image uploaded just for the profile is deliberately absent from the media library,
+          // so its preview has to come from the profile payload itself.
+          const seeded: Record<string, string> = {};
+          if (p.avatarMediaId && p.avatarUrl) seeded[p.avatarMediaId] = p.avatarUrl;
+          if (p.bannerMediaId && p.bannerUrl) seeded[p.bannerMediaId] = p.bannerUrl;
+          if (Object.keys(seeded).length > 0) setThumbs((prev) => ({ ...prev, ...seeded }));
         }
 
         if (dataRes.ok) {
@@ -106,6 +117,57 @@ export function ArtistProfileEditor() {
 
   function setThemeField<K extends keyof ArtistTheme>(key: K, value: ArtistTheme[K]) {
     setTheme((t) => ({ ...t, [key]: value, preset: undefined }));
+  }
+
+  // Uploads straight to storage, then registers the object as a private profile asset. The server
+  // attaches it to the profile immediately — "Save profile" just re-sends the same id.
+  async function uploadProfileImage(kind: "avatar" | "banner", file: File) {
+    if (!PROFILE_IMAGE_TYPES.includes(file.type)) {
+      toast.error("Choose a JPEG, PNG or WebP image.");
+      return;
+    }
+    if (file.size > MAX_PROFILE_IMAGE_BYTES) {
+      toast.error("That image is larger than 10 MB.");
+      return;
+    }
+
+    setUploading(kind);
+    try {
+      const urlRes = await authFetch(`${API_BASE_URL}/api/profiles/me/images/upload-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentType: file.type }),
+      });
+      if (!urlRes.ok) return; // authFetch already toasts the error
+      const { uploadUrl, mediaId } = await urlRes.json();
+
+      const put = await fetch(uploadUrl, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type },
+      });
+      if (!put.ok) {
+        toast.error("Upload failed. Please try again.");
+        return;
+      }
+
+      const confirmRes = await authFetch(`${API_BASE_URL}/api/profiles/me/images`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mediaId, kind, contentType: file.type, fileName: file.name }),
+      });
+      if (!confirmRes.ok) return;
+      const saved = await confirmRes.json();
+
+      setThumbs((prev) => ({ ...prev, [saved.mediaId]: saved.url }));
+      if (kind === "avatar") setAvatarMediaId(saved.mediaId);
+      else setBannerMediaId(saved.mediaId);
+      toast.success(kind === "avatar" ? "Avatar updated" : "Banner updated");
+    } catch {
+      toast.error("Upload failed. Please try again.");
+    } finally {
+      setUploading(null);
+    }
   }
 
   async function handleSave() {
@@ -206,14 +268,17 @@ export function ArtistProfileEditor() {
             <div className="card-header"><h2 className="card-title" style={{ marginBottom: 0 }}>Avatar & banner</h2></div>
             <div className="card-body">
               <p className="text-muted" style={{ fontSize: "var(--font-size-sm)", marginTop: 0 }}>
-                Choose from your uploaded media.
+                Upload an image from your computer, or reuse something you have already published.
+                Images uploaded here stay private — they never appear on the media or projects pages.
               </p>
               <div className="ap-field">
                 <label>Avatar</label>
+                <ProfileImageUpload kind="avatar" busy={uploading === "avatar"} onPick={uploadProfileImage} />
                 <MediaPicker media={media} thumbs={thumbs} selected={avatarMediaId} onSelect={setAvatarMediaId} />
               </div>
               <div className="ap-field" style={{ marginBottom: 0 }}>
                 <label>Banner</label>
+                <ProfileImageUpload kind="banner" busy={uploading === "banner"} onPick={uploadProfileImage} />
                 <MediaPicker media={media} thumbs={thumbs} selected={bannerMediaId} onSelect={setBannerMediaId} />
               </div>
             </div>
@@ -338,6 +403,36 @@ export function ArtistProfileEditor() {
   );
 }
 
+function ProfileImageUpload({
+  kind, busy, onPick,
+}: {
+  kind: "avatar" | "banner";
+  busy: boolean;
+  onPick: (kind: "avatar" | "banner", file: File) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div style={{ marginBottom: "var(--space-3)" }}>
+      <button type="button" className="btn-outline" disabled={busy}
+        onClick={() => inputRef.current?.click()}>
+        {busy ? "Uploading…" : `Upload ${kind} from your computer`}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={PROFILE_IMAGE_TYPES.join(",")}
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = ""; // cleared first, so re-picking the same file still fires
+          if (file) onPick(kind, file);
+        }}
+      />
+    </div>
+  );
+}
+
 function MediaPicker({
   media, thumbs, selected, onSelect,
 }: {
@@ -347,9 +442,20 @@ function MediaPicker({
   onSelect: (id: string | null) => void;
 }) {
   const usable = media.filter((m) => !m.contentType.startsWith("audio/"));
+  // A profile-only upload isn't in the library, so give it a tile of its own — otherwise the
+  // picker would look like nothing is selected.
+  const uploaded = selected && !usable.some((m) => m.id === selected) ? selected : null;
+
   return (
     <div className="ap-thumb-pick">
       <div className={`ap-thumb none ${selected === null ? "active" : ""}`} onClick={() => onSelect(null)}>None</div>
+      {uploaded && (
+        <div className="ap-thumb active" title="Uploaded for your profile">
+          {thumbs[uploaded]
+            ? <img src={thumbs[uploaded]} alt="" />
+            : <div className="loading" style={{ margin: "auto" }} />}
+        </div>
+      )}
       {usable.map((m) => (
         <div key={m.id} className={`ap-thumb ${selected === m.id ? "active" : ""}`} onClick={() => onSelect(m.id)} title={m.fileName ?? ""}>
           {thumbs[m.id] ? <img src={thumbs[m.id]} alt={m.fileName ?? ""} /> : <div className="loading" style={{ margin: "auto" }} />}

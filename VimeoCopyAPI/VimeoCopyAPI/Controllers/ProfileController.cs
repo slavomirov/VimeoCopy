@@ -46,6 +46,28 @@ public class ProfileController : ControllerBase
         return Ok(new { message = "Profile updated successfully." });
     }
 
+    /// <summary>Presigned PUT so the owner can upload an avatar/banner from their own device.</summary>
+    [Authorize]
+    [HttpPost("me/images/upload-url")]
+    public async Task<IActionResult> CreateImageUploadUrl([FromBody] ProfileImageUploadRequestDTO dto)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new UnauthorizedAccessException("User not authenticated.");
+
+        return Ok(await _profileService.CreateProfileImageUploadUrlAsync(userId, dto.ContentType));
+    }
+
+    /// <summary>Confirms an uploaded avatar/banner and attaches it to the signed-in user's profile.</summary>
+    [Authorize]
+    [HttpPost("me/images")]
+    public async Task<IActionResult> ConfirmImage([FromBody] ConfirmProfileImageDTO dto)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new UnauthorizedAccessException("User not authenticated.");
+
+        return Ok(await _profileService.ConfirmProfileImageAsync(userId, dto));
+    }
+
     /// <summary>Public artist profile by handle (anonymous). Must stay last so it doesn't shadow other routes.</summary>
     [HttpGet("{handle}")]
     public async Task<IActionResult> GetByHandle(string handle)

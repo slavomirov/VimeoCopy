@@ -35,6 +35,14 @@ public class Media
     /// <summary>When true, the media appears on the public Media Gallery page.</summary>
     public bool ShowOnMediaPage { get; set; } = true;
 
+    /// <summary>
+    /// True for an image uploaded purely as profile decoration (avatar or banner). It is the
+    /// owner's private file: kept out of the media gallery, the owner's library, the project
+    /// pickers and the public portfolio, and only ever surfaced through the profile's own
+    /// presigned avatar/banner URL.
+    /// </summary>
+    public bool IsProfileAsset { get; set; } = false;
+
     /// <summary>Optional user-provided description for the media.</summary>
     [MaxLength(2000)]
     public string? Description { get; set; }

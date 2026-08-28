@@ -4,6 +4,7 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using Microsoft.EntityFrameworkCore;
 using VimeoCopyApi.Data;
+using VimeoCopyApi.Models;
 using VimeoCopyAPI.Models.DTOs;
 using VimeoCopyAPI.Services.Interfaces;
 
@@ -13,12 +14,17 @@ public partial class ProfileService : IProfileService
 {
     private readonly AppDbContext _db;
     private readonly IAmazonS3 _s3;
+    private readonly IUserService _userService;
     private readonly string? _bucket;
 
-    public ProfileService(AppDbContext db, IAmazonS3 s3, IConfiguration config)
+    private static readonly string[] AllowedProfileImageTypes = ["image/jpeg", "image/png", "image/webp"];
+    private const long MaxProfileImageBytes = 10 * 1024 * 1024;
+
+    public ProfileService(AppDbContext db, IAmazonS3 s3, IUserService userService, IConfiguration config)
     {
         _db = db;
         _s3 = s3;
+        _userService = userService;
         _bucket = config["AWS:BucketName"];
     }
 
@@ -36,7 +42,7 @@ public partial class ProfileService : IProfileService
         // Only public works belong on the portfolio.
         var works = await _db.Media
             .AsNoTracking()
-            .Where(m => m.UserId == user.Id && m.IsPublic)
+            .Where(m => m.UserId == user.Id && m.IsPublic && !m.IsProfileAsset)
             .OrderByDescending(m => m.UploadedAt)
             .ToListAsync();
 
@@ -122,7 +128,7 @@ public partial class ProfileService : IProfileService
         var results = new List<ProfileSearchResultDTO>();
         foreach (var u in users)
         {
-            var workCount = await _db.Media.CountAsync(m => m.UserId == u.Id && m.IsPublic);
+            var workCount = await _db.Media.CountAsync(m => m.UserId == u.Id && m.IsPublic && !m.IsProfileAsset);
             results.Add(new ProfileSearchResultDTO
             {
                 Handle = u.Handle!,
@@ -149,6 +155,8 @@ public partial class ProfileService : IProfileService
             Location = user.Location,
             AvatarMediaId = user.AvatarMediaId,
             BannerMediaId = user.BannerMediaId,
+            AvatarUrl = await PresignOwnedMediaAsync(user.Id, user.AvatarMediaId),
+            BannerUrl = await PresignOwnedMediaAsync(user.Id, user.BannerMediaId),
             ThemeJson = user.ThemeJson,
             IsProfilePublic = user.IsProfilePublic,
         };
@@ -181,12 +189,138 @@ public partial class ProfileService : IProfileService
         user.Bio = Trim(dto.Bio, 1000);
         user.WebsiteUrl = Trim(dto.WebsiteUrl, 300);
         user.Location = Trim(dto.Location, 100);
+        var previousAvatarId = user.AvatarMediaId;
+        var previousBannerId = user.BannerMediaId;
+
         user.AvatarMediaId = await ValidateOwnedMediaAsync(userId, dto.AvatarMediaId);
         user.BannerMediaId = await ValidateOwnedMediaAsync(userId, dto.BannerMediaId);
         user.ThemeJson = SanitizeThemeJson(dto.ThemeJson);
         user.IsProfilePublic = dto.IsProfilePublic;
 
         await _db.SaveChangesAsync();
+
+        // Switching away from a profile-only upload strands it: nothing in the UI lists it, so the
+        // owner could never delete it themselves. Reclaim it (and their storage quota) here.
+        if (previousAvatarId != user.AvatarMediaId)
+            await DeleteProfileAssetIfOrphanedAsync(userId, previousAvatarId);
+        if (previousBannerId != user.BannerMediaId)
+            await DeleteProfileAssetIfOrphanedAsync(userId, previousBannerId);
+    }
+
+    public Task<ProfileImageUploadUrlDTO> CreateProfileImageUploadUrlAsync(string userId, string contentType)
+    {
+        var type = (contentType ?? string.Empty).Trim().ToLowerInvariant();
+        if (!AllowedProfileImageTypes.Contains(type))
+            throw new Exception("A profile image must be a JPEG, PNG or WebP.");
+
+        var mediaId = Guid.NewGuid();
+
+        var url = _s3.GetPreSignedURL(new GetPreSignedUrlRequest
+        {
+            BucketName = _bucket,
+            Key = mediaId.ToString(),
+            Verb = HttpVerb.PUT,
+            Expires = DateTime.UtcNow.AddMinutes(15),
+            ContentType = type,
+        });
+
+        return Task.FromResult(new ProfileImageUploadUrlDTO { UploadUrl = url, MediaId = mediaId });
+    }
+
+    public async Task<ProfileImageDTO> ConfirmProfileImageAsync(string userId, ConfirmProfileImageDTO dto)
+    {
+        var kind = (dto.Kind ?? string.Empty).Trim().ToLowerInvariant();
+        if (kind is not ("avatar" or "banner"))
+            throw new Exception("Profile image kind must be 'avatar' or 'banner'.");
+
+        var contentType = (dto.ContentType ?? string.Empty).Trim().ToLowerInvariant();
+        if (!AllowedProfileImageTypes.Contains(contentType))
+            throw new Exception("A profile image must be a JPEG, PNG or WebP.");
+
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId)
+            ?? throw new Exception("User not found");
+
+        if (await _db.Media.AnyAsync(m => m.Id == dto.MediaId))
+            throw new Exception("That upload has already been confirmed.");
+
+        // Trust the bucket, not the client, for the size — the same rule the media upload path uses.
+        long actualSize;
+        try
+        {
+            var meta = await _s3.GetObjectMetadataAsync(_bucket, dto.MediaId.ToString());
+            actualSize = meta.ContentLength;
+        }
+        catch
+        {
+            throw new Exception("The uploaded image was not found in storage.");
+        }
+
+        if (actualSize <= 0 || actualSize > MaxProfileImageBytes)
+            throw new Exception($"A profile image must be no larger than {MaxProfileImageBytes / (1024 * 1024)} MB.");
+
+        var quota = await _userService.CanUserUploadAsync(userId, actualSize);
+        if (quota != "Yes")
+            throw new Exception(quota);
+
+        var media = new Media
+        {
+            Id = dto.MediaId,
+            FileSize = actualSize,
+            ContentType = contentType,
+            UploadedAt = DateTime.UtcNow,
+            UserId = userId,
+            IsPublic = false,
+            ShowOnMediaPage = false,
+            IsProfileAsset = true,
+            FileName = Trim(dto.FileName, 500),
+        };
+
+        await _db.Media.AddAsync(media);
+        await _userService.IncreaseUsedMemoryAsync(userId, actualSize);
+
+        var replacedId = kind == "avatar" ? user.AvatarMediaId : user.BannerMediaId;
+        if (kind == "avatar") user.AvatarMediaId = media.Id;
+        else user.BannerMediaId = media.Id;
+
+        await _db.SaveChangesAsync();
+
+        await DeleteProfileAssetIfOrphanedAsync(userId, replacedId);
+
+        return new ProfileImageDTO
+        {
+            MediaId = media.Id,
+            Url = PresignKey(media.Id.ToString()),
+        };
+    }
+
+    /// <summary>
+    /// Deletes a profile-only image once nothing points at it any more. Ordinary library uploads are
+    /// left alone — the owner picked those from their own media and still owns them there.
+    /// </summary>
+    private async Task DeleteProfileAssetIfOrphanedAsync(string userId, Guid? mediaId)
+    {
+        if (mediaId == null) return;
+
+        var media = await _db.Media.FirstOrDefaultAsync(m => m.Id == mediaId && m.UserId == userId);
+        if (media == null || !media.IsProfileAsset) return;
+
+        // The same upload can be set as both avatar and banner.
+        var stillInUse = await _db.Users.AnyAsync(u => u.AvatarMediaId == mediaId || u.BannerMediaId == mediaId);
+        if (stillInUse) return;
+
+        await _userService.DecreaseUsedMemoryAsync(userId, media.FileSize);
+        _db.Media.Remove(media);
+        await _db.SaveChangesAsync();
+
+        try
+        {
+            await _s3.DeleteObjectAsync(new DeleteObjectRequest
+            {
+                BucketName = _bucket,
+                Key = mediaId.Value.ToString(),
+            });
+        }
+        catch { /* the row is gone; orphaned object cleanup is best-effort */ }
     }
 
     /// <summary>Returns the media id only if it exists and belongs to the user, else null.</summary>
