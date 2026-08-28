@@ -228,7 +228,10 @@ export function ArtistProfile() {
                   ? "Drag to choose the visible part"
                   : "This image already fits the banner"}
               </span>
-              <div className="ap-banner-actions">
+              {/* The banner grabs pointer capture on pointerdown, which would redirect this
+                  button's pointerup to the banner and kill the click entirely. Keep the drag
+                  from ever starting on the controls. */}
+              <div className="ap-banner-actions" onPointerDown={(e) => e.stopPropagation()}>
                 <button type="button" className="btn-outline" disabled={savingOffset}
                   onClick={() => setRepositioning(false)}>
                   Cancel
