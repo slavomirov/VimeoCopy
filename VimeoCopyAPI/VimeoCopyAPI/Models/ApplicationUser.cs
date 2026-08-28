@@ -49,6 +49,14 @@ public class ApplicationUser : IdentityUser
     /// <summary>One of the user's own media used as the profile banner.</summary>
     public Guid? BannerMediaId { get; set; }
 
+    /// <summary>
+    /// Which horizontal slice of the banner image stays visible once it is cropped to the banner
+    /// strip, as a CSS object-position percentage: 0 = align the top edge, 50 = centred,
+    /// 100 = align the bottom edge. Repositioning is non-destructive — the original upload is
+    /// untouched, so the owner can re-adjust at any time.
+    /// </summary>
+    public int BannerOffsetY { get; set; } = 50;
+
     /// <summary>Serialized artist theme tokens (palette / fonts / radius / background).</summary>
     public string? ThemeJson { get; set; }
 

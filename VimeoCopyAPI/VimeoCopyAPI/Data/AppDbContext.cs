@@ -37,6 +37,12 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .HasForeignKey(u => u.PlanId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        // Existing rows predate banner repositioning, so default them to a centred crop rather
+        // than the 0 (top-aligned) a plain int column would backfill.
+        modelBuilder.Entity<ApplicationUser>()
+            .Property(u => u.BannerOffsetY)
+            .HasDefaultValue(50);
+
         // Unique handle (filtered so multiple users may still have NULL handles)
         modelBuilder.Entity<ApplicationUser>()
             .HasIndex(u => u.Handle)

@@ -45,6 +45,7 @@ export function ArtistProfileEditor() {
   const [isPublic, setIsPublic] = useState(true);
   const [avatarMediaId, setAvatarMediaId] = useState<string | null>(null);
   const [bannerMediaId, setBannerMediaId] = useState<string | null>(null);
+  const [bannerOffsetY, setBannerOffsetY] = useState(50);
   const [theme, setTheme] = useState<ArtistTheme>(DEFAULT_THEME);
 
   // media for avatar/banner picking
@@ -72,6 +73,7 @@ export function ArtistProfileEditor() {
           setIsPublic(p.isProfilePublic ?? true);
           setAvatarMediaId(p.avatarMediaId ?? null);
           setBannerMediaId(p.bannerMediaId ?? null);
+          setBannerOffsetY(typeof p.bannerOffsetY === "number" ? p.bannerOffsetY : 50);
           setTheme(parseTheme(p.themeJson));
 
           // An image uploaded just for the profile is deliberately absent from the media library,
@@ -160,8 +162,12 @@ export function ArtistProfileEditor() {
       const saved = await confirmRes.json();
 
       setThumbs((prev) => ({ ...prev, [saved.mediaId]: saved.url }));
-      if (kind === "avatar") setAvatarMediaId(saved.mediaId);
-      else setBannerMediaId(saved.mediaId);
+      if (kind === "avatar") {
+        setAvatarMediaId(saved.mediaId);
+      } else {
+        setBannerMediaId(saved.mediaId);
+        setBannerOffsetY(typeof saved.bannerOffsetY === "number" ? saved.bannerOffsetY : 50);
+      }
       toast.success(kind === "avatar" ? "Avatar updated" : "Banner updated");
     } catch {
       toast.error("Upload failed. Please try again.");
@@ -188,6 +194,7 @@ export function ArtistProfileEditor() {
           location: location.trim() || null,
           avatarMediaId,
           bannerMediaId,
+          bannerOffsetY,
           themeJson: JSON.stringify(theme),
           isProfilePublic: isPublic,
         }),
@@ -280,6 +287,13 @@ export function ArtistProfileEditor() {
                 <label>Banner</label>
                 <ProfileImageUpload kind="banner" busy={uploading === "banner"} onPick={uploadProfileImage} />
                 <MediaPicker media={media} thumbs={thumbs} selected={bannerMediaId} onSelect={setBannerMediaId} />
+                {bannerMediaId && thumbs[bannerMediaId] && (
+                  <BannerAdjuster
+                    url={thumbs[bannerMediaId]}
+                    offsetY={bannerOffsetY}
+                    onChange={setBannerOffsetY}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -356,7 +370,13 @@ export function ArtistProfileEditor() {
           <p className="text-muted" style={{ fontSize: "var(--font-size-sm)", marginBottom: "var(--space-2)" }}>Live preview</p>
           <div className="artist-profile" style={{ ...cssVars, minHeight: 0, borderRadius: "var(--radius-lg)", border: "1px solid var(--border-color)", overflow: "hidden", paddingBottom: "var(--space-6)" }}>
             <div className="ap-banner" style={{ height: 110 }}>
-              {bannerMediaId && thumbs[bannerMediaId] && <img src={thumbs[bannerMediaId]} alt="" />}
+              {bannerMediaId && thumbs[bannerMediaId] && (
+                <img
+                  src={thumbs[bannerMediaId]}
+                  alt=""
+                  style={{ objectPosition: `50% ${bannerOffsetY}%` }}
+                />
+              )}
             </div>
             <header className="ap-header" style={{ marginTop: -40, padding: "0 var(--space-4)" }}>
               {avatarMediaId && thumbs[avatarMediaId] ? (
@@ -398,6 +418,91 @@ export function ArtistProfileEditor() {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/// Facebook-style banner repositioning: the upload is never re-encoded, we just record which
+/// vertical slice survives the crop as an object-position percentage.
+function BannerAdjuster({
+  url, offsetY, onChange,
+}: {
+  url: string;
+  offsetY: number;
+  onChange: (next: number) => void;
+}) {
+  const imgRef = useRef<HTMLImageElement>(null);
+  const dragRef = useRef<{ startY: number; startOffset: number; overflow: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [adjustable, setAdjustable] = useState(true);
+
+  // object-fit: cover only leaves vertical slack when covering by width makes the image taller
+  // than the box. A very wide image is cropped horizontally instead, and has nothing to move.
+  function verticalOverflow() {
+    const img = imgRef.current;
+    if (!img || !img.naturalWidth || !img.naturalHeight) return 0;
+    return img.clientWidth * (img.naturalHeight / img.naturalWidth) - img.clientHeight;
+  }
+
+  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    const overflow = verticalOverflow();
+    if (overflow <= 1) {
+      setAdjustable(false);
+      return;
+    }
+    dragRef.current = { startY: e.clientY, startOffset: offsetY, overflow };
+    setDragging(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag) return;
+    // Scaled by the overflow so the image tracks the cursor 1:1 instead of racing ahead of it.
+    const next = drag.startOffset - ((e.clientY - drag.startY) / drag.overflow) * 100;
+    onChange(Math.round(Math.min(100, Math.max(0, next))));
+  }
+
+  function handlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    dragRef.current = null;
+    setDragging(false);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  }
+
+  return (
+    <div className="ap-banner-adjust-wrap">
+      <div
+        className={`ap-banner-adjust ${dragging ? "dragging" : ""}`}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      >
+        <img
+          ref={imgRef}
+          src={url}
+          alt=""
+          draggable={false}
+          style={{ objectPosition: `50% ${offsetY}%` }}
+          onLoad={() => setAdjustable(verticalOverflow() > 1)}
+        />
+        <span className="ap-banner-adjust-hint">
+          {adjustable ? "Drag to choose the visible part" : "This image already fits the banner"}
+        </span>
+      </div>
+      <div className="ap-banner-adjust-row">
+        <input
+          type="range" min={0} max={100} value={offsetY} disabled={!adjustable}
+          aria-label="Banner vertical position"
+          onChange={(e) => onChange(Number(e.target.value))}
+        />
+        <button type="button" className="btn-outline ap-banner-reset"
+          disabled={!adjustable} onClick={() => onChange(50)}>
+          Center
+        </button>
       </div>
     </div>
   );

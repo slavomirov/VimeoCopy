@@ -89,6 +89,7 @@ public partial class ProfileService : IProfileService
             ThemeJson = user.ThemeJson,
             AvatarUrl = await PresignOwnedMediaAsync(user.Id, user.AvatarMediaId),
             BannerUrl = await PresignOwnedMediaAsync(user.Id, user.BannerMediaId),
+            BannerOffsetY = user.BannerOffsetY,
             Works = works.Select(m =>
             {
                 projectByMedia.TryGetValue(m.Id, out var project);
@@ -157,6 +158,7 @@ public partial class ProfileService : IProfileService
             BannerMediaId = user.BannerMediaId,
             AvatarUrl = await PresignOwnedMediaAsync(user.Id, user.AvatarMediaId),
             BannerUrl = await PresignOwnedMediaAsync(user.Id, user.BannerMediaId),
+            BannerOffsetY = user.BannerOffsetY,
             ThemeJson = user.ThemeJson,
             IsProfilePublic = user.IsProfilePublic,
         };
@@ -194,6 +196,7 @@ public partial class ProfileService : IProfileService
 
         user.AvatarMediaId = await ValidateOwnedMediaAsync(userId, dto.AvatarMediaId);
         user.BannerMediaId = await ValidateOwnedMediaAsync(userId, dto.BannerMediaId);
+        user.BannerOffsetY = Math.Clamp(dto.BannerOffsetY, 0, 100);
         user.ThemeJson = SanitizeThemeJson(dto.ThemeJson);
         user.IsProfilePublic = dto.IsProfilePublic;
 
@@ -279,8 +282,17 @@ public partial class ProfileService : IProfileService
         await _userService.IncreaseUsedMemoryAsync(userId, actualSize);
 
         var replacedId = kind == "avatar" ? user.AvatarMediaId : user.BannerMediaId;
-        if (kind == "avatar") user.AvatarMediaId = media.Id;
-        else user.BannerMediaId = media.Id;
+        if (kind == "avatar")
+        {
+            user.AvatarMediaId = media.Id;
+        }
+        else
+        {
+            user.BannerMediaId = media.Id;
+            // A different photo crops differently, so start the new banner centred rather than
+            // inheriting a position that was tuned for the old one.
+            user.BannerOffsetY = 50;
+        }
 
         await _db.SaveChangesAsync();
 
@@ -290,6 +302,7 @@ public partial class ProfileService : IProfileService
         {
             MediaId = media.Id,
             Url = PresignKey(media.Id.ToString()),
+            BannerOffsetY = user.BannerOffsetY,
         };
     }
 

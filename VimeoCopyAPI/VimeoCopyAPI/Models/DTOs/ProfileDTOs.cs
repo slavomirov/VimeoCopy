@@ -16,6 +16,9 @@ public class PublicProfileDTO
     /// <summary>Presigned URL for the banner image (null when unset).</summary>
     public string? BannerUrl { get; set; }
 
+    /// <summary>Vertical crop of the banner as an object-position percentage (0 = top, 100 = bottom).</summary>
+    public int BannerOffsetY { get; set; } = 50;
+
     /// <summary>Raw theme-token JSON the client applies as CSS variables (null = default theme).</summary>
     public string? ThemeJson { get; set; }
 
@@ -77,6 +80,9 @@ public class MyProfileDTO
     public string? AvatarUrl { get; set; }
     public string? BannerUrl { get; set; }
 
+    /// <summary>Vertical crop of the banner as an object-position percentage (0 = top, 100 = bottom).</summary>
+    public int BannerOffsetY { get; set; } = 50;
+
     public string? ThemeJson { get; set; }
     public bool IsProfilePublic { get; set; }
 }
@@ -91,6 +97,10 @@ public class UpdateProfileDTO
     public string? Location { get; set; }
     public Guid? AvatarMediaId { get; set; }
     public Guid? BannerMediaId { get; set; }
+
+    /// <summary>Vertical crop of the banner (0-100). Clamped server-side.</summary>
+    public int BannerOffsetY { get; set; } = 50;
+
     public string? ThemeJson { get; set; }
     public bool IsProfilePublic { get; set; } = true;
 }
@@ -125,4 +135,7 @@ public class ProfileImageDTO
 {
     public Guid MediaId { get; set; }
     public string Url { get; set; } = default!;
+
+    /// <summary>The banner crop after the upload — a new banner starts centred.</summary>
+    public int BannerOffsetY { get; set; } = 50;
 }

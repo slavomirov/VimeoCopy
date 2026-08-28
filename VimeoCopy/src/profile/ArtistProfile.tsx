@@ -40,6 +40,7 @@ interface PublicProfile {
   createdAt: string;
   avatarUrl: string | null;
   bannerUrl: string | null;
+  bannerOffsetY: number;
   themeJson: string | null;
   works: Work[];
   albums: Album[];
@@ -151,7 +152,13 @@ export function ArtistProfile() {
   return (
     <div className="artist-profile" style={cssVars}>
       {profile.bannerUrl && (
-        <div className="ap-banner"><img src={profile.bannerUrl} alt="" /></div>
+        <div className="ap-banner">
+          <img
+            src={profile.bannerUrl}
+            alt=""
+            style={{ objectPosition: `50% ${profile.bannerOffsetY ?? 50}%` }}
+          />
+        </div>
       )}
 
       <header className="ap-header">
