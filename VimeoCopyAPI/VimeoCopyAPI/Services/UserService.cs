@@ -119,7 +119,19 @@ namespace VimeoCopyAPI.Services
                 }
             }
 
-            context.Response.Cookies.Delete("refreshToken");
+            // The deletion cookie has to carry the same attributes the cookie was written with,
+            // or the browser rejects it in this cross-site setup and refreshToken outlives logout.
+            context.Response.Cookies.Delete("refreshToken", new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.None,
+                Path = "/"
+            });
+
+            // External (Google) sign-in runs through SignInManager.SignInAsync, which issues an
+            // Identity application cookie of its own. Without this, part of the session survives.
+            await _signInManager.SignOutAsync();
         }
 
         public AuthenticationProperties GetExternalAuthenticationProperties(string provider, string redirectUrl)

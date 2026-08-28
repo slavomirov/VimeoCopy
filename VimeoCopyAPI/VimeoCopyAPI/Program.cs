@@ -162,9 +162,13 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
-app.UseRateLimiter();
-
+// CORS must wrap the rate limiter: a limiter rejection short-circuits the pipeline, and if CORS
+// hasn't run yet that 429 carries no Access-Control-Allow-Origin. The browser then blocks the
+// response outright and the caller's fetch() rejects with an opaque network error instead of
+// seeing the 429 — which is how a throttled /api/auth/logout turned into a dead Logout button.
 app.UseCors("AllowFrontend");
+
+app.UseRateLimiter();
 
 app.UseMiddleware<CsrfProtectionMiddleware>(new object[] { allowedFrontendOrigins });
 

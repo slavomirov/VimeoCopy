@@ -117,14 +117,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
 
-  // Logout
+  // Logout — the local session must be dropped even when the server call fails (offline, rate
+  // limited, session already gone). Letting the fetch throw past clearAuthState() is what made
+  // the button look dead.
   async function logout() {
-    await fetch(`${API_BASE_URL}/api/auth/logout`, {
-      method: "POST",
-      credentials: "include",
-    });
-
-    clearAuthState();
+    try {
+      await fetch(`${API_BASE_URL}/api/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {
+      /* server unreachable — still clear the client session */
+    } finally {
+      clearAuthState();
+    }
   }
 
   // Global fetch wrapper with auto-refresh + error notifications
