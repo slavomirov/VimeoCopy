@@ -28,7 +28,7 @@ public partial class ProfileService : IProfileService
         _bucket = config["AWS:BucketName"];
     }
 
-    public async Task<PublicProfileDTO?> GetPublicProfileAsync(string handle)
+    public async Task<PublicProfileDTO?> GetPublicProfileAsync(string handle, string? viewerUserId = null)
     {
         var normalized = (handle ?? string.Empty).Trim().ToLowerInvariant();
         if (normalized.Length == 0) return null;
@@ -90,6 +90,7 @@ public partial class ProfileService : IProfileService
             AvatarUrl = await PresignOwnedMediaAsync(user.Id, user.AvatarMediaId),
             BannerUrl = await PresignOwnedMediaAsync(user.Id, user.BannerMediaId),
             BannerOffsetY = user.BannerOffsetY,
+            IsOwner = viewerUserId != null && viewerUserId == user.Id,
             Works = works.Select(m =>
             {
                 projectByMedia.TryGetValue(m.Id, out var project);
@@ -208,6 +209,15 @@ public partial class ProfileService : IProfileService
             await DeleteProfileAssetIfOrphanedAsync(userId, previousAvatarId);
         if (previousBannerId != user.BannerMediaId)
             await DeleteProfileAssetIfOrphanedAsync(userId, previousBannerId);
+    }
+
+    public async Task UpdateBannerOffsetAsync(string userId, int bannerOffsetY)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId)
+            ?? throw new Exception("User not found");
+
+        user.BannerOffsetY = Math.Clamp(bannerOffsetY, 0, 100);
+        await _db.SaveChangesAsync();
     }
 
     public Task<ProfileImageUploadUrlDTO> CreateProfileImageUploadUrlAsync(string userId, string contentType)

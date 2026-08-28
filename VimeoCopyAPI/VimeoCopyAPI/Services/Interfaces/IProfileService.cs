@@ -4,8 +4,11 @@ namespace VimeoCopyAPI.Services.Interfaces;
 
 public interface IProfileService
 {
-    /// <summary>Public profile by handle. Returns null when missing or not public.</summary>
-    Task<PublicProfileDTO?> GetPublicProfileAsync(string handle);
+    /// <summary>
+    /// Public profile by handle. Returns null when missing or not public. Pass the signed-in
+    /// viewer's id (null when anonymous) so the owner can be offered in-place editing.
+    /// </summary>
+    Task<PublicProfileDTO?> GetPublicProfileAsync(string handle, string? viewerUserId = null);
 
     /// <summary>Search public profiles by handle or display name.</summary>
     Task<IEnumerable<ProfileSearchResultDTO>> SearchProfilesAsync(string query);
@@ -21,4 +24,7 @@ public interface IProfileService
 
     /// <summary>Records a finished profile-image upload as a private profile asset and attaches it.</summary>
     Task<ProfileImageDTO> ConfirmProfileImageAsync(string userId, ConfirmProfileImageDTO dto);
+
+    /// <summary>Repositions the banner crop only — backs the in-place control on the profile page.</summary>
+    Task UpdateBannerOffsetAsync(string userId, int bannerOffsetY);
 }

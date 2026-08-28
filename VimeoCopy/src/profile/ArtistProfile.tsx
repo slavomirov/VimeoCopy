@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import toast from "react-hot-toast";
 import { API_BASE_URL } from "../config";
 import { EnhancedPlayer } from "../components/EnhancedPlayer";
 import { useAuth } from "../Auth/useAuth";
@@ -9,6 +10,7 @@ import {
   ensureFontLoaded,
   type ArtistTheme,
 } from "./artistTheme";
+import { useBannerDrag } from "./useBannerDrag";
 import "../App.css";
 import "./artist-profile.css";
 
@@ -41,6 +43,7 @@ interface PublicProfile {
   avatarUrl: string | null;
   bannerUrl: string | null;
   bannerOffsetY: number;
+  isOwner: boolean;
   themeJson: string | null;
   works: Work[];
   albums: Album[];
@@ -48,7 +51,7 @@ interface PublicProfile {
 
 export function ArtistProfile() {
   const { handle } = useParams<{ handle: string }>();
-  const { claims } = useAuth();
+  const { accessToken, authFetch } = useAuth();
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [status, setStatus] = useState<"loading" | "ok" | "notfound">("loading");
   const [urls, setUrls] = useState<Record<string, string>>({});
@@ -57,6 +60,13 @@ export function ArtistProfile() {
   const [playerUrl, setPlayerUrl] = useState<string | null>(null);
   const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
 
+  // In-place banner repositioning: draftOffset is live while dragging and only committed on save,
+  // so abandoning the drag leaves the published crop untouched.
+  const [repositioning, setRepositioning] = useState(false);
+  const [draftOffset, setDraftOffset] = useState(50);
+  const [savingOffset, setSavingOffset] = useState(false);
+  const bannerDrag = useBannerDrag(draftOffset, setDraftOffset);
+
   // Load profile
   useEffect(() => {
     let cancelled = false;
@@ -64,7 +74,12 @@ export function ArtistProfile() {
     setProfile(null);
     (async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/profiles/${encodeURIComponent(handle ?? "")}`);
+        // A plain fetch, but with the bearer token when there is one: the server uses it to flag
+        // the owner, which unlocks the in-place controls. Deliberately not authFetch — this route
+        // 404s for any unknown handle, and authFetch would toast that over the not-found page.
+        const res = await fetch(`${API_BASE_URL}/api/profiles/${encodeURIComponent(handle ?? "")}`, {
+          headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+        });
         if (!res.ok) { if (!cancelled) setStatus("notfound"); return; }
         const data: PublicProfile = await res.json();
         if (cancelled) return;
@@ -75,7 +90,33 @@ export function ArtistProfile() {
       }
     })();
     return () => { cancelled = true; };
+    // The token is already settled before this mounts (AuthProvider blocks on it), and refetching
+    // the whole profile on every 10-minute refresh would be pointless churn.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handle]);
+
+  // The image is usually already cached when the control opens, so onLoad won't fire again.
+  useEffect(() => {
+    if (repositioning) bannerDrag.measure();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repositioning]);
+
+  async function saveBannerOffset() {
+    setSavingOffset(true);
+    try {
+      const res = await authFetch(`${API_BASE_URL}/api/profiles/me/banner-offset`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bannerOffsetY: draftOffset }),
+      });
+      if (!res.ok) return; // authFetch already toasts the error
+      setProfile((p) => (p ? { ...p, bannerOffsetY: draftOffset } : p));
+      setRepositioning(false);
+      toast.success("Banner position saved");
+    } finally {
+      setSavingOffset(false);
+    }
+  }
 
   const theme: ArtistTheme = useMemo(() => parseTheme(profile?.themeJson), [profile?.themeJson]);
 
@@ -139,7 +180,7 @@ export function ArtistProfile() {
     );
   }
 
-  const isOwner = !!claims?.sub && profile.handle === (claims.handle as string | undefined);
+  const isOwner = profile.isOwner;
   const cssVars = themeToCssVars(theme);
 
   const visibleWorks = selectedAlbum
@@ -152,12 +193,53 @@ export function ArtistProfile() {
   return (
     <div className="artist-profile" style={cssVars}>
       {profile.bannerUrl && (
-        <div className="ap-banner">
+        <div
+          className={`ap-banner ${repositioning ? "repositioning" : ""} ${bannerDrag.dragging ? "dragging" : ""}`}
+          {...(repositioning ? bannerDrag.handlers : {})}
+        >
           <img
+            ref={bannerDrag.imgRef}
             src={profile.bannerUrl}
             alt=""
-            style={{ objectPosition: `50% ${profile.bannerOffsetY ?? 50}%` }}
+            draggable={false}
+            onLoad={bannerDrag.measure}
+            style={{
+              objectPosition: `50% ${repositioning ? draftOffset : profile.bannerOffsetY ?? 50}%`,
+            }}
           />
+
+          {isOwner && !repositioning && (
+            <button
+              type="button"
+              className="ap-banner-action"
+              onClick={() => {
+                setDraftOffset(profile.bannerOffsetY ?? 50);
+                setRepositioning(true);
+              }}
+            >
+              Reposition banner
+            </button>
+          )}
+
+          {repositioning && (
+            <>
+              <span className="ap-banner-adjust-hint">
+                {bannerDrag.adjustable
+                  ? "Drag to choose the visible part"
+                  : "This image already fits the banner"}
+              </span>
+              <div className="ap-banner-actions">
+                <button type="button" className="btn-outline" disabled={savingOffset}
+                  onClick={() => setRepositioning(false)}>
+                  Cancel
+                </button>
+                <button type="button" className="btn-primary" disabled={savingOffset}
+                  onClick={saveBannerOffset}>
+                  {savingOffset ? "Saving…" : "Save position"}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 

@@ -57,6 +57,18 @@ public class ProfileController : ControllerBase
         return Ok(await _profileService.CreateProfileImageUploadUrlAsync(userId, dto.ContentType));
     }
 
+    /// <summary>Repositions the banner crop. Cheap counterpart to a full profile save.</summary>
+    [Authorize]
+    [HttpPatch("me/banner-offset")]
+    public async Task<IActionResult> UpdateBannerOffset([FromBody] UpdateBannerOffsetDTO dto)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new UnauthorizedAccessException("User not authenticated.");
+
+        await _profileService.UpdateBannerOffsetAsync(userId, dto.BannerOffsetY);
+        return Ok(new { message = "Banner position updated." });
+    }
+
     /// <summary>Confirms an uploaded avatar/banner and attaches it to the signed-in user's profile.</summary>
     [Authorize]
     [HttpPost("me/images")]
@@ -72,7 +84,11 @@ public class ProfileController : ControllerBase
     [HttpGet("{handle}")]
     public async Task<IActionResult> GetByHandle(string handle)
     {
-        var profile = await _profileService.GetPublicProfileAsync(handle);
+        // Anonymous route, but a signed-in viewer still presents a bearer token — that is how the
+        // owner is recognised well enough to be offered the in-place banner control.
+        var viewerUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        var profile = await _profileService.GetPublicProfileAsync(handle, viewerUserId);
         return profile is null ? NotFound(new { message = "Profile not found." }) : Ok(profile);
     }
 }

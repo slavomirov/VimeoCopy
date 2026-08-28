@@ -7,6 +7,7 @@ import {
   PRESETS, FONTS, DEFAULT_THEME, parseTheme, themeToCssVars,
   ensureFontLoaded, contrastRatio, type ArtistTheme, type RadiusStyle,
 } from "./artistTheme";
+import { useBannerDrag } from "./useBannerDrag";
 import "../App.css";
 import "./artist-profile.css";
 
@@ -46,6 +47,9 @@ export function ArtistProfileEditor() {
   const [avatarMediaId, setAvatarMediaId] = useState<string | null>(null);
   const [bannerMediaId, setBannerMediaId] = useState<string | null>(null);
   const [bannerOffsetY, setBannerOffsetY] = useState(50);
+  // Always the full-resolution object, never a thumbnail: a thumbnail can have a different aspect
+  // ratio, which would crop differently from the public page.
+  const [bannerPreviewUrl, setBannerPreviewUrl] = useState<string | null>(null);
   const [theme, setTheme] = useState<ArtistTheme>(DEFAULT_THEME);
 
   // media for avatar/banner picking
@@ -74,6 +78,7 @@ export function ArtistProfileEditor() {
           setAvatarMediaId(p.avatarMediaId ?? null);
           setBannerMediaId(p.bannerMediaId ?? null);
           setBannerOffsetY(typeof p.bannerOffsetY === "number" ? p.bannerOffsetY : 50);
+          setBannerPreviewUrl(p.bannerUrl ?? null);
           setTheme(parseTheme(p.themeJson));
 
           // An image uploaded just for the profile is deliberately absent from the media library,
@@ -167,12 +172,30 @@ export function ArtistProfileEditor() {
       } else {
         setBannerMediaId(saved.mediaId);
         setBannerOffsetY(typeof saved.bannerOffsetY === "number" ? saved.bannerOffsetY : 50);
+        setBannerPreviewUrl(saved.url);
       }
       toast.success(kind === "avatar" ? "Avatar updated" : "Banner updated");
     } catch {
       toast.error("Upload failed. Please try again.");
     } finally {
       setUploading(null);
+    }
+  }
+
+  // Picking a banner from the library has to resolve the full object, not the gallery thumbnail.
+  async function selectBanner(id: string | null) {
+    setBannerMediaId(id);
+    if (!id) {
+      setBannerPreviewUrl(null);
+      return;
+    }
+    try {
+      const res = await authFetch(`${API_BASE_URL}/api/media/${id}/preview`);
+      if (!res.ok) return;
+      const u = await res.json();
+      setBannerPreviewUrl(u.url ?? u.thumbnailUrl ?? null);
+    } catch {
+      setBannerPreviewUrl(thumbs[id] ?? null);
     }
   }
 
@@ -286,10 +309,10 @@ export function ArtistProfileEditor() {
               <div className="ap-field" style={{ marginBottom: 0 }}>
                 <label>Banner</label>
                 <ProfileImageUpload kind="banner" busy={uploading === "banner"} onPick={uploadProfileImage} />
-                <MediaPicker media={media} thumbs={thumbs} selected={bannerMediaId} onSelect={setBannerMediaId} />
-                {bannerMediaId && thumbs[bannerMediaId] && (
+                <MediaPicker media={media} thumbs={thumbs} selected={bannerMediaId} onSelect={selectBanner} />
+                {bannerMediaId && bannerPreviewUrl && (
                   <BannerAdjuster
-                    url={thumbs[bannerMediaId]}
+                    url={bannerPreviewUrl}
                     offsetY={bannerOffsetY}
                     onChange={setBannerOffsetY}
                   />
@@ -369,10 +392,10 @@ export function ArtistProfileEditor() {
         <div className="ap-preview-sticky">
           <p className="text-muted" style={{ fontSize: "var(--font-size-sm)", marginBottom: "var(--space-2)" }}>Live preview</p>
           <div className="artist-profile" style={{ ...cssVars, minHeight: 0, borderRadius: "var(--radius-lg)", border: "1px solid var(--border-color)", overflow: "hidden", paddingBottom: "var(--space-6)" }}>
-            <div className="ap-banner" style={{ height: 110 }}>
-              {bannerMediaId && thumbs[bannerMediaId] && (
+            <div className="ap-banner">
+              {bannerMediaId && bannerPreviewUrl && (
                 <img
-                  src={thumbs[bannerMediaId]}
+                  src={bannerPreviewUrl}
                   alt=""
                   style={{ objectPosition: `50% ${bannerOffsetY}%` }}
                 />
@@ -423,8 +446,8 @@ export function ArtistProfileEditor() {
   );
 }
 
-/// Facebook-style banner repositioning: the upload is never re-encoded, we just record which
-/// vertical slice survives the crop as an object-position percentage.
+/// The box shares .ap-banner's aspect ratio, so the slice shown here is the slice the public page
+/// shows. Repositioning is non-destructive — only an object-position percentage is stored.
 function BannerAdjuster({
   url, offsetY, onChange,
 }: {
@@ -432,62 +455,18 @@ function BannerAdjuster({
   offsetY: number;
   onChange: (next: number) => void;
 }) {
-  const imgRef = useRef<HTMLImageElement>(null);
-  const dragRef = useRef<{ startY: number; startOffset: number; overflow: number } | null>(null);
-  const [dragging, setDragging] = useState(false);
-  const [adjustable, setAdjustable] = useState(true);
-
-  // object-fit: cover only leaves vertical slack when covering by width makes the image taller
-  // than the box. A very wide image is cropped horizontally instead, and has nothing to move.
-  function verticalOverflow() {
-    const img = imgRef.current;
-    if (!img || !img.naturalWidth || !img.naturalHeight) return 0;
-    return img.clientWidth * (img.naturalHeight / img.naturalWidth) - img.clientHeight;
-  }
-
-  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    const overflow = verticalOverflow();
-    if (overflow <= 1) {
-      setAdjustable(false);
-      return;
-    }
-    dragRef.current = { startY: e.clientY, startOffset: offsetY, overflow };
-    setDragging(true);
-    e.currentTarget.setPointerCapture(e.pointerId);
-  }
-
-  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    const drag = dragRef.current;
-    if (!drag) return;
-    // Scaled by the overflow so the image tracks the cursor 1:1 instead of racing ahead of it.
-    const next = drag.startOffset - ((e.clientY - drag.startY) / drag.overflow) * 100;
-    onChange(Math.round(Math.min(100, Math.max(0, next))));
-  }
-
-  function handlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
-    dragRef.current = null;
-    setDragging(false);
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    }
-  }
+  const { imgRef, dragging, adjustable, measure, handlers } = useBannerDrag(offsetY, onChange);
 
   return (
     <div className="ap-banner-adjust-wrap">
-      <div
-        className={`ap-banner-adjust ${dragging ? "dragging" : ""}`}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-      >
+      <div className={`ap-banner-adjust ${dragging ? "dragging" : ""}`} {...handlers}>
         <img
           ref={imgRef}
           src={url}
           alt=""
           draggable={false}
           style={{ objectPosition: `50% ${offsetY}%` }}
-          onLoad={() => setAdjustable(verticalOverflow() > 1)}
+          onLoad={measure}
         />
         <span className="ap-banner-adjust-hint">
           {adjustable ? "Drag to choose the visible part" : "This image already fits the banner"}

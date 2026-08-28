@@ -19,6 +19,12 @@ public class PublicProfileDTO
     /// <summary>Vertical crop of the banner as an object-position percentage (0 = top, 100 = bottom).</summary>
     public int BannerOffsetY { get; set; } = 50;
 
+    /// <summary>
+    /// True when the signed-in viewer owns this profile. Drives the in-place controls; the JWT
+    /// carries no handle claim, so the client cannot work this out on its own.
+    /// </summary>
+    public bool IsOwner { get; set; }
+
     /// <summary>Raw theme-token JSON the client applies as CSS variables (null = default theme).</summary>
     public string? ThemeJson { get; set; }
 
@@ -128,6 +134,12 @@ public class ConfirmProfileImageDTO
 
     public string ContentType { get; set; } = default!;
     public string? FileName { get; set; }
+}
+
+/// <summary>Repositions the banner crop without touching anything else on the profile.</summary>
+public class UpdateBannerOffsetDTO
+{
+    public int BannerOffsetY { get; set; } = 50;
 }
 
 /// <summary>The attached profile image plus a presigned preview URL.</summary>
