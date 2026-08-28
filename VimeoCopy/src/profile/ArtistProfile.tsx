@@ -67,6 +67,12 @@ export function ArtistProfile() {
   const [savingOffset, setSavingOffset] = useState(false);
   const bannerDrag = useBannerDrag(draftOffset, setDraftOffset);
 
+  // Ownership needs two independent signals to agree before any owner-only control appears: the
+  // server's flag on the profile, and the viewer's own handle matching this page's handle. Either
+  // one alone is a single point of failure — a stale bundle, an older API that omits the field, or
+  // a cached response would otherwise hand someone else's page an edit affordance.
+  const [ownHandle, setOwnHandle] = useState<string | null>(null);
+
   // Load profile
   useEffect(() => {
     let cancelled = false;
@@ -101,7 +107,35 @@ export function ArtistProfile() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [repositioning]);
 
+  // Only fetched when the server already claims ownership, so a normal profile view costs nothing.
+  useEffect(() => {
+    if (!accessToken || profile?.isOwner !== true) { setOwnHandle(null); return; }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/profiles/me`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!res.ok) return;
+        const me = await res.json();
+        if (!cancelled) setOwnHandle(me.handle ?? null);
+      } catch {
+        /* unresolved ownership stays unconfirmed, so the controls stay hidden */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [accessToken, profile?.isOwner, profile?.handle]);
+
   async function saveBannerOffset() {
+    // The control shouldn't exist for a non-owner, but never let a stray click write from someone
+    // else's page — the endpoint is /me-scoped, so it would silently move the viewer's own banner.
+    if (!profile || profile.isOwner !== true || ownHandle !== profile.handle) {
+      toast.error("You can only reposition your own banner.");
+      setRepositioning(false);
+      return;
+    }
+
     setSavingOffset(true);
     try {
       const res = await authFetch(`${API_BASE_URL}/api/profiles/me/banner-offset`, {
@@ -180,7 +214,7 @@ export function ArtistProfile() {
     );
   }
 
-  const isOwner = profile.isOwner;
+  const isOwner = profile.isOwner === true && ownHandle !== null && ownHandle === profile.handle;
   const cssVars = themeToCssVars(theme);
 
   const visibleWorks = selectedAlbum

@@ -17,6 +17,16 @@ public partial class ProfileService : IProfileService
     private readonly IUserService _userService;
     private readonly string? _bucket;
 
+    /// <summary>
+    /// Handles that collide with a literal segment under /api/profiles. A user holding one of these
+    /// would have their public profile shadowed by the same-named route: GET /api/profiles/me wins
+    /// over GET /api/profiles/{handle}, so /u/me would serve the *viewer's* own profile instead.
+    /// </summary>
+    private static readonly HashSet<string> ReservedHandles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "me", "search",
+    };
+
     private static readonly string[] AllowedProfileImageTypes = ["image/jpeg", "image/png", "image/webp"];
     private const long MaxProfileImageBytes = 10 * 1024 * 1024;
 
@@ -175,6 +185,9 @@ public partial class ProfileService : IProfileService
             var handle = dto.Handle.Trim().ToLowerInvariant();
             if (!HandleRegex().IsMatch(handle))
                 throw new Exception("Handle must be 3–30 characters using only lowercase letters, numbers, '-' or '_'.");
+
+            if (ReservedHandles.Contains(handle))
+                throw new Exception("That handle is reserved. Please choose another.");
 
             var taken = await _db.Users.AnyAsync(u => u.Handle == handle && u.Id != userId);
             if (taken)
