@@ -627,3 +627,8 @@
   font-size: var(--font-size-sm);
   white-space: nowrap;
 }
+
+.ap-thumb-empty {
+  align-self: center;
+  font-size: var(--font-size-sm);
+}

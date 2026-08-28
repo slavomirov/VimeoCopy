@@ -204,6 +204,18 @@ export function ArtistProfileEditor() {
       toast.error("Handle must be 3–30 chars: lowercase letters, numbers, '-' or '_'.");
       return;
     }
+
+    // The picker only offers images and uploads are type-checked, so this catches legacy values
+    // saved before the rule existed. The server enforces it too.
+    const nonImage = [avatarMediaId, bannerMediaId].some((id) => {
+      if (!id) return false;
+      const picked = media.find((m) => m.id === id);
+      return picked ? !picked.contentType.startsWith("image/") : false;
+    });
+    if (nonImage) {
+      toast.error("Your avatar and banner have to be images. Pick or upload a picture.");
+      return;
+    }
     setSaving(true);
     try {
       const res = await authFetch(`${API_BASE_URL}/api/profiles/me`, {
@@ -525,7 +537,8 @@ function MediaPicker({
   selected: string | null;
   onSelect: (id: string | null) => void;
 }) {
-  const usable = media.filter((m) => !m.contentType.startsWith("audio/"));
+  // Images only: a video frame is not a usable avatar or banner, and the server rejects one.
+  const usable = media.filter((m) => m.contentType.startsWith("image/"));
   // A profile-only upload isn't in the library, so give it a tile of its own — otherwise the
   // picker would look like nothing is selected.
   const uploaded = selected && !usable.some((m) => m.id === selected) ? selected : null;
@@ -545,6 +558,9 @@ function MediaPicker({
           {thumbs[m.id] ? <img src={thumbs[m.id]} alt={m.fileName ?? ""} /> : <div className="loading" style={{ margin: "auto" }} />}
         </div>
       ))}
+      {usable.length === 0 && !uploaded && (
+        <span className="ap-thumb-empty text-muted">No images in your library yet — upload one above.</span>
+      )}
     </div>
   );
 }

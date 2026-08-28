@@ -155,8 +155,8 @@ public partial class ProfileService : IProfileService
             Bio = user.Bio,
             WebsiteUrl = user.WebsiteUrl,
             Location = user.Location,
-            AvatarMediaId = user.AvatarMediaId,
-            BannerMediaId = user.BannerMediaId,
+            AvatarMediaId = await ImageMediaIdOrNullAsync(user.Id, user.AvatarMediaId),
+            BannerMediaId = await ImageMediaIdOrNullAsync(user.Id, user.BannerMediaId),
             AvatarUrl = await PresignOwnedMediaAsync(user.Id, user.AvatarMediaId),
             BannerUrl = await PresignOwnedMediaAsync(user.Id, user.BannerMediaId),
             BannerOffsetY = user.BannerOffsetY,
@@ -346,22 +346,56 @@ public partial class ProfileService : IProfileService
         catch { /* the row is gone; orphaned object cleanup is best-effort */ }
     }
 
-    /// <summary>Returns the media id only if it exists and belongs to the user, else null.</summary>
+    private static bool IsImage(string? contentType)
+        => contentType != null && contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Returns the media id only if it exists, belongs to the user, and is an image. A media id the
+    /// user doesn't own is dropped silently rather than confirming it exists; a video or audio file
+    /// they do own is rejected out loud, since that is a mistake worth explaining.
+    /// </summary>
     private async Task<Guid?> ValidateOwnedMediaAsync(string userId, Guid? mediaId)
     {
         if (mediaId == null) return null;
-        var owns = await _db.Media.AnyAsync(m => m.Id == mediaId && m.UserId == userId);
-        return owns ? mediaId : null;
+
+        var contentType = await _db.Media.AsNoTracking()
+            .Where(m => m.Id == mediaId && m.UserId == userId)
+            .Select(m => m.ContentType)
+            .FirstOrDefaultAsync();
+
+        if (contentType == null) return null;
+
+        if (!IsImage(contentType))
+            throw new Exception("Your avatar and banner have to be images — videos and audio can't be used.");
+
+        return mediaId;
     }
 
-    /// <summary>Presigns a media object that belongs to the user (prefers its thumbnail).</summary>
+    /// <summary>
+    /// Reports a non-image avatar/banner as unset. Profiles saved before images were enforced can
+    /// still point at a video; surfacing that id would make the editor fail every save on data the
+    /// owner never chose under the current rules.
+    /// </summary>
+    private async Task<Guid?> ImageMediaIdOrNullAsync(string userId, Guid? mediaId)
+    {
+        if (mediaId == null) return null;
+
+        var contentType = await _db.Media.AsNoTracking()
+            .Where(m => m.Id == mediaId && m.UserId == userId)
+            .Select(m => m.ContentType)
+            .FirstOrDefaultAsync();
+
+        return IsImage(contentType) ? mediaId : null;
+    }
+
+    /// <summary>Presigns an image that belongs to the user. Non-images never render as profile art.</summary>
     private async Task<string?> PresignOwnedMediaAsync(string userId, Guid? mediaId)
     {
         if (mediaId == null) return null;
 
         var media = await _db.Media.AsNoTracking()
             .FirstOrDefaultAsync(m => m.Id == mediaId && m.UserId == userId);
-        if (media == null) return null;
+        if (media == null || !IsImage(media.ContentType)) return null;
 
         return PresignKey(mediaId.Value.ToString());
     }
