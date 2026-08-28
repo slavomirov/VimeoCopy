@@ -37,13 +37,15 @@ export function EnhancedPlayer({
   const progressRef = useRef<HTMLDivElement>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Web Audio chain so we can amplify past the element's native 1.0 volume ceiling —
-  // the bare <video>/<audio> plays noticeably quieter than desktop players.
+  // Web Audio chain, kept so the gain node can amplify past the element's native 1.0 ceiling
+  // if we ever want to. VOLUME_BOOST stays at 1: anything above it drives the signal past full
+  // scale, which clips — that reads as "louder but harsher" against a desktop player. At 1,
+  // 100% on the slider is exactly the source's own loudness.
   const audioCtxRef = useRef<AudioContext | null>(null);
   const gainRef = useRef<GainNode | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const volumeRef = useRef(1); // mirrors `volume` for the stale-closure keyboard handler
-  const VOLUME_BOOST = 2;
+  const VOLUME_BOOST = 1;
 
   // Media is served from cross-origin presigned R2 URLs. createMediaElementSource() outputs
   // SILENCE for an element whose resource isn't CORS-approved, and the rerouting it performs
@@ -247,8 +249,9 @@ export function EnhancedPlayer({
   }, [castError]);
 
   // ── Audio boost (Web Audio) ──
-  // Loudness is driven by the gain node (allows >1.0); the element's own volume stays at 1
-  // so the two don't multiply. Falls back to element.volume if Web Audio is unavailable.
+  // Loudness is driven by the gain node; the element's own volume stays at 1 so the two don't
+  // multiply. Falls back to element.volume if Web Audio is unavailable — with VOLUME_BOOST at 1
+  // both paths are identical.
   const applyVolume = useCallback((vol: number, isMuted: boolean) => {
     const v = videoRef.current;
     if (!v) return;
