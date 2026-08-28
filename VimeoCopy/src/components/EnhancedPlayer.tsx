@@ -45,6 +45,16 @@ export function EnhancedPlayer({
   const volumeRef = useRef(1); // mirrors `volume` for the stale-closure keyboard handler
   const VOLUME_BOOST = 2;
 
+  // Media is served from cross-origin presigned R2 URLs. createMediaElementSource() outputs
+  // SILENCE for an element whose resource isn't CORS-approved, and the rerouting it performs
+  // is permanent for that element — which is why the audio never came back until the player
+  // was reopened. So the element must be loaded with crossOrigin="anonymous" before the graph
+  // is built. If the bucket has no CORS rule for this origin that load fails; we then reload
+  // without the attribute and stay on the plain element.volume path (no boost, never silent).
+  const [corsAnonymous, setCorsAnonymous] = useState(true);
+  const corsAnonymousRef = useRef(true);
+  const resumeAtRef = useRef(0);
+
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -259,6 +269,8 @@ export function EnhancedPlayer({
   const unlockAudio = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
+    // Without a CORS-clean load, routing through Web Audio would mute the element for good.
+    if (!corsAnonymousRef.current) return;
     if (!audioCtxRef.current) {
       try {
         const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -305,7 +317,24 @@ export function EnhancedPlayer({
 
   const handleLoadedMetadata = () => {
     const v = videoRef.current;
-    if (v) setDuration(v.duration);
+    if (!v) return;
+    setDuration(v.duration);
+    if (resumeAtRef.current > 0) {
+      v.currentTime = Math.min(resumeAtRef.current, v.duration || resumeAtRef.current);
+      resumeAtRef.current = 0;
+      v.play().catch(() => {});
+    }
+  };
+
+  // A crossOrigin="anonymous" load fails when the bucket serves no CORS rule for this origin.
+  // Retry once without the attribute so playback still works — just without the volume boost.
+  const handleMediaError = () => {
+    const v = videoRef.current;
+    if (!v || !corsAnonymousRef.current) return; // already on the plain path: a genuine error
+    corsAnonymousRef.current = false;
+    resumeAtRef.current = v.currentTime;
+    setCorsAnonymous(false);
+    requestAnimationFrame(() => videoRef.current?.load());
   };
 
   const handlePlay = () => setPlaying(true);
@@ -592,11 +621,13 @@ export function EnhancedPlayer({
             <audio
               ref={videoRef as any}
               src={url}
+              crossOrigin={corsAnonymous ? "anonymous" : undefined}
               autoPlay
               onTimeUpdate={handleTimeUpdate}
               onLoadedMetadata={handleLoadedMetadata}
               onPlay={handlePlay}
               onPause={handlePause}
+              onError={handleMediaError}
             />
             <div className="vp-controls visible" onClick={(e) => e.stopPropagation()}>
               <button className="vp-btn" onClick={togglePlay} title={playing ? "Pause" : "Play"}>
@@ -620,12 +651,14 @@ export function EnhancedPlayer({
             <video
               ref={videoRef as React.RefObject<HTMLVideoElement>}
               src={url}
+              crossOrigin={corsAnonymous ? "anonymous" : undefined}
               autoPlay
               className="vp-video"
               onTimeUpdate={handleTimeUpdate}
               onLoadedMetadata={handleLoadedMetadata}
               onPlay={handlePlay}
               onPause={handlePause}
+              onError={handleMediaError}
               onClick={togglePlay}
               onContextMenu={(e) => e.preventDefault()}
             />
