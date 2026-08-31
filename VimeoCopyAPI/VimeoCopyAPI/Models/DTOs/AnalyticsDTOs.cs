@@ -5,6 +5,9 @@ public class AudienceOverviewDTO
     public long TotalViews { get; set; }
     public int UniqueViewers { get; set; }
     public long TotalBytes { get; set; }
+
+    /// <summary>How many days every figure in this payload covers, so the UI can say so.</summary>
+    public int WindowDays { get; set; }
     public List<DailyViewsDTO> ViewsByDay { get; set; } = [];
     public List<TopMediaDTO> TopMedia { get; set; } = [];
     public List<SourceBreakdownDTO> BySource { get; set; } = [];

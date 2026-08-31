@@ -19,6 +19,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<BandwidthLog> BandwidthLogs { get; set; }
     public DbSet<MediaReport> MediaReports { get; set; }
     public DbSet<PasswordResetCode> PasswordResetCodes { get; set; }
+    public DbSet<PendingUpload> PendingUploads { get; set; }
+    public DbSet<ProcessedStripeEvent> ProcessedStripeEvents { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -107,5 +109,25 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<PasswordResetCode>()
             .HasIndex(c => c.TicketHash)
             .HasFilter("[TicketHash] IS NOT NULL");
+
+        modelBuilder.Entity<PendingUpload>()
+            .HasOne(p => p.User)
+            .WithMany()
+            .HasForeignKey(p => p.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // The sweeper scans for rows whose presign window has closed.
+        modelBuilder.Entity<PendingUpload>()
+            .HasIndex(p => p.ExpiresAt);
+
+        // Refresh tokens are looked up by digest on every refresh; unique so a hash can't collide
+        // across rows and hand a session to the wrong user.
+        modelBuilder.Entity<RefreshToken>()
+            .HasIndex(t => t.Token)
+            .IsUnique();
+
+        // Revocation and expiry are checked together when resolving a share token.
+        modelBuilder.Entity<SharedLink>()
+            .HasIndex(sl => new { sl.MediaId, sl.RevokedAt });
     }
 }

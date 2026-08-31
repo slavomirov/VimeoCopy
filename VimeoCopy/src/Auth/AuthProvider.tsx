@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { AuthContext } from "./AuthContext";
+import type { AuthFetch, AuthFetchInit } from "./AuthContext";
 import { API_BASE_URL } from "../config";
 import { jwtDecode } from "jwt-decode";
 import toast from "react-hot-toast";
@@ -133,9 +134,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Global fetch wrapper with auto-refresh + error notifications
-  const authFetch: typeof fetch = useCallback(
+  // Global fetch wrapper with auto-refresh + error notifications.
+  // Pass `silent: true` when the caller renders its own inline error and a toast would double up.
+  const authFetch: AuthFetch = useCallback(
     async (input, init = {}) => {
+      const { silent, ...rest } = init as AuthFetchInit;
+      init = rest;
       const headers = new Headers(init.headers || {});
 
       if (accessToken) {
@@ -168,10 +172,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
       }
 
-      // Global error popup
-      if (!res.ok) {
+      // Global error popup. Read from a CLONE: a response body can only be consumed once, and
+      // reading it here left every caller's own res.json() returning null — so components fell back
+      // to generic text while the real reason appeared only in a toast.
+      if (!res.ok && !silent) {
         try {
-          const data = await res.json();
+          const data = await res.clone().json();
           const msg = data.message || data.error || "Unexpected server error";
           toast.error(msg);
         } catch {

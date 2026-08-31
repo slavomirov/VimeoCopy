@@ -17,7 +17,7 @@ export function EmbedPlayer() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/media/${mediaId}/url`);
+        const res = await fetch(`${API_BASE_URL}/api/media/${mediaId}/url?source=embed`);
         if (!res.ok) {
           throw new Error("Media not found or unavailable.");
         }

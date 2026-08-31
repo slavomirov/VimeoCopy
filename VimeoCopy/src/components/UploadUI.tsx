@@ -5,7 +5,6 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { FileEntry } from "../hooks/useFileUploader";
-import { ACCEPT_STRING } from "../hooks/useFileUploader";
 import { useUpload } from "./UploadProvider";
 import { ThumbnailPicker } from "./ThumbnailPicker";
 import "../App.css";
@@ -240,7 +239,7 @@ export function UploadPanel({
         <input
           ref={uploader.inputRef}
           type="file"
-          accept={ACCEPT_STRING}
+          accept={uploader.acceptString}
           multiple
           onChange={(e) => {
             if (e.target.files) uploader.addFiles(e.target.files, projectId);

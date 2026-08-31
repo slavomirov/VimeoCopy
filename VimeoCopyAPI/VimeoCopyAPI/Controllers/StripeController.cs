@@ -15,11 +15,17 @@ public class StripeController : ControllerBase
 {
     private readonly StripeOptions _stripeOptions;
     private readonly IPlanService _planService;
+    private readonly string _frontendOrigin;
 
-    public StripeController(IOptionsSnapshot<StripeOptions> stripeOptions, IPlanService planService)
+    public StripeController(IOptionsSnapshot<StripeOptions> stripeOptions, IPlanService planService, IConfiguration config)
     {
         _stripeOptions = stripeOptions.Value;
         _planService = planService;
+
+        // Where Stripe sends the customer back to. This was hard-coded to localhost, so in any
+        // deployed environment a successful payment redirected to a dead address.
+        _frontendOrigin = config.GetSection("Frontend:AllowedOrigins").Get<string[]>()?.FirstOrDefault()
+            ?? "http://localhost:5173";
     }
 
     [Authorize]
@@ -29,8 +35,9 @@ public class StripeController : ControllerBase
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         var userEmail = User.FindFirst(ClaimTypes.Email)?.Value;
 
-        var plan = await _planService.GetPlayByNameAsync(request.Name) ?? throw new Exception("Plan not available!");
-        var origin = $"http://localhost:5173"; //FE server change this
+        var plan = await _planService.GetPlayByNameAsync(request.Name)
+            ?? throw new NotFoundException("That plan isn't available.");
+        var origin = _frontendOrigin;
 
         StripeConfiguration.ApiKey = _stripeOptions.SecretKey;
 

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { useAuth } from "../Auth/useAuth";
 import { API_BASE_URL } from "../config";
+import toast from "react-hot-toast";
 import { ThumbnailPicker } from "./ThumbnailPicker";
 import { EnhancedPlayer } from "./EnhancedPlayer";
 import "../App.css";
@@ -58,12 +59,16 @@ export function ProfilePage() {
   const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [shareLinkExpiry, setShareLinkExpiry] = useState<string | null>(null);
+  const [shareToken, setShareToken] = useState<string | null>(null);
   const [shareLoading, setShareLoading] = useState(false);
+  const [revoking, setRevoking] = useState(false);
   const [embedMedia, setEmbedMedia] = useState<Media | null>(null);
   const [thumbPickerMediaId, setThumbPickerMediaId] = useState<string | null>(null);
   const [thumbUploading, setThumbUploading] = useState(false);
   const [editingDesc, setEditingDesc] = useState<string | null>(null);
   const [descDraft, setDescDraft] = useState("");
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [viewerMedia, setViewerMedia] = useState<{ media: Media; url: string } | null>(null);
 
   // Load user DTO
@@ -77,20 +82,32 @@ export function ProfilePage() {
     load();
   }, [authFetch, claims]);
 
-  // Handle media deletion
+  // Deleting media is irreversible, so it gets a real in-app confirmation rather than the browser's
+  // confirm() — which is unstyled, blocks the page, and can be permanently suppressed by the user,
+  // in which case the old code deleted with no confirmation at all.
   async function handleDeleteMedia(mediaId: string) {
-    if (!confirm("Are you sure you want to delete this media?")) {
-      return;
-    }
+    setPendingDeleteId(mediaId);
+  }
+
+  async function confirmDeleteMedia() {
+    const mediaId = pendingDeleteId;
+    if (!mediaId) return;
+
+    setPendingDeleteId(null);
+    setDeletingId(mediaId);
 
     try {
       const res = await authFetch(`${API_BASE_URL}/api/media/Media/Delete/${mediaId}`, {
         method: "DELETE",
+        silent: true,
       });
 
       if (!res.ok) {
-        throw new Error("Failed to delete media");
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message || "Couldn't delete that media.");
       }
+
+      toast.success("Media deleted.");
 
       // Remove from user state
       setUser((prevUser) => {
@@ -108,9 +125,9 @@ export function ProfilePage() {
         return newUrls;
       });
     } catch (err) {
-      alert(
-        err instanceof Error ? err.message : "Failed to delete media"
-      );
+      toast.error(err instanceof Error ? err.message : "Failed to delete media");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -135,9 +152,7 @@ export function ProfilePage() {
         };
       });
     } catch (err) {
-      alert(
-        err instanceof Error ? err.message : "Failed to toggle visibility"
-      );
+      toast.error(err instanceof Error ? err.message : "Failed to toggle visibility");
     }
   }
 
@@ -162,7 +177,7 @@ export function ProfilePage() {
         };
       });
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to update");
+      toast.error(err instanceof Error ? err.message : "Failed to update");
     }
   }
 
@@ -188,7 +203,7 @@ export function ProfilePage() {
       });
       setEditingDesc(null);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to update description");
+      toast.error(err instanceof Error ? err.message : "Failed to update description");
     }
   }
 
@@ -209,11 +224,39 @@ export function ProfilePage() {
       const data = await res.json();
       const link = `${window.location.origin}/shared/${data.token}`;
       setShareLink(link);
+      setShareToken(data.token);
       setShareLinkExpiry(new Date(data.expiresAt).toLocaleString());
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to create share link");
+      toast.error(err instanceof Error ? err.message : "Failed to create share link");
     } finally {
       setShareLoading(false);
+    }
+  }
+
+  // Withdraws the link so the URL stops working immediately.
+  async function handleRevokeShareLink() {
+    if (!shareToken) return;
+
+    setRevoking(true);
+    try {
+      const res = await authFetch(`${API_BASE_URL}/api/shared/${shareToken}`, {
+        method: "DELETE",
+        silent: true,
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message || "Couldn't revoke that link.");
+      }
+
+      toast.success("Link revoked — it no longer works.");
+      setShareLink(null);
+      setShareLinkExpiry(null);
+      setShareToken(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to revoke link");
+    } finally {
+      setRevoking(false);
     }
   }
 
@@ -258,7 +301,7 @@ export function ProfilePage() {
 
       setThumbPickerMediaId(null);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to update thumbnail");
+      toast.error(err instanceof Error ? err.message : "Failed to update thumbnail");
     } finally {
       setThumbUploading(false);
     }
@@ -353,6 +396,7 @@ export function ProfilePage() {
                 url={urls[m.id]}
                 thumbnailUrl={thumbnailUrls[m.id]}
                 onDelete={() => handleDeleteMedia(m.id)}
+                deleting={deletingId === m.id}
                 onToggleVisibility={() => handleToggleVisibility(m.id)}
                 onToggleShowOnMediaPage={() => handleToggleShowOnMediaPage(m.id, m.showOnMediaPage)}
                 onShare={() => handleShareMedia(m.id)}
@@ -423,20 +467,54 @@ export function ProfilePage() {
                   style={{ whiteSpace: "nowrap" }}
                   onClick={() => {
                     navigator.clipboard.writeText(shareLink);
-                    alert("Link copied to clipboard!");
+                    toast.success("Link copied to clipboard.");
                   }}
                 >
                   Copy
                 </button>
               </div>
-              <div style={{ marginTop: "var(--space-4)", textAlign: "right" }}>
+              <div className="confirm-actions" style={{ marginTop: "var(--space-4)" }}>
+                {/* A share you can't withdraw isn't really a temporary share. */}
+                <button
+                  className="btn-danger"
+                  onClick={handleRevokeShareLink}
+                  disabled={revoking}
+                >
+                  {revoking ? "Revoking…" : "Revoke link"}
+                </button>
                 <button
                   className="btn-secondary"
-                  onClick={() => { setShareLink(null); setShareLinkExpiry(null); }}
+                  onClick={() => { setShareLink(null); setShareLinkExpiry(null); setShareToken(null); }}
                 >
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation */}
+      {pendingDeleteId && (
+        <div
+          className="confirm-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirm-delete-title"
+          onClick={() => setPendingDeleteId(null)}
+        >
+          <div className="card confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <h2 id="confirm-delete-title" className="card-title">Delete this media?</h2>
+            <p className="text-muted">
+              The file and its thumbnail are removed from storage permanently. This can't be undone.
+            </p>
+            <div className="confirm-actions">
+              <button type="button" className="btn-outline" onClick={() => setPendingDeleteId(null)}>
+                Keep it
+              </button>
+              <button type="button" className="btn-danger" onClick={confirmDeleteMedia} autoFocus>
+                Delete permanently
+              </button>
             </div>
           </div>
         </div>
@@ -524,6 +602,7 @@ function MediaItem({
   url,
   thumbnailUrl,
   onDelete,
+  deleting,
   onToggleVisibility,
   onToggleShowOnMediaPage,
   onShare,
@@ -542,6 +621,7 @@ function MediaItem({
   url?: string;
   thumbnailUrl?: string;
   onDelete: () => void;
+  deleting?: boolean;
   onToggleVisibility: () => void;
   onToggleShowOnMediaPage: () => void;
   onShare: () => void;
@@ -738,7 +818,7 @@ function MediaItem({
             Thumbnail
           </button>
         )}
-        <button onClick={onDelete} className="btn-danger">
+        <button onClick={onDelete} className="btn-danger" disabled={deleting}>
           Delete
         </button>
       </div>

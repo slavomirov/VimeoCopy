@@ -27,6 +27,12 @@ public class Media
 
     public string? ThumbnailUrl { get; set; } //add thumbnails saved in the database for faster access
 
+    /// <summary>
+    /// Bytes the stored thumbnail occupies, so it can be charged to the owner's quota and refunded
+    /// on delete. Null for media uploaded before thumbnails were metered.
+    /// </summary>
+    public long? ThumbnailSize { get; set; }
+
     [MaxLength(500)]
     public string? VideoUrl { get; set; }
 

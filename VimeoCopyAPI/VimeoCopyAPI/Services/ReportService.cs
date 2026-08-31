@@ -21,7 +21,7 @@ public class ReportService : IReportService
         if (!AllowedReasons.Contains(reason)) reason = "other";
 
         var exists = await _db.Media.AnyAsync(m => m.Id == dto.MediaId);
-        if (!exists) throw new Exception("Media not found.");
+        if (!exists) throw new NotFoundException("Media not found.");
 
         // Collapse duplicate pending reports from the same reporter for the same media.
         if (reporterUserId != null)
@@ -68,7 +68,7 @@ public class ReportService : IReportService
     public async Task ResolveAsync(long reportId, string action, string reviewerUserId)
     {
         var report = await _db.MediaReports.FirstOrDefaultAsync(r => r.Id == reportId)
-            ?? throw new Exception("Report not found.");
+            ?? throw new NotFoundException("Report not found.");
 
         if (string.Equals(action, "remove", StringComparison.OrdinalIgnoreCase))
         {

@@ -11,25 +11,33 @@ public class AnalyticsService : IAnalyticsService
 
     public AnalyticsService(AppDbContext db) => _db = db;
 
-    public async Task<AudienceOverviewDTO> GetAudienceOverviewAsync(string ownerUserId)
+    /// <summary>Log retention caps how far back any of this can honestly look.</summary>
+    public const int MaxWindowDays = 90;
+    public const int DefaultWindowDays = 30;
+
+    public async Task<AudienceOverviewDTO> GetAudienceOverviewAsync(string ownerUserId, int days = DefaultWindowDays)
     {
-        // Each BandwidthLog row is one metered, de-duped view (owner's own views are never logged).
-        var logs = _db.BandwidthLogs.AsNoTracking().Where(b => b.OwnerUserId == ownerUserId);
+        days = Math.Clamp(days, 1, MaxWindowDays);
+        var since = DateTime.UtcNow.Date.AddDays(-(days - 1));
+
+        // Every figure below shares this window. The totals used to be all-time while the chart was
+        // 30 days, so the headline numbers and the graph beneath them described different periods —
+        // and "all-time" silently shrank anyway as logs aged past the 90-day purge.
+        var logs = _db.BandwidthLogs.AsNoTracking()
+            .Where(b => b.OwnerUserId == ownerUserId && b.CreatedAt >= since);
 
         var totalViews = await logs.LongCountAsync();
         var totalBytes = await logs.SumAsync(b => (long?)b.Bytes) ?? 0;
         var uniqueViewers = await logs.Select(b => b.ViewerUserId ?? b.ViewerIpHash).Distinct().CountAsync();
 
-        // Views per day for the last 30 days (gaps filled to 0 for a clean chart).
-        var since = DateTime.UtcNow.Date.AddDays(-29);
+        // Views per day (gaps filled to 0 for a clean chart).
         var dailyRaw = await logs
-            .Where(b => b.CreatedAt >= since)
             .GroupBy(b => b.CreatedAt.Date)
             .Select(g => new { Day = g.Key, Views = g.Count() })
             .ToListAsync();
 
         var dailyMap = dailyRaw.ToDictionary(x => x.Day, x => x.Views);
-        var viewsByDay = Enumerable.Range(0, 30)
+        var viewsByDay = Enumerable.Range(0, days)
             .Select(i => since.AddDays(i))
             .Select(d => new DailyViewsDTO { Date = d.ToString("yyyy-MM-dd"), Views = dailyMap.GetValueOrDefault(d, 0) })
             .ToList();
@@ -74,6 +82,7 @@ public class AnalyticsService : IAnalyticsService
             TotalViews = totalViews,
             UniqueViewers = uniqueViewers,
             TotalBytes = totalBytes,
+            WindowDays = days,
             ViewsByDay = viewsByDay,
             TopMedia = topMedia,
             BySource = bySource,

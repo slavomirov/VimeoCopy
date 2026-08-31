@@ -10,6 +10,7 @@ namespace VimeoCopyAPI.Controllers;
 
 [ApiController]
 [Route("api/shared")]
+[Authorize] // public resolution opts out below; everything else is owner-only
 public class SharedLinkController : ControllerBase
 {
     private readonly ISharedLinkService _sharedLinkService;
@@ -43,6 +44,27 @@ public class SharedLinkController : ControllerBase
             token = link.Token,
             expiresAt = link.ExpiresAt
         });
+    }
+
+    /// <summary>The owner's active links for one media item, so they can see and withdraw them.</summary>
+    [HttpGet("for-media/{mediaId}")]
+    public async Task<IActionResult> GetLinksForMedia(string mediaId)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new UnauthorizedAccessException("User not authenticated.");
+
+        return Ok(await _sharedLinkService.GetLinksForMediaAsync(mediaId, userId));
+    }
+
+    /// <summary>Withdraws a share link. The URL stops working immediately.</summary>
+    [HttpDelete("{token}")]
+    public async Task<IActionResult> RevokeSharedLink(string token)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new UnauthorizedAccessException("User not authenticated.");
+
+        await _sharedLinkService.RevokeSharedLinkAsync(token, userId);
+        return Ok(new { message = "Share link revoked." });
     }
 
     /// <summary>

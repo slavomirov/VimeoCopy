@@ -32,4 +32,13 @@ public class SharedLink
     /// </summary>
     [Required]
     public DateTime ExpiresAt { get; set; }
+
+    /// <summary>
+    /// Set when the owner withdraws the link. Until this existed a share could not be taken back:
+    /// the only way to kill a leaked URL was to delete the media it pointed at.
+    /// </summary>
+    public DateTime? RevokedAt { get; set; }
+
+    public bool IsRevoked => RevokedAt != null;
+    public bool IsExpired => DateTime.UtcNow >= ExpiresAt;
 }

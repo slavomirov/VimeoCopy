@@ -68,7 +68,7 @@ namespace VimeoCopyAPI.Services
 
             // Generic message — don't reveal whether an email is already registered (user enumeration).
             if (user is not null)
-                throw new Exception("Unable to register with the provided details.");
+                throw new ValidationException("Unable to register with the provided details.");
 
             user = new ApplicationUser
             {
@@ -79,7 +79,7 @@ namespace VimeoCopyAPI.Services
             var result = await _userManager.CreateAsync(user, input.Password);
 
             if (!result.Succeeded)
-                throw new Exception(result.Errors.Select(x => x.Description).FirstOrDefault());
+                throw new ValidationException(result.Errors.Select(x => x.Description).FirstOrDefault() ?? "Could not create the account.");
 
             await _userManager.AddToRoleAsync(user, "User"); //default 
             await AssignPlanToUserAsync(user.Id, "Free");
@@ -89,13 +89,13 @@ namespace VimeoCopyAPI.Services
 
         public async Task<UserLoginResponseDTO?> LoginAsync(UserLoginRequestDTO input)
         {
-            var user = await _userManager.FindByEmailAsync(input.Email) ?? throw new Exception("Invalid credentials");
+            var user = await _userManager.FindByEmailAsync(input.Email) ?? throw new UnauthorizedAccessException("Invalid email or password.");
 
             var result = await _signInManager.CheckPasswordSignInAsync(user, input.Password, lockoutOnFailure: true);
             if (result.IsLockedOut)
-                throw new Exception("Account temporarily locked due to too many failed attempts. Please try again later.");
+                throw new UnauthorizedAccessException("Account temporarily locked due to too many failed attempts. Please try again later.");
             if (!result.Succeeded)
-                throw new Exception("Invalid credentials");
+                throw new UnauthorizedAccessException("Invalid email or password.");
 
             var accessToken = await GenerateAccessTokenAsync(user);
             var refreshToken = await CreateAndStoreRefreshTokenAsync(user);
@@ -108,9 +108,10 @@ namespace VimeoCopyAPI.Services
             if (!context.Request.Cookies.TryGetValue("refreshToken", out var token))
                 return new RefreshResultDTO(null, null, IsUnauthorized: true, ErrorMessage: "No refresh token");
 
+            var tokenHash = HashSecret(token);
             var refreshToken = await _dbContext.RefreshTokens
                 .Include(rt => rt.User)
-                .FirstOrDefaultAsync(rt => rt.Token == token);
+                .FirstOrDefaultAsync(rt => rt.Token == tokenHash);
 
             if (refreshToken == null || refreshToken.IsRevoked || refreshToken.IsExpired)
                 return new RefreshResultDTO(null, null, IsUnauthorized: true, ErrorMessage: "Invalid refresh token");
@@ -133,7 +134,8 @@ namespace VimeoCopyAPI.Services
         {
             if (context.Request.Cookies.TryGetValue("refreshToken", out var token))
             {
-                var refreshToken = await _dbContext.RefreshTokens.FirstOrDefaultAsync(rt => rt.Token == token);
+                var tokenHash = HashSecret(token);
+                var refreshToken = await _dbContext.RefreshTokens.FirstOrDefaultAsync(rt => rt.Token == tokenHash);
                 if (refreshToken != null)
                 {
                     refreshToken.RevokedAt = DateTime.UtcNow;
@@ -420,13 +422,13 @@ namespace VimeoCopyAPI.Services
 
         private async Task<string> CreateAndStoreRefreshTokenAsync(ApplicationUser user)
         {
-            var tokenBytes = RandomNumberGenerator.GetBytes(64);
-            var token = Convert.ToBase64String(tokenBytes);
+            // Base64url: the raw value travels in a cookie, and '+' / '/' are hostile there.
+            var token = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(64));
 
             var refreshToken = new RefreshToken
             {
                 UserId = user.Id,
-                Token = token,
+                Token = HashSecret(token), // only the digest is persisted
                 ExpiresAt = DateTime.UtcNow.AddDays(1)
             };
 
@@ -539,23 +541,36 @@ namespace VimeoCopyAPI.Services
 
         public async Task AssignPlanToUserAsync(string userId, string planName)
         {
-            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId) ?? throw new Exception("User not found");
-            var plan = await _dbContext.Plans.FirstOrDefaultAsync(p => p.Name == planName) ?? throw new Exception("Plan not found");
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId)
+                ?? throw new NotFoundException("User not found.");
+            var plan = await _dbContext.Plans.FirstOrDefaultAsync(p => p.Name == planName)
+                ?? throw new NotFoundException("Plan not found.");
+
+            var now = DateTime.UtcNow;
+            var isFree = planName == "Free";
 
             user.PlanId = plan.Id;
             user.BuyedMemory = plan.StorageLimitMB * BytesPerMb;
             user.BuyedBandwidth = plan.BandwidthMB * BytesPerMb;
             user.UsedBandwidth = 0;
-            user.BandwidthCycleStart = DateTime.UtcNow;
+            user.BandwidthCycleStart = now;
             user.BandwidthOverageNotifiedAt = null;
-            user.PlanExpiration = planName == "Free" ? DateTime.UtcNow.AddDays(7) : DateTime.UtcNow.AddMonths(1);
+
+            // Extend from whatever time is still on the clock rather than from today. Renewing early
+            // used to reset the expiry to now+1 month, silently destroying the days already paid for.
+            var extendFrom = user.PlanExpiration is { } existing && existing > now && !isFree
+                ? existing
+                : now;
+
+            user.PlanExpiration = isFree ? now.AddDays(7) : extendFrom.AddMonths(1);
+
             _dbContext.Users.Update(user);
             await _dbContext.SaveChangesAsync();
         }
 
         public async Task UnassingPlanFromUserAsync(string userId)
         {
-            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId) ?? throw new Exception("User not found");
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId) ?? throw new NotFoundException("User not found.");
             user.PlanId = null;
             user.BuyedMemory = null;
             user.PlanExpiration = null;
@@ -565,22 +580,26 @@ namespace VimeoCopyAPI.Services
             await _dbContext.SaveChangesAsync();
         }
 
+        /// <summary>Sentinel returned by <see cref="CanUserUploadAsync"/> when the upload may proceed.</summary>
+        public const string UploadAllowed = "Yes";
+
         public async Task<string> CanUserUploadAsync(string userId, long fileSize)
         {
-            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId) ?? throw new Exception("User not found");
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId)
+                ?? throw new NotFoundException("User not found.");
 
             if (user.BuyedMemory is null || user.PlanId is null)
-                return "User doesn't have plan!";
+                return "You need an active plan to upload.";
             if (user.PlanExpiration < DateTime.UtcNow)
             {
                 await UnassingPlanFromUserAsync(userId);
-                return "User's plan has expired!";
+                return "Your plan has expired. Renew it to keep uploading.";
             }
             // UsedMemory, BuyedMemory and fileSize are all in bytes.
             if ((user.UsedMemory ?? 0) + fileSize > user.BuyedMemory)
-                return "User doesn't have enough storage!";
+                return "This file won't fit in your remaining storage.";
 
-            return "Yes";
+            return UploadAllowed;
         }
     }
 }

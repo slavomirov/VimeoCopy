@@ -44,10 +44,15 @@ public class PublicMediaDTO
     public string? Description { get; set; }
     public bool HasThumbnail { get; set; }
 
-    // Owner info
-    public string OwnerEmail { get; set; } = default!;
-    public string? OwnerUsername { get; set; }
+    // Presigned up front so the gallery doesn't need a round trip per tile. Unmetered — browsing a
+    // grid must not charge the owner's bandwidth; the metered URL is fetched only on play.
+    public string? PreviewUrl { get; set; }
+    public string? ThumbnailUrl { get; set; }
+
+    // Owner info — public identity only. Never the email address: this endpoint is anonymous, and
+    // returning it here handed every visitor a scrapeable list of every creator's address.
     public string? OwnerHandle { get; set; }
+    public string OwnerDisplayName { get; set; } = default!;
 
     // If the media belongs to a project, include project info
     public Guid? ProjectId { get; set; }

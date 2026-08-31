@@ -1,8 +1,7 @@
-﻿using Amazon.S3;
+using Amazon.S3;
 using Amazon.S3.Model;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
-using Microsoft.AspNetCore.Http;
 using VimeoCopyApi.Data;
 using VimeoCopyApi.Models;
 using VimeoCopyAPI.Models;
@@ -11,120 +10,138 @@ using VimeoCopyAPI.Services.Interfaces;
 
 namespace VimeoCopyAPI.Services;
 
-
 public class UploadService : IUploadService
 {
     private readonly IAmazonS3 _s3;
     private readonly IConfiguration _config;
     private readonly AppDbContext _dbContext;
-    private readonly string[] allowedUploadContentTypes = ["image/jpeg", "image/png", "video/mp4", "video/webm", "video/quicktime"];
-    private readonly IMediaService _mediaService;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IUserService _userService;
-    private readonly IBandwidthService _bandwidthService;
-    private record PresignedRequest(string url, string mediaId);
 
+    /// <summary>
+    /// The single source of truth for what may be uploaded. The client fetches this list from
+    /// /api/upload/allowed-types rather than keeping its own copy — two hand-maintained lists is
+    /// how audio uploads came to transfer in full and then fail at the confirm step.
+    /// </summary>
+    private static readonly string[] AllowedTypes =
+    [
+        "image/jpeg", "image/png", "image/webp",
+        "video/mp4", "video/webm", "video/quicktime", "video/mpeg",
+        "audio/mpeg", "audio/ogg", "audio/wav",
+    ];
+
+    /// <summary>How long a presigned PUT stays valid. Large files on slow links need the room.</summary>
+    public static readonly TimeSpan PresignLifetime = TimeSpan.FromHours(2);
+
+    /// <summary>Maximum presigned URLs one batch call may mint.</summary>
+    public const int MaxBatchSize = 20;
+
+    public IReadOnlyCollection<string> AllowedContentTypes => AllowedTypes;
 
     public UploadService(
         IAmazonS3 s3,
         IConfiguration config,
         AppDbContext dbContext,
-        IMediaService mediaService,
         IHttpContextAccessor httpContextAccessor,
-        IUserService userService,
-        IBandwidthService bandwidthService)
+        IUserService userService)
     {
         _s3 = s3;
         _config = config;
         _dbContext = dbContext;
-        _mediaService = mediaService;
         _httpContextAccessor = httpContextAccessor;
         _userService = userService;
-        _bandwidthService = bandwidthService;
     }
 
-    public async Task<MediaURLDTO> GetMediaURLAsync(string mediaId)
+    private string CurrentUserId =>
+        _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new UnauthorizedAccessException("Authentication required.");
+
+    private static string Normalize(string? contentType) =>
+        (contentType ?? string.Empty).Trim().ToLowerInvariant();
+
+    public async Task<PresignRequestDTO> GetPresignedUrlAsync(string contentType)
+        => (await GetPresignedUrlsAsync([contentType]))[0];
+
+    public async Task<List<PresignRequestDTO>> GetPresignedUrlsAsync(IReadOnlyList<string> contentTypes)
     {
-        var media = await _mediaService.GetMediaByIdAsync(mediaId) ?? throw new Exception("Media with this id not found!");
+        // Refuse rather than silently clamp: quietly returning fewer URLs than asked for is what let
+        // the client index past the end of the array and fail an entire 25-file batch.
+        if (contentTypes is null || contentTypes.Count == 0)
+            throw new ValidationException("Ask for at least one upload URL.");
+        if (contentTypes.Count > MaxBatchSize)
+            throw new ValidationException($"You can request at most {MaxBatchSize} upload URLs at a time.");
 
-        var allowed = await _bandwidthService.TrackPresignAsync(media, BandwidthSource.Owner);
-        if (!allowed)
-            throw new Exception("This media's owner has exceeded their monthly bandwidth allowance.");
+        // Validate the whole batch before minting anything, so a single bad file doesn't leave half
+        // the batch with live keys and pending rows.
+        var normalized = contentTypes.Select(Normalize).ToList();
+        var rejected = normalized.FirstOrDefault(t => !AllowedTypes.Contains(t));
+        if (rejected is not null)
+            throw new ValidationException($"'{rejected}' files aren't supported.");
 
-        var bucket = _config["Aws:BucketName"];
-
-        var request = new GetPreSignedUrlRequest
-        {
-            BucketName = bucket,
-            Key = mediaId, // или отделно поле StorageKey
-            Verb = HttpVerb.GET,
-            Expires = DateTime.UtcNow.AddMinutes(15)
-        };
-
-        var url = _s3.GetPreSignedURL(request);
-
-        return new MediaURLDTO()
-        {
-            MediaId = media.Id,
-            Url = url,
-            ContentType = media.ContentType
-        };
-    }
-
-    public PresignRequestDTO GetPresignedUrl()
-    {
+        var userId = CurrentUserId;
         var bucket = _config["AWS:BucketName"];
-        var mediaId = Guid.NewGuid().ToString();
+        var now = DateTime.UtcNow;
+        var expiresAt = now.Add(PresignLifetime);
 
-        var request = new GetPreSignedUrlRequest
+        var results = new List<PresignRequestDTO>(normalized.Count);
+
+        foreach (var type in normalized)
         {
-            BucketName = bucket,
-            Key = mediaId,
-            Verb = HttpVerb.PUT,
-            Expires = DateTime.UtcNow.AddHours(2), // large files on slow links can exceed a short window
-            ContentType = "application/octet-stream"
-        };
+            var mediaId = Guid.NewGuid();
 
-        var thumbRequest = new GetPreSignedUrlRequest
-        {
-            BucketName = bucket,
-            Key = $"thumb_{mediaId}",
-            Verb = HttpVerb.PUT,
-            Expires = DateTime.UtcNow.AddHours(2), // large files on slow links can exceed a short window
-            ContentType = "image/jpeg"
-        };
+            _dbContext.PendingUploads.Add(new PendingUpload
+            {
+                Id = mediaId,
+                UserId = userId,
+                ContentType = type,
+                CreatedAt = now,
+                ExpiresAt = expiresAt,
+            });
 
-        return new PresignRequestDTO
-        {
-            Url = _s3.GetPreSignedURL(request),
-            MediaId = mediaId,
-            ThumbnailUploadUrl = _s3.GetPreSignedURL(thumbRequest)
-        };
-    }
-
-    public List<PresignRequestDTO> GetPresignedUrls(int count)
-    {
-        if (count < 1) count = 1;
-        if (count > 20) count = 20;
-
-        var results = new List<PresignRequestDTO>(count);
-        for (int i = 0; i < count; i++)
-        {
-            results.Add(GetPresignedUrl());
+            results.Add(new PresignRequestDTO
+            {
+                Url = _s3.GetPreSignedURL(new GetPreSignedUrlRequest
+                {
+                    BucketName = bucket,
+                    Key = mediaId.ToString(),
+                    Verb = HttpVerb.PUT,
+                    Expires = expiresAt,
+                    ContentType = "application/octet-stream",
+                }),
+                MediaId = mediaId.ToString(),
+                ThumbnailUploadUrl = _s3.GetPreSignedURL(new GetPreSignedUrlRequest
+                {
+                    BucketName = bucket,
+                    Key = $"thumb_{mediaId}",
+                    Verb = HttpVerb.PUT,
+                    Expires = expiresAt,
+                    ContentType = "image/jpeg",
+                }),
+            });
         }
+
+        await _dbContext.SaveChangesAsync();
         return results;
     }
 
     public async Task<MediaDTO> UploadCompleteAsync(MediaUploadCompleteDTO input)
     {
-        // require authenticated user so UserId can be non-nullable
-        var userId = _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? throw new Exception("Authentication required to complete upload.");
+        var userId = CurrentUserId;
 
-        if (!allowedUploadContentTypes.Contains(input.ContentType))
-            throw new Exception("Unsupported content type");
+        if (!Guid.TryParse(input.MediaId, out var mediaId))
+            throw new ValidationException("That upload reference isn't valid.");
 
-        // Trust the bucket, not the client: read the real object size so the storage quota can't be spoofed.
+        // The pending row proves this caller is the one we minted the key for. Without it, anyone who
+        // learned a pending GUID could claim someone else's uploaded object as their own media.
+        var pending = await _dbContext.PendingUploads
+            .FirstOrDefaultAsync(p => p.Id == mediaId && p.UserId == userId && !p.IsProfileAsset)
+            ?? throw new NotFoundException("That upload has already been completed, or it expired.");
+
+        var contentType = Normalize(input.ContentType);
+        if (!AllowedTypes.Contains(contentType))
+            throw new ValidationException($"'{input.ContentType}' files aren't supported.");
+
+        // Trust the bucket, not the client: read the real object size so the quota can't be spoofed.
         long actualSize;
         try
         {
@@ -133,21 +150,21 @@ public class UploadService : IUploadService
         }
         catch
         {
-            throw new Exception("Uploaded file was not found in storage.");
+            throw new NotFoundException("We couldn't find that upload in storage. Please try again.");
         }
 
         if (actualSize <= 0)
-            throw new Exception("Invalid file size.");
+            throw new ValidationException("That file appears to be empty.");
 
-        var result = await _userService.CanUserUploadAsync(userId, actualSize);
-        if (result != "Yes")
-            throw new Exception(result);
+        var quota = await _userService.CanUserUploadAsync(userId, actualSize);
+        if (quota != UserService.UploadAllowed)
+            throw new QuotaExceededException(quota);
 
         var mediaRecord = new Media
         {
-            Id = Guid.Parse(input.MediaId),
+            Id = mediaId,
             FileSize = actualSize,
-            ContentType = input.ContentType,
+            ContentType = contentType,
             UploadedAt = DateTime.UtcNow,
             UserId = userId,
             IsPublic = input.IsPublic,
@@ -156,42 +173,17 @@ public class UploadService : IUploadService
         };
 
         await _dbContext.Media.AddAsync(mediaRecord);
-        await _userService.IncreaseUsedMemoryAsync(userId, actualSize); // real bytes from storage
 
-        // Auto-link to project if ProjectId provided
+        // The key is accounted for now, so it is no longer pending and must not be swept.
+        _dbContext.PendingUploads.Remove(pending);
+
+        await _userService.IncreaseUsedMemoryAsync(userId, actualSize);
+
         if (input.ProjectId.HasValue)
-        {
-            var project = await _dbContext.Set<VimeoCopyApi.Models.Project>()
-                .Include(p => p.ProjectMedias)
-                .FirstOrDefaultAsync(p => p.Id == input.ProjectId.Value && p.UserId == userId);
-
-            if (project != null)
-            {
-                var maxSort = project.ProjectMedias.Any()
-                    ? project.ProjectMedias.Max(pm => pm.SortOrder)
-                    : -1;
-
-                _dbContext.Set<VimeoCopyAPI.Models.ProjectMedia>().Add(new VimeoCopyAPI.Models.ProjectMedia
-                {
-                    ProjectId = project.Id,
-                    MediaId = mediaRecord.Id,
-                    SortOrder = maxSort + 1,
-                });
-
-                project.UpdatedAt = DateTime.UtcNow;
-
-                // Auto-set thumbnail if project has none and media is image/video
-                if (!project.ThumbnailMediaId.HasValue &&
-                    (mediaRecord.ContentType.StartsWith("image/") || mediaRecord.ContentType.StartsWith("video/")))
-                {
-                    project.ThumbnailMediaId = mediaRecord.Id;
-                }
-            }
-        }
+            await LinkToProjectAsync(input.ProjectId.Value, userId, mediaRecord);
 
         await _dbContext.SaveChangesAsync();
 
-        // Return DTO without circular references
         return new MediaDTO
         {
             Id = mediaRecord.Id,
@@ -205,5 +197,33 @@ public class UploadService : IUploadService
             Description = mediaRecord.Description,
             FileName = mediaRecord.FileName,
         };
+    }
+
+    private async Task LinkToProjectAsync(Guid projectId, string userId, Media media)
+    {
+        var project = await _dbContext.Projects
+            .Include(p => p.ProjectMedias)
+            .FirstOrDefaultAsync(p => p.Id == projectId && p.UserId == userId);
+
+        if (project == null) return;
+
+        var maxSort = project.ProjectMedias.Count != 0
+            ? project.ProjectMedias.Max(pm => pm.SortOrder)
+            : -1;
+
+        _dbContext.ProjectMedias.Add(new ProjectMedia
+        {
+            ProjectId = project.Id,
+            MediaId = media.Id,
+            SortOrder = maxSort + 1,
+        });
+
+        project.UpdatedAt = DateTime.UtcNow;
+
+        if (!project.ThumbnailMediaId.HasValue &&
+            (media.ContentType.StartsWith("image/") || media.ContentType.StartsWith("video/")))
+        {
+            project.ThumbnailMediaId = media.Id;
+        }
     }
 }

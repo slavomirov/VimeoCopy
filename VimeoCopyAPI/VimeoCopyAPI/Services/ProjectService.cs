@@ -44,7 +44,7 @@ public class ProjectService : IProjectService
             .Include(p => p.ProjectMedias)
                 .ThenInclude(pm => pm.Media)
             .FirstOrDefaultAsync(p => p.Id == projectId && p.UserId == userId)
-            ?? throw new Exception("Project not found.");
+            ?? throw new NotFoundException("Project not found.");
 
         return MapToDetail(project);
     }
@@ -100,7 +100,7 @@ public class ProjectService : IProjectService
     {
         var project = await _db.Projects
             .FirstOrDefaultAsync(p => p.Id == projectId && p.UserId == userId)
-            ?? throw new Exception("Project not found.");
+            ?? throw new NotFoundException("Project not found.");
 
         if (dto.Title is not null)
             project.Title = dto.Title;
@@ -129,7 +129,7 @@ public class ProjectService : IProjectService
     {
         var project = await _db.Projects
             .FirstOrDefaultAsync(p => p.Id == projectId && p.UserId == userId)
-            ?? throw new Exception("Project not found.");
+            ?? throw new NotFoundException("Project not found.");
 
         _db.Projects.Remove(project);
         await _db.SaveChangesAsync();
@@ -142,7 +142,7 @@ public class ProjectService : IProjectService
         var project = await _db.Projects
             .Include(p => p.ProjectMedias)
             .FirstOrDefaultAsync(p => p.Id == projectId && p.UserId == userId)
-            ?? throw new Exception("Project not found.");
+            ?? throw new NotFoundException("Project not found.");
 
         var existingIds = project.ProjectMedias.Select(pm => pm.MediaId).ToHashSet();
         int maxSort = project.ProjectMedias.Any() ? project.ProjectMedias.Max(pm => pm.SortOrder) : -1;
@@ -177,7 +177,7 @@ public class ProjectService : IProjectService
         var project = await _db.Projects
             .Include(p => p.ProjectMedias)
             .FirstOrDefaultAsync(p => p.Id == projectId && p.UserId == userId)
-            ?? throw new Exception("Project not found.");
+            ?? throw new NotFoundException("Project not found.");
 
         var toRemove = project.ProjectMedias
             .Where(pm => dto.MediaIds.Contains(pm.MediaId))
@@ -202,7 +202,7 @@ public class ProjectService : IProjectService
         var project = await _db.Projects
             .Include(p => p.ProjectMedias)
             .FirstOrDefaultAsync(p => p.Id == projectId && p.UserId == userId)
-            ?? throw new Exception("Project not found.");
+            ?? throw new NotFoundException("Project not found.");
 
         var lookup = project.ProjectMedias.ToDictionary(pm => pm.MediaId);
 

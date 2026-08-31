@@ -24,12 +24,14 @@ public class MediaController : ControllerBase
 
     [AllowAnonymous]
     [HttpGet]
-    public async Task<IActionResult> GetAll() => Ok(await _mediaService.GetAllMediaAsync());
+    public async Task<IActionResult> GetAll([FromQuery] int skip = 0, [FromQuery] int take = 24)
+        => Ok(await _mediaService.GetAllMediaAsync(skip, take));
 
     /// <summary>Metered streaming URL — call when the viewer actually opens/plays the media. Private media is owner-only.</summary>
     [AllowAnonymous]
     [HttpGet("{id}/url")]
-    public async Task<IActionResult> GetPresignedGetUrl(string id) => Ok(await _mediaService.GetPresignedURLAsync(id));
+    public async Task<IActionResult> GetPresignedGetUrl(string id, [FromQuery] string? source = null)
+        => Ok(await _mediaService.GetPresignedURLAsync(id, source));
 
     /// <summary>Unmetered preview URL — call to render thumbnails/posters in a gallery. Private media is owner-only.</summary>
     [AllowAnonymous]

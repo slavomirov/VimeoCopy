@@ -18,8 +18,10 @@ interface PublicMedia {
   isPublic: boolean;
   description: string | null;
   hasThumbnail: boolean;
-  ownerEmail: string;
-  ownerUsername: string | null;
+  /** Presigned by the server with the list, so the grid needs no per-tile request. */
+  previewUrl: string | null;
+  thumbnailUrl: string | null;
+  ownerDisplayName: string;
   ownerHandle: string | null;
   projectId: string | null;
   projectTitle: string | null;
@@ -39,6 +41,21 @@ interface ProjectGroup {
 
 type FilterMode = "all" | "standalone" | "projects";
 
+const PAGE_SIZE = 24;
+
+/** Preview URLs now arrive with the list; these just reshape them into the lookup the grid uses. */
+function urlMapFrom(page: PublicMedia[]) {
+  return Object.fromEntries(
+    page.filter(m => m.previewUrl).map(m => [m.id, m.previewUrl!])
+  ) as Record<string, string>;
+}
+
+function thumbMapFrom(page: PublicMedia[]) {
+  return Object.fromEntries(
+    page.filter(m => m.thumbnailUrl).map(m => [m.id, m.thumbnailUrl!])
+  ) as Record<string, string>;
+}
+
 /* ── Main Component ────────────────────────── */
 
 export function Videos() {
@@ -51,40 +68,50 @@ export function Videos() {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedProject, setExpandedProject] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const { authFetch } = useAuth();
 
-  // Load media list
+  // Load media list. The response is a page, and each item already carries its presigned preview
+  // URL — the grid used to fire one sequential request per tile, so 200 items meant 200 round
+  // trips before a single thumbnail appeared.
   useEffect(() => {
     async function load() {
-      const res = await authFetch(`${API_BASE_URL}/api/media`);
+      const res = await authFetch(`${API_BASE_URL}/api/media?take=${PAGE_SIZE}`);
+      if (!res.ok) {
+        setLoaded(true);
+        return;
+      }
+
       const data = await res.json();
-      setItems(data);
+      const page: PublicMedia[] = data.items ?? [];
+
+      setItems(page);
+      setHasMore(Boolean(data.hasMore));
+      setUrls(urlMapFrom(page));
+      setThumbnailUrls(thumbMapFrom(page));
       setLoaded(true);
     }
     load();
   }, [authFetch]);
 
-  // Load URLs for visible media items
-  const loadUrlsForMedia = useCallback(async (mediaList: PublicMedia[]) => {
-    const newUrls: Record<string, string> = {};
-    const newThumbs: Record<string, string> = {};
+  const loadMore = useCallback(async () => {
+    setLoadingMore(true);
+    try {
+      const res = await authFetch(`${API_BASE_URL}/api/media?skip=${items.length}&take=${PAGE_SIZE}`);
+      if (!res.ok) return;
 
-    for (const m of mediaList) {
-      if (urls[m.id]) continue;
-      try {
-        // Preview is unmetered — browsing the grid must not charge the owner's bandwidth.
-        const res = await authFetch(`${API_BASE_URL}/api/media/${m.id}/preview`);
-        const data = await res.json();
-        newUrls[m.id] = data.url;
-        if (data.thumbnailUrl) {
-          newThumbs[m.id] = data.thumbnailUrl;
-        }
-      } catch { /* skip */ }
+      const data = await res.json();
+      const page: PublicMedia[] = data.items ?? [];
+
+      setItems(prev => [...prev, ...page]);
+      setHasMore(Boolean(data.hasMore));
+      setUrls(prev => ({ ...prev, ...urlMapFrom(page) }));
+      setThumbnailUrls(prev => ({ ...prev, ...thumbMapFrom(page) }));
+    } finally {
+      setLoadingMore(false);
     }
-
-    if (Object.keys(newUrls).length > 0) setUrls(prev => ({ ...prev, ...newUrls }));
-    if (Object.keys(newThumbs).length > 0) setThumbnailUrls(prev => ({ ...prev, ...newThumbs }));
-  }, [authFetch, urls]);
+  }, [authFetch, items.length]);
 
   // Opening the player is the metered action — fetch the real (charged) streaming URL here.
   const openMedia = useCallback(async (m: PublicMedia) => {
@@ -99,12 +126,8 @@ export function Videos() {
     } catch { /* keep optimistic url */ }
   }, [authFetch, urls]);
 
-  useEffect(() => {
-    if (items.length > 0) loadUrlsForMedia(items);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items]);
-
-  // Also load project thumbnail URLs
+  // Project cover art whose media isn't itself on this page still needs a URL. This is the only
+  // remaining per-item fetch, it runs for a handful of covers at most, and it runs in parallel.
   useEffect(() => {
     const thumbMediaIds = items
       .filter(m => m.projectThumbnailMediaId && !urls[m.projectThumbnailMediaId])
@@ -113,21 +136,32 @@ export function Videos() {
 
     if (thumbMediaIds.length === 0) return;
 
-    async function loadProjectThumbs() {
-      const newUrls: Record<string, string> = {};
-      for (const id of thumbMediaIds) {
-        try {
-          const res = await authFetch(`${API_BASE_URL}/api/media/${id}/preview`);
-          const data = await res.json();
-          newUrls[id] = data.thumbnailUrl || data.url;
-        } catch { /* skip */ }
-      }
+    let cancelled = false;
+
+    (async () => {
+      const results = await Promise.all(
+        thumbMediaIds.map(async id => {
+          try {
+            const res = await authFetch(`${API_BASE_URL}/api/media/${id}/preview`, { silent: true });
+            if (!res.ok) return null;
+            const data = await res.json();
+            return [id, data.thumbnailUrl || data.url] as const;
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      if (cancelled) return;
+
+      const newUrls = Object.fromEntries(results.filter(r => r !== null)) as Record<string, string>;
       if (Object.keys(newUrls).length > 0) {
         setUrls(prev => ({ ...prev, ...newUrls }));
         setThumbnailUrls(prev => ({ ...prev, ...newUrls }));
       }
-    }
-    loadProjectThumbs();
+    })();
+
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items]);
 
@@ -143,8 +177,8 @@ export function Videos() {
     const matchesSearch = !q ||
       (m.fileName?.toLowerCase().includes(q)) ||
       (m.description?.toLowerCase().includes(q)) ||
-      (m.ownerUsername?.toLowerCase().includes(q)) ||
-      (m.ownerEmail.toLowerCase().includes(q)) ||
+      (m.ownerDisplayName?.toLowerCase().includes(q)) ||
+      (m.ownerHandle?.toLowerCase().includes(q)) ||
       (m.projectTitle?.toLowerCase().includes(q));
 
     if (!matchesSearch) continue;
@@ -306,6 +340,14 @@ export function Videos() {
               <p className="text-muted">No results match your search.</p>
             </div>
           )}
+
+          {hasMore && (
+            <div style={{ textAlign: "center", marginTop: "var(--space-8)" }}>
+              <button type="button" className="btn-outline" onClick={loadMore} disabled={loadingMore}>
+                {loadingMore ? "Loading…" : "Load more"}
+              </button>
+            </div>
+          )}
         </>
       )}
 
@@ -315,8 +357,8 @@ export function Videos() {
             fileName: selected.fileName,
             contentType: selected.contentType,
             description: selected.description,
-            ownerName: selected.ownerUsername || selected.ownerEmail.split("@")[0],
-            ownerInitial: (selected.ownerUsername || selected.ownerEmail).charAt(0).toUpperCase(),
+            ownerName: selected.ownerDisplayName,
+            ownerInitial: selected.ownerDisplayName.charAt(0).toUpperCase(),
             projectTitle: selected.projectTitle,
           }}
           url={playerUrl}
@@ -479,22 +521,22 @@ function GalleryMediaItem({
             className="media-gallery-owner"
             onClick={(e) => e.stopPropagation()}
             style={{ textDecoration: "none", color: "inherit" }}
-            title={`View ${media.ownerUsername || media.ownerHandle}'s profile`}
+            title={`View ${media.ownerDisplayName}'s profile`}
           >
             <div className="media-owner-avatar">
-              {(media.ownerUsername || media.ownerEmail).charAt(0).toUpperCase()}
+              {media.ownerDisplayName.charAt(0).toUpperCase()}
             </div>
             <span className="media-owner-name">
-              {media.ownerUsername || media.ownerEmail.split("@")[0]}
+              {media.ownerDisplayName}
             </span>
           </Link>
         ) : (
           <div className="media-gallery-owner">
             <div className="media-owner-avatar">
-              {(media.ownerUsername || media.ownerEmail).charAt(0).toUpperCase()}
+              {media.ownerDisplayName.charAt(0).toUpperCase()}
             </div>
             <span className="media-owner-name">
-              {media.ownerUsername || media.ownerEmail.split("@")[0]}
+              {media.ownerDisplayName}
             </span>
           </div>
         )}

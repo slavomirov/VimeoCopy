@@ -16,11 +16,11 @@ public class AnalyticsController : ControllerBase
 
     /// <summary>Audience overview for the signed-in creator.</summary>
     [HttpGet("audience")]
-    public async Task<IActionResult> Audience()
+    public async Task<IActionResult> Audience([FromQuery] int days = 30)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? throw new UnauthorizedAccessException("User not authenticated.");
 
-        return Ok(await _analytics.GetAudienceOverviewAsync(userId));
+        return Ok(await _analytics.GetAudienceOverviewAsync(userId, days));
     }
 }

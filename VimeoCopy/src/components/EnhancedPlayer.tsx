@@ -518,7 +518,7 @@ export function EnhancedPlayer({
       onMouseEnter={() => setShowVolume(true)}
       onMouseLeave={() => setShowVolume(false)}
     >
-      <button className="vp-btn" onClick={toggleMute} title={muted ? "Unmute (m)" : "Mute (m)"}>
+      <button className="vp-btn" onClick={toggleMute} aria-label={muted ? "Unmute (m)" : "Mute (m)"} title={muted ? "Unmute (m)" : "Mute (m)"}>
         <VolumeIcon size={iconSize} />
       </button>
       <div className={`vp-volume-slider-wrap ${showVolume ? "visible" : ""}`}>
@@ -561,7 +561,7 @@ export function EnhancedPlayer({
   return (
     <div className="vp-overlay" ref={overlayRef} onClick={onClose}>
       {/* Close button */}
-      <button className="vp-close" onClick={(e) => { e.stopPropagation(); onClose(); }} title="Close (Esc)">
+      <button className="vp-close" onClick={(e) => { e.stopPropagation(); onClose(); }} aria-label="Close (Esc)" title="Close (Esc)">
         <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
           <line x1="18" y1="6" x2="6" y2="18" />
           <line x1="6" y1="6" x2="18" y2="18" />
@@ -633,7 +633,7 @@ export function EnhancedPlayer({
               onError={handleMediaError}
             />
             <div className="vp-controls visible" onClick={(e) => e.stopPropagation()}>
-              <button className="vp-btn" onClick={togglePlay} title={playing ? "Pause" : "Play"}>
+              <button className="vp-btn" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"} title={playing ? "Pause" : "Play"}>
                 {playing ? (
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
                 ) : (
@@ -682,7 +682,7 @@ export function EnhancedPlayer({
               <div className="vp-controls-row">
                 {/* Left */}
                 <div className="vp-controls-left">
-                  <button className="vp-btn" onClick={togglePlay} title={playing ? "Pause (k)" : "Play (k)"}>
+                  <button className="vp-btn" onClick={togglePlay} aria-label={playing ? "Pause (k)" : "Play (k)"} title={playing ? "Pause (k)" : "Play (k)"}>
                     {playing ? (
                       <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
                     ) : (
@@ -704,6 +704,7 @@ export function EnhancedPlayer({
                     <button
                       className="vp-btn vp-speed-btn"
                       onClick={() => setShowSpeedMenu(!showSpeedMenu)}
+                      aria-label="Playback speed"
                       title="Playback speed"
                     >
                       {playbackSpeed}x
@@ -729,6 +730,7 @@ export function EnhancedPlayer({
                       <button
                         className={`vp-btn vp-cast-btn ${isCasting ? "casting" : ""}`}
                         onClick={handleCast}
+                        aria-label={isCasting ? "Casting…" : "Cast to TV"}
                         title={isCasting ? "Casting…" : "Cast to TV"}
                       >
                         <svg width="20" height="20" viewBox="0 0 24 24" fill={isCasting ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
@@ -746,7 +748,7 @@ export function EnhancedPlayer({
                   )}
 
                   {/* Fullscreen */}
-                  <button className="vp-btn" onClick={toggleFullscreen} title="Fullscreen (f)">
+                  <button className="vp-btn" onClick={toggleFullscreen} aria-label="Fullscreen (f)" title="Fullscreen (f)">
                     {isFullscreen ? (
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" /></svg>
                     ) : (

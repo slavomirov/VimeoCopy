@@ -5,6 +5,7 @@ using Amazon.S3.Model;
 using Microsoft.EntityFrameworkCore;
 using VimeoCopyApi.Data;
 using VimeoCopyApi.Models;
+using VimeoCopyAPI.Models;
 using VimeoCopyAPI.Models.DTOs;
 using VimeoCopyAPI.Services.Interfaces;
 
@@ -137,20 +138,37 @@ public partial class ProfileService : IProfileService
             .Select(u => new { u.Id, u.Handle, u.DisplayName, u.AvatarMediaId })
             .ToListAsync();
 
-        var results = new List<ProfileSearchResultDTO>();
-        foreach (var u in users)
+        // Two queries for the whole page instead of two per row: this loop used to issue a count and
+        // an avatar lookup for each of 24 users — 49 round trips for one search.
+        var userIds = users.Select(u => u.Id).ToList();
+
+        var workCounts = await _db.Media.AsNoTracking()
+            .Where(m => userIds.Contains(m.UserId) && m.IsPublic && !m.IsProfileAsset)
+            .GroupBy(m => m.UserId)
+            .Select(g => new { UserId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.UserId, x => x.Count);
+
+        var avatarIds = users.Where(u => u.AvatarMediaId.HasValue).Select(u => u.AvatarMediaId!.Value).ToList();
+        var avatars = await _db.Media.AsNoTracking()
+            .Where(m => avatarIds.Contains(m.Id))
+            .Select(m => new { m.Id, m.UserId, m.ContentType })
+            .ToListAsync();
+
+        return users.Select(u =>
         {
-            var workCount = await _db.Media.CountAsync(m => m.UserId == u.Id && m.IsPublic && !m.IsProfileAsset);
-            results.Add(new ProfileSearchResultDTO
+            // Presign only an image the user actually owns — same rule as PresignOwnedMediaAsync.
+            var avatar = u.AvatarMediaId.HasValue
+                ? avatars.FirstOrDefault(a => a.Id == u.AvatarMediaId.Value && a.UserId == u.Id && IsImage(a.ContentType))
+                : null;
+
+            return new ProfileSearchResultDTO
             {
                 Handle = u.Handle!,
                 DisplayName = string.IsNullOrWhiteSpace(u.DisplayName) ? u.Handle! : u.DisplayName!,
-                AvatarUrl = await PresignOwnedMediaAsync(u.Id, u.AvatarMediaId),
-                WorkCount = workCount,
-            });
-        }
-
-        return results;
+                AvatarUrl = avatar == null ? null : PresignKey(avatar.Id.ToString()),
+                WorkCount = workCounts.GetValueOrDefault(u.Id, 0),
+            };
+        }).ToList();
     }
 
     public async Task<MyProfileDTO?> GetMyProfileAsync(string userId)
@@ -178,27 +196,33 @@ public partial class ProfileService : IProfileService
     public async Task UpdateProfileAsync(string userId, UpdateProfileDTO dto)
     {
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId)
-            ?? throw new Exception("User not found");
+            ?? throw new NotFoundException("User not found.");
 
-        if (!string.IsNullOrWhiteSpace(dto.Handle))
+        // A handle is the user's public identity: every /u/<handle> link, and their place in search,
+        // depends on it. Absence must therefore mean "unchanged", never "delete". Only an explicit
+        // empty string clears it — an omitted field used to silently destroy the profile URL.
+        if (dto.Handle is not null)
         {
             var handle = dto.Handle.Trim().ToLowerInvariant();
-            if (!HandleRegex().IsMatch(handle))
-                throw new Exception("Handle must be 3–30 characters using only lowercase letters, numbers, '-' or '_'.");
 
-            if (ReservedHandles.Contains(handle))
-                throw new Exception("That handle is reserved. Please choose another.");
+            if (handle.Length == 0)
+            {
+                user.Handle = null;
+            }
+            else
+            {
+                if (!HandleRegex().IsMatch(handle))
+                    throw new ValidationException("Handle must be 3–30 characters using only lowercase letters, numbers, '-' or '_'.");
 
-            var taken = await _db.Users.AnyAsync(u => u.Handle == handle && u.Id != userId);
-            if (taken)
-                throw new Exception("That handle is already taken.");
+                if (ReservedHandles.Contains(handle))
+                    throw new ValidationException("That handle is reserved. Please choose another.");
 
-            user.Handle = handle;
-        }
-        else
-        {
-            // Empty handle clears the public profile.
-            user.Handle = null;
+                var taken = await _db.Users.AnyAsync(u => u.Handle == handle && u.Id != userId);
+                if (taken)
+                    throw new ValidationException("That handle is already taken.");
+
+                user.Handle = handle;
+            }
         }
 
         user.DisplayName = Trim(dto.DisplayName, 60);
@@ -227,7 +251,7 @@ public partial class ProfileService : IProfileService
     public async Task UpdateBannerOffsetAsync(string userId, int bannerOffsetY)
     {
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId)
-            ?? throw new Exception("User not found");
+            ?? throw new NotFoundException("User not found.");
 
         user.BannerOffsetY = Math.Clamp(bannerOffsetY, 0, 100);
         await _db.SaveChangesAsync();
@@ -237,7 +261,7 @@ public partial class ProfileService : IProfileService
     {
         var type = (contentType ?? string.Empty).Trim().ToLowerInvariant();
         if (!AllowedProfileImageTypes.Contains(type))
-            throw new Exception("A profile image must be a JPEG, PNG or WebP.");
+            throw new ValidationException("A profile image must be a JPEG, PNG or WebP.");
 
         var mediaId = Guid.NewGuid();
 
@@ -257,17 +281,17 @@ public partial class ProfileService : IProfileService
     {
         var kind = (dto.Kind ?? string.Empty).Trim().ToLowerInvariant();
         if (kind is not ("avatar" or "banner"))
-            throw new Exception("Profile image kind must be 'avatar' or 'banner'.");
+            throw new ValidationException("Profile image kind must be 'avatar' or 'banner'.");
 
         var contentType = (dto.ContentType ?? string.Empty).Trim().ToLowerInvariant();
         if (!AllowedProfileImageTypes.Contains(contentType))
-            throw new Exception("A profile image must be a JPEG, PNG or WebP.");
+            throw new ValidationException("A profile image must be a JPEG, PNG or WebP.");
 
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId)
-            ?? throw new Exception("User not found");
+            ?? throw new NotFoundException("User not found.");
 
         if (await _db.Media.AnyAsync(m => m.Id == dto.MediaId))
-            throw new Exception("That upload has already been confirmed.");
+            throw new ValidationException("That upload has already been confirmed.");
 
         // Trust the bucket, not the client, for the size — the same rule the media upload path uses.
         long actualSize;
@@ -278,15 +302,15 @@ public partial class ProfileService : IProfileService
         }
         catch
         {
-            throw new Exception("The uploaded image was not found in storage.");
+            throw new NotFoundException("The uploaded image was not found in storage.");
         }
 
         if (actualSize <= 0 || actualSize > MaxProfileImageBytes)
-            throw new Exception($"A profile image must be no larger than {MaxProfileImageBytes / (1024 * 1024)} MB.");
+            throw new ValidationException($"A profile image must be no larger than {MaxProfileImageBytes / (1024 * 1024)} MB.");
 
         var quota = await _userService.CanUserUploadAsync(userId, actualSize);
         if (quota != "Yes")
-            throw new Exception(quota);
+            throw new QuotaExceededException(quota);
 
         var media = new Media
         {
@@ -379,7 +403,7 @@ public partial class ProfileService : IProfileService
         if (contentType == null) return null;
 
         if (!IsImage(contentType))
-            throw new Exception("Your avatar and banner have to be images — videos and audio can't be used.");
+            throw new ValidationException("Your avatar and banner have to be images — videos and audio can't be used.");
 
         return mediaId;
     }
@@ -447,8 +471,8 @@ public partial class ProfileService : IProfileService
 
         JsonElement root;
         try { root = JsonDocument.Parse(json).RootElement; }
-        catch { throw new Exception("Invalid theme."); }
-        if (root.ValueKind != JsonValueKind.Object) throw new Exception("Invalid theme.");
+        catch { throw new ValidationException("Invalid theme."); }
+        if (root.ValueKind != JsonValueKind.Object) throw new ValidationException("Invalid theme.");
 
         var clean = new Dictionary<string, string>();
 
@@ -458,7 +482,7 @@ public partial class ProfileService : IProfileService
                 HexColorRegex().IsMatch(v.GetString()!))
                 clean[key] = v.GetString()!;
             else
-                throw new Exception($"Theme color '{key}' must be a hex value.");
+                throw new ValidationException($"Theme color '{key}' must be a hex value.");
         }
 
         foreach (var key in new[] { "headingFont", "bodyFont" })
@@ -467,20 +491,20 @@ public partial class ProfileService : IProfileService
                 AllowedFonts.Contains(v.GetString()!))
                 clean[key] = v.GetString()!;
             else
-                throw new Exception($"Theme font '{key}' is not allowed.");
+                throw new ValidationException($"Theme font '{key}' is not allowed.");
         }
 
         if (root.TryGetProperty("radius", out var r) && r.ValueKind == JsonValueKind.String &&
             r.GetString() is "sharp" or "soft" or "round")
             clean["radius"] = r.GetString()!;
         else
-            throw new Exception("Invalid theme radius.");
+            throw new ValidationException("Invalid theme radius.");
 
         if (root.TryGetProperty("backgroundKind", out var b) && b.ValueKind == JsonValueKind.String &&
             b.GetString() is "solid" or "banner")
             clean["backgroundKind"] = b.GetString()!;
         else
-            throw new Exception("Invalid theme background.");
+            throw new ValidationException("Invalid theme background.");
 
         if (root.TryGetProperty("preset", out var p) && p.ValueKind == JsonValueKind.String &&
             p.GetString()!.Length <= 40)

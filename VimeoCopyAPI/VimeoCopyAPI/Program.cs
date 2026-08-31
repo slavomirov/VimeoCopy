@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Text;
 using System.Threading.RateLimiting;
@@ -21,14 +22,52 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Rate limiting — throttle abuse-prone endpoints (registration floods, credential stuffing).
+// Behind a proxy or CDN every request arrives from the same address unless the forwarded headers
+// are honoured. Without this the rate limiter partitions the entire world into one bucket, and
+// anonymous view de-duplication collapses every viewer into a single hashed key.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 1;
+
+    // Only trust proxies we name. Accepting X-Forwarded-For from anywhere would let any caller
+    // spoof their address and walk straight around the limiter.
+    options.KnownProxies.Clear();
+    options.KnownNetworks.Clear();
+
+    foreach (var proxy in builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? [])
+    {
+        if (System.Net.IPAddress.TryParse(proxy, out var ip))
+            options.KnownProxies.Add(ip);
+    }
+});
+
+// Rate limiting — throttle abuse-prone endpoints (registration floods, credential stuffing) and
+// keep a global floor under everything else.
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    // Partition per user when we know who they are, so one noisy account can't spend the budget
+    // of everyone sharing its address (offices, mobile carriers, NAT).
+    static string ClientKey(HttpContext ctx)
+        => ctx.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+           ?? ctx.Connection.RemoteIpAddress?.ToString()
+           ?? "unknown";
+
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(ClientKey(httpContext),
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = 240, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+
     options.AddPolicy("auth", httpContext =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        RateLimitPartition.GetFixedWindowLimiter(ClientKey(httpContext),
             _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+
+    // Minting presigned URLs is the denial-of-wallet surface: each one is storage we pay for, or
+    // egress charged to a creator's plan.
+    options.AddPolicy("presign", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(ClientKey(httpContext),
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 
 // AWS S3 storage config
@@ -83,7 +122,13 @@ builder.Services.AddCors(options =>
     });
 });
 
+// Fail at startup, not at the first sign-in attempt. A missing key used to surface as a bare
+// NullReferenceException, and a too-short one only broke when someone tried to log in.
 var key = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrWhiteSpace(key))
+    throw new InvalidOperationException("Jwt:Key is not configured. Set it before starting the API.");
+if (Encoding.UTF8.GetByteCount(key) < 32)
+    throw new InvalidOperationException("Jwt:Key must be at least 32 bytes for HMAC-SHA256.");
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -102,7 +147,9 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         ValidIssuer = builder.Configuration["Jwt:Issuer"],
         ValidAudience = builder.Configuration["Jwt:Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key))
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)),
+        // Default skew is 5 minutes, which quietly stretches a 15-minute token to 20.
+        ClockSkew = TimeSpan.FromSeconds(30)
     };
 });
 
@@ -125,11 +172,13 @@ builder.Services.AddOptions<StripeOptions>().Bind(builder.Configuration.GetSecti
 
 var app = builder.Build();
 
-//Automatic migrations
-//remove on production
-using (var scope = app.Services.CreateScope())
+// Development convenience only. In production, schema changes are applied as an explicit deploy
+// step — migrating on boot lets any starting instance rewrite the schema, and several instances
+// can race the same migration.
+if (app.Environment.IsDevelopment())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    using var migrationScope = app.Services.CreateScope();
+    var db = migrationScope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
 }
 
@@ -154,6 +203,10 @@ using (var scope = app.Services.CreateScope())
         }
     }
 }
+
+// Must run before anything that reads the client's address — the rate limiter and the bandwidth
+// de-duplication both do.
+app.UseForwardedHeaders();
 
 // Enforce HTTPS + HSTS outside development (dev may run plain http).
 if (!app.Environment.IsDevelopment())

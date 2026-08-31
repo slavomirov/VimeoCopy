@@ -1,10 +1,10 @@
 ﻿using Amazon.S3;
 using Amazon.S3.Model;
 using Microsoft.EntityFrameworkCore;
-using System.Net.Sockets;
 using System.Security.Claims;
 using VimeoCopyApi.Data;
 using VimeoCopyApi.Models;
+using VimeoCopyAPI.Models;
 using VimeoCopyAPI.Models.DTOs;
 using VimeoCopyAPI.Services.Interfaces;
 
@@ -31,13 +31,26 @@ public class MediaService : IMediaService
         _bandwidthService = bandwidthService;
     }
 
-    public async Task<IEnumerable<PublicMediaDTO>> GetAllMediaAsync()
+    /// <summary>Default page size for the public gallery.</summary>
+    public const int DefaultPageSize = 24;
+    public const int MaxPageSize = 100;
+
+    public async Task<PagedResultDTO<PublicMediaDTO>> GetAllMediaAsync(int skip = 0, int take = DefaultPageSize)
     {
-        // Get all public media that owners want shown on the media page
-        var mediaList = await _dbContext.Media
+        skip = Math.Max(0, skip);
+        take = Math.Clamp(take, 1, MaxPageSize);
+
+        var query = _dbContext.Media
+            .Where(m => m.IsPublic && m.ShowOnMediaPage && !m.IsProfileAsset);
+
+        var total = await query.CountAsync();
+
+        // Paged: the gallery used to load every public row in the database on every visit.
+        var mediaList = await query
             .Include(m => m.User)
-            .Where(m => m.IsPublic && m.ShowOnMediaPage && !m.IsProfileAsset)
             .OrderByDescending(m => m.UploadedAt)
+            .Skip(skip)
+            .Take(take)
             .ToListAsync();
 
         // Get all project-media associations in one query
@@ -55,7 +68,7 @@ public class MediaService : IMediaService
             .GroupBy(pm => pm.ProjectId)
             .ToDictionaryAsync(g => g.Key, g => g.Count());
 
-        return mediaList.Select(m =>
+        var items = mediaList.Select(m =>
         {
             var dto = new PublicMediaDTO
             {
@@ -68,9 +81,11 @@ public class MediaService : IMediaService
                 IsPublic = m.IsPublic,
                 Description = m.Description,
                 HasThumbnail = !string.IsNullOrEmpty(m.ThumbnailUrl),
-                OwnerEmail = m.User?.Email ?? "Unknown",
-                OwnerUsername = m.User?.UserName,
+                // Presigning here removes one HTTP round trip per tile.
+                PreviewUrl = PresignKey(m.Id.ToString()),
+                ThumbnailUrl = string.IsNullOrEmpty(m.ThumbnailUrl) ? null : PresignKey(m.ThumbnailUrl),
                 OwnerHandle = m.User?.Handle,
+                OwnerDisplayName = PublicNameFor(m.User),
             };
 
             if (projectMediaMap.TryGetValue(m.Id, out var project))
@@ -83,7 +98,27 @@ public class MediaService : IMediaService
             }
 
             return dto;
-        });
+        }).ToList();
+
+        return new PagedResultDTO<PublicMediaDTO>
+        {
+            Items = items,
+            Total = total,
+            Skip = skip,
+            Take = take,
+        };
+    }
+
+    /// <summary>
+    /// The name a stranger may see. Falls back through the public identity fields and stops at
+    /// "Anonymous" — never the email address, which is what this endpoint used to expose.
+    /// </summary>
+    private static string PublicNameFor(ApplicationUser? user)
+    {
+        if (user == null) return "Anonymous";
+        if (!string.IsNullOrWhiteSpace(user.DisplayName)) return user.DisplayName!;
+        if (!string.IsNullOrWhiteSpace(user.Handle)) return user.Handle!;
+        return "Anonymous";
     }
 
     public async Task<IEnumerable<Media>> GetUserMediaAsync(string userId)
@@ -92,15 +127,38 @@ public class MediaService : IMediaService
             .OrderByDescending(m => m.UploadedAt)
             .ToListAsync();
 
-    public async Task<Media?> GetMediaByIdAsync(string mediaId) => await _dbContext.Media.FirstOrDefaultAsync(x => x.Id.ToString() == mediaId);
+    /// <summary>
+    /// Parses the id up front so lookups compare Guid to Guid. Comparing `m.Id.ToString() == id`
+    /// makes SQL Server CAST the primary key on every row, which rules out the index and turns the
+    /// hottest query in the app into a table scan.
+    /// </summary>
+    private static Guid ParseMediaId(string mediaId)
+        => Guid.TryParse(mediaId, out var id)
+            ? id
+            : throw new NotFoundException("Media not found.");
+
+    public async Task<Media?> GetMediaByIdAsync(string mediaId)
+    {
+        if (!Guid.TryParse(mediaId, out var id)) return null;
+        return await _dbContext.Media.FirstOrDefaultAsync(m => m.Id == id);
+    }
+
+    /// <summary>Loads media the caller owns, or throws. Every mutation funnels through here.</summary>
+    private async Task<Media> GetOwnedMediaAsync(string mediaId, string userId)
+    {
+        var id = ParseMediaId(mediaId);
+        var media = await _dbContext.Media.FirstOrDefaultAsync(m => m.Id == id)
+            ?? throw new NotFoundException("Media not found.");
+
+        if (media.UserId != userId)
+            throw new ForbiddenException("You don't have permission to change this media.");
+
+        return media;
+    }
 
     public async Task ToggleVisibilityAsync(string mediaId, string userId)
     {
-        var media = await _dbContext.Media.FirstOrDefaultAsync(m => m.Id.ToString() == mediaId)
-            ?? throw new Exception("Media not found!");
-
-        if (media.UserId != userId)
-            throw new UnauthorizedAccessException("You don't have permission to change visibility of this media.");
+        var media = await GetOwnedMediaAsync(mediaId, userId);
 
         media.IsPublic = !media.IsPublic;
         await _dbContext.SaveChangesAsync();
@@ -108,11 +166,7 @@ public class MediaService : IMediaService
 
     public async Task UpdateMediaDetailsAsync(string mediaId, string userId, UpdateMediaDetailsDTO dto)
     {
-        var media = await _dbContext.Media.FirstOrDefaultAsync(m => m.Id.ToString() == mediaId)
-            ?? throw new Exception("Media not found!");
-
-        if (media.UserId != userId)
-            throw new UnauthorizedAccessException("You don't have permission to update this media.");
+        var media = await GetOwnedMediaAsync(mediaId, userId);
 
         if (dto.Description is not null)
             media.Description = dto.Description;
@@ -127,17 +181,29 @@ public class MediaService : IMediaService
     /// Returns a presigned URL for actually streaming the media. This is the metered path —
     /// it charges the owner's bandwidth. Call it only when the viewer opens/plays the media.
     /// </summary>
-    public async Task<GetPresignedURLDTO> GetPresignedURLAsync(string mediaId)
+    public async Task<GetPresignedURLDTO> GetPresignedURLAsync(string mediaId, string? source = null)
     {
-        var media = await GetMediaByIdAsync(mediaId) ?? throw new Exception("Media with this id not found!");
+        var media = await GetMediaByIdAsync(mediaId) ?? throw new NotFoundException("Media not found.");
         EnsureViewable(media);
 
-        var source = media.IsPublic ? VimeoCopyAPI.Models.BandwidthSource.Public : VimeoCopyAPI.Models.BandwidthSource.Owner;
-        var allowed = await _bandwidthService.TrackPresignAsync(media, source);
+        var allowed = await _bandwidthService.TrackPresignAsync(media, ResolveSource(media, source));
         if (!allowed)
-            throw new Exception("This media's owner has exceeded their monthly bandwidth allowance.");
+            throw new QuotaExceededException("This media's owner has exceeded their monthly bandwidth allowance.");
 
         return BuildPresignedDto(media);
+    }
+
+    /// <summary>
+    /// Attributes the view. The caller may declare "embed" (the iframe player does); everything else
+    /// is inferred. Without this, embed playback was recorded as an ordinary public view and the
+    /// Embed source never appeared in anyone's audience breakdown.
+    /// </summary>
+    private static BandwidthSource ResolveSource(Media media, string? declared)
+    {
+        if (string.Equals(declared, "embed", StringComparison.OrdinalIgnoreCase) && media.IsPublic)
+            return BandwidthSource.Embed;
+
+        return media.IsPublic ? BandwidthSource.Public : BandwidthSource.Owner;
     }
 
     /// <summary>
@@ -146,7 +212,7 @@ public class MediaService : IMediaService
     /// </summary>
     public async Task<GetPresignedURLDTO> GetPreviewURLAsync(string mediaId)
     {
-        var media = await GetMediaByIdAsync(mediaId) ?? throw new Exception("Media with this id not found!");
+        var media = await GetMediaByIdAsync(mediaId) ?? throw new NotFoundException("Media not found.");
         EnsureViewable(media);
         return BuildPresignedDto(media);
     }
@@ -161,54 +227,39 @@ public class MediaService : IMediaService
     }
 
     private GetPresignedURLDTO BuildPresignedDto(Media media)
-    {
-        var url = _s3.GetPreSignedURL(new GetPreSignedUrlRequest
+        => new()
+        {
+            Url = PresignKey(media.Id.ToString()),
+            ContentType = media.ContentType,
+            ThumbnailUrl = string.IsNullOrEmpty(media.ThumbnailUrl) ? null : PresignKey(media.ThumbnailUrl),
+        };
+
+    /// <summary>Read-only presigned GET for a storage key.</summary>
+    private string PresignKey(string key)
+        => _s3.GetPreSignedURL(new GetPreSignedUrlRequest
         {
             BucketName = bucket,
-            Key = media.Id.ToString(),
+            Key = key,
             Verb = HttpVerb.GET,
             Expires = DateTime.UtcNow.AddMinutes(15)
         });
 
-        string? thumbnailUrl = null;
-        if (!string.IsNullOrEmpty(media.ThumbnailUrl))
-        {
-            thumbnailUrl = _s3.GetPreSignedURL(new GetPreSignedUrlRequest
-            {
-                BucketName = bucket,
-                Key = media.ThumbnailUrl,
-                Verb = HttpVerb.GET,
-                Expires = DateTime.UtcNow.AddMinutes(15)
-            });
-        }
-
-        return new() { Url = url, ContentType = media.ContentType, ThumbnailUrl = thumbnailUrl };
-    }
-
     public async Task DeleteMediaAsync(string mediaId)
     {
-        var userId = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
+        var userId = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
             ?? throw new UnauthorizedAccessException("User not authenticated!");
 
-        var media = await _dbContext.Media
-            .FirstOrDefaultAsync(m => m.Id.ToString() == mediaId)
-            ?? throw new Exception("Media not found!");
+        var media = await GetOwnedMediaAsync(mediaId, userId);
 
-        if (media.UserId.ToString() != userId)
-            throw new UnauthorizedAccessException("You don't have permission to delete this media.");
-
-        await _userService.DecreaseUsedMemoryAsync(userId, media.FileSize); // bytes (matches upload accounting)
-        _dbContext.Remove(media);
-        await _dbContext.SaveChangesAsync();
-     
-        // Delete original file from S3
+        // Storage first, database second. The row is the only record of the key, so committing the
+        // delete before the object is gone strands it in the bucket with nothing pointing at it.
+        // Failing here leaves everything consistent and the operation safe to retry.
         await _s3.DeleteObjectAsync(new DeleteObjectRequest
         {
             BucketName = bucket,
-            Key = mediaId
+            Key = media.Id.ToString()
         });
 
-        // Delete thumbnail from S3 if exists
         if (!string.IsNullOrEmpty(media.ThumbnailUrl))
         {
             try
@@ -219,27 +270,28 @@ public class MediaService : IMediaService
                     Key = media.ThumbnailUrl
                 });
             }
-            catch { /* thumbnail delete is best-effort */ }
+            catch { /* the original is already gone; a stray thumbnail is swept by maintenance */ }
         }
+
+        await _userService.DecreaseUsedMemoryAsync(userId, media.FileSize); // bytes (matches upload accounting)
+        _dbContext.Remove(media);
+        await _dbContext.SaveChangesAsync();
     }
+
+    /// <summary>A thumbnail is a poster frame, not a second upload slot.</summary>
+    public const long MaxThumbnailBytes = 2 * 1024 * 1024;
 
     public async Task<ThumbnailUploadResponseDTO> GetThumbnailUploadUrlAsync(string mediaId)
     {
         var userId = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
             ?? throw new UnauthorizedAccessException("User not authenticated!");
 
-        var media = await _dbContext.Media.FirstOrDefaultAsync(m => m.Id.ToString() == mediaId)
-            ?? throw new Exception("Media not found!");
-
-        if (media.UserId != userId)
-            throw new UnauthorizedAccessException("You don't have permission to change this media's thumbnail.");
-
-        var thumbKey = $"thumb_{mediaId}";
+        var media = await GetOwnedMediaAsync(mediaId, userId);
 
         var request = new GetPreSignedUrlRequest
         {
             BucketName = bucket,
-            Key = thumbKey,
+            Key = $"thumb_{media.Id}",
             Verb = HttpVerb.PUT,
             Expires = DateTime.UtcNow.AddMinutes(15),
             ContentType = "image/jpeg"
@@ -257,13 +309,54 @@ public class MediaService : IMediaService
         var userId = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
             ?? throw new UnauthorizedAccessException("User not authenticated!");
 
-        var media = await _dbContext.Media.FirstOrDefaultAsync(m => m.Id.ToString() == mediaId)
-            ?? throw new Exception("Media not found!");
+        var media = await GetOwnedMediaAsync(mediaId, userId);
+        var thumbKey = $"thumb_{media.Id}";
 
-        if (media.UserId != userId)
-            throw new UnauthorizedAccessException("You don't have permission to change this media's thumbnail.");
+        // Read the real size from the bucket. This path used to write the key without ever looking
+        // at the object, so a thumbnail could be any size and never counted against the plan.
+        long actualSize;
+        try
+        {
+            var meta = await _s3.GetObjectMetadataAsync(bucket, thumbKey);
+            actualSize = meta.ContentLength;
+        }
+        catch
+        {
+            throw new NotFoundException("We couldn't find that thumbnail in storage. Please try again.");
+        }
 
-        media.ThumbnailUrl = $"thumb_{mediaId}";
+        if (actualSize <= 0)
+            throw new ValidationException("That thumbnail appears to be empty.");
+
+        if (actualSize > MaxThumbnailBytes)
+        {
+            // Don't leave the oversized object sitting in the bucket after refusing it.
+            try { await _s3.DeleteObjectAsync(new DeleteObjectRequest { BucketName = bucket, Key = thumbKey }); }
+            catch { /* the sweeper will catch it */ }
+
+            throw new ValidationException($"A thumbnail must be no larger than {MaxThumbnailBytes / (1024 * 1024)} MB.");
+        }
+
+        // Charge only the delta — re-cropping a thumbnail replaces the object at the same key, so
+        // billing the full size again on every change would inflate the user's usage without limit.
+        var previousSize = media.ThumbnailSize ?? 0;
+        var delta = actualSize - previousSize;
+
+        if (delta > 0)
+        {
+            var quota = await _userService.CanUserUploadAsync(userId, delta);
+            if (quota != UserService.UploadAllowed)
+                throw new QuotaExceededException(quota);
+
+            await _userService.IncreaseUsedMemoryAsync(userId, delta);
+        }
+        else if (delta < 0)
+        {
+            await _userService.DecreaseUsedMemoryAsync(userId, -delta);
+        }
+
+        media.ThumbnailUrl = thumbKey;
+        media.ThumbnailSize = actualSize;
         await _dbContext.SaveChangesAsync();
     }
 }
