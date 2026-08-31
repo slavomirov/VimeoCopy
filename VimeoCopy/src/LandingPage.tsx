@@ -78,7 +78,7 @@ export function LandingPage() {
                 </svg>
               </div>
               <h3>Embed Anywhere</h3>
-              <p>Drop any of your public videos into any site with a single line of code. A clean player for your blog, portfolio or client's landing page — and embed views land in your audience stats.</p>
+              <p>Drop any public video into your blog, portfolio or a client's site with a single line of code.</p>
             </div>
 
             {/* Feature 5 */}
@@ -104,7 +104,7 @@ export function LandingPage() {
                 </svg>
               </div>
               <h3>Your Own Artist Page</h3>
-              <p>Claim your handle and get a public profile you control — your palette, your fonts, your work laid out on a gallery wall. No feed, no algorithm.</p>
+              <p>Claim your handle for a public profile you control — your palette, your fonts, your gallery wall. No feed, no algorithm.</p>
             </div>
 
           </div>
