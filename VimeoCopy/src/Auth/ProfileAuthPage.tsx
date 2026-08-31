@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { PasswordField } from "./PasswordField";
 import type { FormEvent, ChangeEvent } from "react";
 import { useAuth } from "./useAuth";
 import { API_BASE_URL } from "../config";
@@ -97,18 +98,17 @@ export function ProfileAuthPage() {
               />
             </div>
 
-            <div className="form-group profile-form-group">
-              <label htmlFor="login-password">Password</label>
-              <input
-                id="login-password"
-                name="password"
-                type="password"
-                placeholder="Enter your password"
-                value={loginForm.password}
-                onChange={handleLoginChange}
-                required
-              />
-            </div>
+            <PasswordField
+              id="login-password"
+              name="password"
+              label="Password"
+              placeholder="Enter your password"
+              value={loginForm.password}
+              onChange={handleLoginChange}
+              autoComplete="current-password"
+              groupClassName="profile-form-group"
+              required
+            />
 
             <button type="submit" className="btn-primary profile-submit-btn" disabled={loginLoading} style={{ width: "100%" }}>
               {loginLoading ? "Signing in..." : "Sign In"}
@@ -140,33 +140,31 @@ export function ProfileAuthPage() {
               />
             </div>
 
-            <div className="form-group profile-form-group">
-              <label htmlFor="register-password">Password</label>
-              <input
-                id="register-password"
-                name="password"
-                type="password"
-                placeholder="Minimum 6 characters"
-                value={registerForm.password}
-                onChange={handleRegisterChange}
-                required
-                minLength={6}
-              />
-            </div>
+            <PasswordField
+              id="register-password"
+              name="password"
+              label="Password"
+              placeholder="Minimum 6 characters"
+              value={registerForm.password}
+              onChange={handleRegisterChange}
+              autoComplete="new-password"
+              groupClassName="profile-form-group"
+              minLength={6}
+              required
+            />
 
-            <div className="form-group profile-form-group">
-              <label htmlFor="register-confirm-password">Confirm Password</label>
-              <input
-                id="register-confirm-password"
-                name="confirmPassword"
-                type="password"
-                placeholder="Repeat your password"
-                value={registerForm.confirmPassword}
-                onChange={handleRegisterChange}
-                required
-                minLength={6}
-              />
-            </div>
+            <PasswordField
+              id="register-confirm-password"
+              name="confirmPassword"
+              label="Confirm Password"
+              placeholder="Repeat your password"
+              value={registerForm.confirmPassword}
+              onChange={handleRegisterChange}
+              autoComplete="new-password"
+              groupClassName="profile-form-group"
+              minLength={6}
+              required
+            />
 
             <button type="submit" className="btn-primary profile-submit-btn" disabled={registerLoading} style={{ width: "100%" }}>
               {registerLoading ? "Creating account..." : "Create Account"}

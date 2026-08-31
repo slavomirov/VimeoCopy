@@ -4,30 +4,26 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
 using VimeoCopyApi.Data;
 using VimeoCopyAPI.Models;
-using VimeoCopyAPI.Services.Interfaces;
 
 namespace VimeoCopyAPI.Controllers;
 
-/// <summary>Account & privacy self-service: change password, export data (GDPR portability), delete account (erasure).</summary>
+/// <summary>Account & privacy self-service: change password, delete account (erasure).</summary>
 [ApiController]
 [Route("api/account")]
 [Authorize]
 public class AccountController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly IUserService _userService;
     private readonly AppDbContext _db;
     private readonly IAmazonS3 _s3;
     private readonly string? _bucket;
 
-    public AccountController(UserManager<ApplicationUser> userManager, IUserService userService,
+    public AccountController(UserManager<ApplicationUser> userManager,
         AppDbContext db, IAmazonS3 s3, IConfiguration config)
     {
         _userManager = userManager;
-        _userService = userService;
         _db = db;
         _s3 = s3;
         _bucket = config["AWS:BucketName"];
@@ -46,19 +42,6 @@ public class AccountController : ControllerBase
             return BadRequest(new { message = result.Errors.FirstOrDefault()?.Description ?? "Could not change password." });
 
         return Ok(new { message = "Password updated." });
-    }
-
-    /// <summary>Returns the caller's data as a JSON download (GDPR data portability).</summary>
-    [HttpGet("export")]
-    public async Task<IActionResult> Export()
-    {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId)) return Unauthorized();
-
-        var data = await _userService.GetUserDataAsync(userId);
-        return File(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(data,
-            new System.Text.Json.JsonSerializerOptions { WriteIndented = true }),
-            "application/json", "vimeocopy-my-data.json");
     }
 
     /// <summary>Permanently deletes the caller's account. Removes their R2 objects (originals + thumbnails)

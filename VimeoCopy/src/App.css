@@ -2432,3 +2432,57 @@
   text-align: center;
   font-size: var(--font-size-sm);
 }
+
+/* ═══════════════════════════════════════════════════
+   PASSWORD REVEAL TOGGLE
+   ═══════════════════════════════════════════════════ */
+
+.password-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Keep the text clear of the toggle instead of running underneath it. */
+.password-field input {
+  padding-right: 3rem;
+}
+
+.password-toggle {
+  position: absolute;
+  right: var(--space-2);
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--gray-400);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.password-toggle:hover {
+  color: var(--primary);
+  background: var(--primary-light);
+}
+
+.password-toggle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+/* ═══════════════════════════════════════════════════
+   ACCOUNT SETTINGS (/settings)
+   ═══════════════════════════════════════════════════ */
+
+/* Buttons sit in their own row so they never crowd the field above, and stay at their
+   natural width rather than stretching to fill the flex column. */
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}

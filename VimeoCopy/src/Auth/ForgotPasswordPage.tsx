@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "./useAuth";
+import { PasswordField } from "./PasswordField";
 import { API_BASE_URL } from "../config";
 import toast from "react-hot-toast";
 
@@ -301,34 +302,28 @@ export function ForgotPasswordPage() {
 
         {step === "password" && (
           <form onSubmit={handlePasswordSubmit} className="form">
-            <div className="form-group">
-              <label htmlFor="reset-password">New password</label>
-              <input
-                id="reset-password"
-                type="password"
-                autoComplete="new-password"
-                placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                minLength={MIN_PASSWORD_LENGTH}
-                required
-                autoFocus
-              />
-            </div>
+            <PasswordField
+              id="reset-password"
+              label="New password"
+              placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+              minLength={MIN_PASSWORD_LENGTH}
+              required
+              autoFocus
+            />
 
-            <div className="form-group">
-              <label htmlFor="reset-confirm">Confirm new password</label>
-              <input
-                id="reset-confirm"
-                type="password"
-                autoComplete="new-password"
-                placeholder="Repeat your new password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                minLength={MIN_PASSWORD_LENGTH}
-                required
-              />
-            </div>
+            <PasswordField
+              id="reset-confirm"
+              label="Confirm new password"
+              placeholder="Repeat your new password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              autoComplete="new-password"
+              minLength={MIN_PASSWORD_LENGTH}
+              required
+            />
 
             {error && <div className="alert alert-error">{error}</div>}
 
