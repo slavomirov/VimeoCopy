@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import type { FormEvent, ChangeEvent } from "react";
 import { useAuth } from "./useAuth";
 import { API_BASE_URL } from "../config";
@@ -112,6 +113,10 @@ export function ProfileAuthPage() {
             <button type="submit" className="btn-primary profile-submit-btn" disabled={loginLoading} style={{ width: "100%" }}>
               {loginLoading ? "Signing in..." : "Sign In"}
             </button>
+
+            <p className="profile-auth-forgot">
+              <Link to="/forgot-password">Forgot your password?</Link>
+            </p>
           </form>
         </div>
 

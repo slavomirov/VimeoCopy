@@ -113,6 +113,32 @@ namespace VimeoCopyAPI.Services
             }
         }
 
+        public async Task SendPasswordResetCodeAsync(string email, string userName, string code, int minutesValid)
+        {
+            try
+            {
+                var subject = $"Your VimeoCopy password reset code: {code}";
+                var body = BuildEmailTemplate($@"
+                    <h1>Hello {userName},</h1>
+                    <p>Use this code to reset your VimeoCopy password:</p>
+                    <p class='code'>{code}</p>
+                    <p>The code expires in <strong>{minutesValid} minutes</strong> and can only be used once.</p>
+                    <p>If you didn't ask to reset your password you can ignore this email — your password stays unchanged.
+                       Never share this code with anyone; VimeoCopy will never ask you for it.</p>
+                ");
+
+                await SendEmailAsync(email, subject, body);
+                _logger.LogInformation($"Password reset code email sent to {email}");
+            }
+            catch (Exception ex)
+            {
+                // Rethrow: unlike the notification emails, this one IS the feature — the caller
+                // decides how to answer without leaking whether the address exists.
+                _logger.LogError($"Failed to send password reset code to {email}: {ex.Message}");
+                throw;
+            }
+        }
+
         private async Task SendEmailAsync(string recipientEmail, string subject, string htmlBody)
         {
             if (_emailProvider.Equals("Resend", StringComparison.OrdinalIgnoreCase))
@@ -195,6 +221,7 @@ namespace VimeoCopyAPI.Services
                         a {{ color: #6a5af9; text-decoration: none; font-weight: 600; }}
                         a:hover {{ text-decoration: underline; }}
                         .warning {{ color: #dc2626; font-weight: bold; }}
+                        .code {{ font-family: Consolas, 'SFMono-Regular', Menlo, monospace; font-size: 32px; font-weight: 700; letter-spacing: 8px; text-align: center; color: #1f2937; background-color: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px 12px; margin: 24px 0; }}
                     </style>
                 </head>
                 <body>

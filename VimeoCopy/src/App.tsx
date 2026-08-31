@@ -11,6 +11,7 @@ import { SettingsPage } from "./components/SettingsPage";
 import { SharedMediaViewer } from "./components/SharedMediaViewer";
 import { BuyPage } from "./Payments/BuyPage";
 import { ProfileAuthPage } from "./Auth/ProfileAuthPage";
+import { ForgotPasswordPage } from "./Auth/ForgotPasswordPage";
 import { LandingPage } from "./LandingPage";
 import { EmbedPlayer } from "./components/EmbedPlayer";
 import { ProjectsPage } from "./components/ProjectsPage";
@@ -334,6 +335,12 @@ function MainLayout() {
           <Route
             path="/settings"
             element={isLoggedIn ? <SettingsPage /> : <ProfileAuthPage />}
+          />
+
+          {/* Already-signed-in users have Settings for this; the reset flow is for locked-out ones. */}
+          <Route
+            path="/forgot-password"
+            element={isLoggedIn ? <Navigate to="/settings" replace /> : <ForgotPasswordPage />}
           />
 
           <Route path="/login" element={<Navigate to="/profile" replace />} />

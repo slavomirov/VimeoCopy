@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using VimeoCopyAPI.Models.DTOs;
+using VimeoCopyAPI.Services;
 using VimeoCopyAPI.Services.Interfaces;
 
 namespace VimeoCopyAPI.Controllers;
@@ -55,6 +56,51 @@ public class AuthController : ControllerBase
     {
         await _userService.LogoutAsync(HttpContext);
         return Ok(new { message = "Logged out" });
+    }
+
+    // ── Forgot password ────────────────────────────────────────────────────────────────────────
+    // Step 1 emails a code, step 2 trades the code for a ticket, step 3 sets the password.
+
+    /// <summary>Emails a short-lived reset code. Always answers the same, whatever the address.</summary>
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordRequestDTO input)
+    {
+        await _userService.RequestPasswordResetAsync(input.Email);
+
+        // Deliberately unconditional: a different response for unknown emails would turn this
+        // endpoint into an account-enumeration oracle.
+        return Ok(new
+        {
+            message = "If an account exists for that email, we've sent a reset code.",
+            expiresInSeconds = (int)UserService.PasswordResetCodeLifetime.TotalSeconds,
+            resendAfterSeconds = (int)UserService.PasswordResetResendCooldown.TotalSeconds
+        });
+    }
+
+    /// <summary>Validates the emailed code and returns the ticket the reset step needs.</summary>
+    [HttpPost("verify-reset-code")]
+    public async Task<IActionResult> VerifyResetCode(VerifyResetCodeRequestDTO input)
+    {
+        var result = await _userService.VerifyPasswordResetCodeAsync(input.Email, input.Code);
+
+        if (!result.Success)
+            return BadRequest(new { message = result.ErrorMessage });
+
+        return Ok(new { ticket = result.Ticket, ticketExpiresAt = result.TicketExpiresAt });
+    }
+
+    /// <summary>Sets the new password against a verified ticket and signs the user in.</summary>
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword(ResetPasswordRequestDTO input)
+    {
+        var result = await _userService.ResetPasswordAsync(input.Email, input.Ticket, input.NewPassword);
+
+        if (!result.Success)
+            return BadRequest(new { message = result.ErrorMessage });
+
+        SetRefreshTokenCookie(result.RefreshToken!);
+
+        return Ok(new { accessToken = result.AccessToken, message = "Password updated." });
     }
 
     [HttpGet("external-login")]

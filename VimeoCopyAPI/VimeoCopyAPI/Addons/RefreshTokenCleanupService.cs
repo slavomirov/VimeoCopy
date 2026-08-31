@@ -28,6 +28,15 @@ public class RefreshTokenCleanupService : BackgroundService
                     .ExecuteDeleteAsync(stoppingToken);
 
                 _logger.LogInformation($"Deleted {deleted} expired refresh tokens");
+
+                // Password reset challenges are dead once consumed or once the ticket window has
+                // closed; keep a day of history for troubleshooting, then drop them.
+                var cutoff = DateTime.UtcNow.AddDays(-1);
+                var deletedCodes = await db.PasswordResetCodes
+                    .Where(c => c.CreatedAt < cutoff)
+                    .ExecuteDeleteAsync(stoppingToken);
+
+                _logger.LogInformation($"Deleted {deletedCodes} stale password reset codes");
             }
             catch (Exception ex)
             {

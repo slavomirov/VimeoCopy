@@ -18,6 +18,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ProjectMedia> ProjectMedias { get; set; }
     public DbSet<BandwidthLog> BandwidthLogs { get; set; }
     public DbSet<MediaReport> MediaReports { get; set; }
+    public DbSet<PasswordResetCode> PasswordResetCodes { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -91,5 +92,20 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
 
         modelBuilder.Entity<MediaReport>()
             .HasIndex(r => new { r.Status, r.CreatedAt });
+
+        modelBuilder.Entity<PasswordResetCode>()
+            .HasOne(c => c.User)
+            .WithMany()
+            .HasForeignKey(c => c.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Verification always looks up the newest unconsumed challenge for one user.
+        modelBuilder.Entity<PasswordResetCode>()
+            .HasIndex(c => new { c.UserId, c.CreatedAt });
+
+        // The set-password step arrives carrying only a ticket, so it must be findable on its own.
+        modelBuilder.Entity<PasswordResetCode>()
+            .HasIndex(c => c.TicketHash)
+            .HasFilter("[TicketHash] IS NOT NULL");
     }
 }

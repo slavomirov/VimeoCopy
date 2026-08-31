@@ -10,6 +10,9 @@ public interface IUserService
     Task<UserLoginResponseDTO?> LoginAsync(UserLoginRequestDTO input);
     Task<RefreshResultDTO> RefreshAsync(HttpContext context);
     Task LogoutAsync(HttpContext context);
+    Task RequestPasswordResetAsync(string email);
+    Task<VerifyResetCodeResultDTO> VerifyPasswordResetCodeAsync(string email, string code);
+    Task<ResetPasswordResultDTO> ResetPasswordAsync(string email, string ticket, string newPassword);
     AuthenticationProperties GetExternalAuthenticationProperties(string provider, string redirectUrl);
     Task<ExternalLoginResultDTO> HandleExternalLoginCallbackAsync(HttpContext httpContext, string returnUrl = "/");
     Task<UserDataDTO?> GetUserDataAsync(string userId);

@@ -2286,3 +2286,149 @@
 [data-theme="light"] .btn-primary:hover:not(:disabled) {
   box-shadow: 0 8px 25px rgba(var(--primary-rgb), 0.3);
 }
+
+/* ═══════════════════════════════════════════════════
+   PASSWORD RESET (/forgot-password)
+   ═══════════════════════════════════════════════════ */
+
+.reset-container {
+  max-width: 480px;
+  margin: var(--space-10) auto;
+  padding: 0 var(--space-4);
+}
+
+.reset-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.reset-subtitle {
+  margin: var(--space-3) 0 0;
+  color: var(--gray-500);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+}
+
+/* Step rail — shows how far along the three-step flow the user is. */
+.reset-steps {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  list-style: none;
+  margin: var(--space-6) 0;
+  padding: 0;
+}
+
+.reset-step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  color: var(--gray-400);
+  font-size: var(--font-size-xs);
+}
+
+.reset-step-dot {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-color);
+  background: var(--bg-input);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.reset-step-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reset-step.is-current {
+  color: var(--gray-800);
+  font-weight: 600;
+}
+
+.reset-step.is-current .reset-step-dot {
+  border-color: var(--primary);
+  color: var(--primary);
+  box-shadow: var(--glow-sm);
+}
+
+.reset-step.is-done .reset-step-dot {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--btn-primary-text);
+}
+
+/* Wide, spaced digits so a 6-digit code reads as one glance. */
+.reset-code-input {
+  font-family: Consolas, 'SFMono-Regular', Menlo, monospace;
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  letter-spacing: 0.5em;
+  /* letter-spacing pads the right of the last glyph, which throws the text off-centre. */
+  text-indent: 0.5em;
+  text-align: center;
+}
+
+.reset-timer {
+  margin: var(--space-2) 0 0;
+  color: var(--gray-400);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.reset-timer.is-expired {
+  color: var(--danger);
+}
+
+.reset-submit {
+  width: 100%;
+}
+
+/* Tertiary action — reads as a link, keeps button semantics. */
+.reset-link-btn {
+  align-self: center;
+  padding: var(--space-2);
+  border: none;
+  background: none;
+  color: var(--gray-400);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.reset-link-btn:hover {
+  color: var(--primary);
+}
+
+.reset-footer {
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-color);
+  text-align: center;
+  font-size: var(--font-size-sm);
+}
+
+@media (max-width: 480px) {
+  /* Labels stop fitting three-across; the numbered dots still carry the progress. */
+  .reset-step-label {
+    display: none;
+  }
+
+  .reset-step {
+    flex: 0 0 auto;
+  }
+}
+
+.profile-auth-forgot {
+  margin: var(--space-4) 0 0;
+  text-align: center;
+  font-size: var(--font-size-sm);
+}
