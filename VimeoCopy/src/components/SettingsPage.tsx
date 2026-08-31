@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../Auth/useAuth";
+import { PasswordField } from "../Auth/PasswordField";
 import { API_BASE_URL } from "../config";
 import "../App.css";
 
@@ -87,41 +88,34 @@ export function SettingsPage() {
         <div className="card-body">
           {/* .form supplies the vertical rhythm between fields and the action row. */}
           <form onSubmit={handleChangePassword} className="form">
-            <div className="form-group">
-              <label htmlFor="settings-current-password">Current password</label>
-              <input
-                id="settings-current-password"
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="settings-new-password">New password</label>
-              <input
-                id="settings-new-password"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                minLength={8}
-                autoComplete="new-password"
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="settings-confirm-password">Confirm new password</label>
-              <input
-                id="settings-confirm-password"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                minLength={8}
-                autoComplete="new-password"
-              />
-            </div>
+            <PasswordField
+              id="settings-current-password"
+              label="Current password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+
+            <PasswordField
+              id="settings-new-password"
+              label="New password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              autoComplete="new-password"
+              minLength={8}
+              required
+            />
+
+            <PasswordField
+              id="settings-confirm-password"
+              label="Confirm new password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              autoComplete="new-password"
+              minLength={8}
+              required
+            />
 
             {pwMsg && (
               <div className={`alert ${pwMsg.kind === "ok" ? "alert-success" : "alert-error"}`}>
