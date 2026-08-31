@@ -73,36 +73,38 @@ export function LandingPage() {
             <div className="feature-card">
               <div className="feature-icon">
                 <svg width="40" height="40" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"></path>
-                  <polyline points="12 6 12 12 16 14"></polyline>
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
                 </svg>
               </div>
-              <h3>Timeline Analysis</h3>
-              <p>Track video performance with comprehensive analytics. See who watched, when they watched, and for how long.</p>
+              <h3>Embed Anywhere</h3>
+              <p>Drop any of your public videos into any site with a single line of code. A clean player for your blog, portfolio or client's landing page — and embed views land in your audience stats.</p>
             </div>
 
             {/* Feature 5 */}
             <div className="feature-card">
               <div className="feature-icon">
-                <svg width="40" height="40" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <circle cx="9" cy="21" r="1"></circle>
-                  <circle cx="20" cy="21" r="1"></circle>
-                  <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                <svg width="40" height="40" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                  <polyline points="8 21 12 17 16 21"></polyline>
                 </svg>
               </div>
-              <h3>Monetization</h3>
-              <p>Turn your video content into revenue. Flexible pricing options for your audience and business model.</p>
+              <h3>Play On Any Screen</h3>
+              <p>A custom player built for video, audio and images — with one-tap casting to your TV, keyboard shortcuts, and boosted audio.</p>
             </div>
 
             {/* Feature 6 */}
             <div className="feature-card">
               <div className="feature-icon">
-                <svg width="40" height="40" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                <svg width="40" height="40" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none">
+                  <path d="M12 19a7 7 0 0 1 0-14 5 5 0 0 1 0 10h-1.5a1.5 1.5 0 0 0 0 3H12z"></path>
+                  <circle cx="8" cy="10" r="1"></circle>
+                  <circle cx="12" cy="8" r="1"></circle>
+                  <circle cx="16" cy="10" r="1"></circle>
                 </svg>
               </div>
-              <h3>Security First</h3>
-              <p>Enterprise-grade security protects your videos. Privacy controls and encryption ensure your content is safe.</p>
+              <h3>Your Own Artist Page</h3>
+              <p>Claim your handle and get a public profile you control — your palette, your fonts, your work laid out on a gallery wall. No feed, no algorithm.</p>
             </div>
 
           </div>
