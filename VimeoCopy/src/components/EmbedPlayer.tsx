@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { API_BASE_URL } from "../config";
+import { ProwMark } from "../brand/FerryMarks";
 
 interface MediaUrl {
   url: string;
@@ -94,11 +95,8 @@ export function EmbedPlayer() {
         rel="noopener noreferrer"
         className="embed-watermark"
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M23 7l-7 5 7 5V7z" />
-          <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-        </svg>
-        VimeoCopy
+        <ProwMark size={14} minimal />
+        Ferry
       </a>
     </div>
   );

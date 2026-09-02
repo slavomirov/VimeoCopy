@@ -1,10 +1,14 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useUpload } from "./UploadProvider";
+import { WakeLoader, ProwMark } from "../brand/FerryMarks";
 
 /**
- * Persistent upload widget. Mounted in the app shell so it stays visible while the
- * user navigates. Shows live progress for the global uploader and survives route changes.
+ * The Dock — persistent upload widget. Mounted in the app shell so it stays visible
+ * while the user navigates, and it survives route changes.
+ *
+ * The name was already nautical before the rebrand; now it behaves like one. Work is
+ * "loaded aboard", each file rides its own crossing, and a finished upload has "sailed".
  */
 export function UploadDock() {
   const { files, uploading, doneCount, errorCount, queuedCount, clearCompleted } = useUpload();
@@ -44,18 +48,16 @@ export function UploadDock() {
         }}
       >
         {uploading ? (
-          <div className="loading" style={{ width: 16, height: 16, margin: 0 }} />
+          <WakeLoader size={18} label="Loading aboard" />
         ) : (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="2.5">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
+          <ProwMark size={18} minimal />
         )}
         <span style={{ fontWeight: 600, fontSize: "var(--font-size-sm)", flex: 1, color: "var(--gray-900)" }}>
-          {uploading ? `Uploading ${active || queuedCount}…` : "Uploads"}
+          {uploading ? `Loading ${active || queuedCount} aboard…` : "The Dock"}
           {!uploading && doneCount > 0 && (
-            <span style={{ color: "var(--success)" }}> · {doneCount} done</span>
+            <span style={{ color: "var(--success)" }}> · {doneCount} aboard</span>
           )}
-          {errorCount > 0 && <span style={{ color: "var(--danger)" }}> · {errorCount} failed</span>}
+          {errorCount > 0 && <span style={{ color: "var(--danger)" }}> · {errorCount} missed the crossing</span>}
         </span>
         <span style={{ fontSize: "var(--font-size-xs)", color: "var(--gray-500)" }}>{overall}%</span>
         <svg
@@ -81,7 +83,7 @@ export function UploadDock() {
                   fontSize: "var(--font-size-xs)", flexShrink: 0,
                   color: f.status === "error" ? "var(--danger)" : f.status === "done" ? "var(--success)" : "var(--gray-500)",
                 }}>
-                  {f.status === "error" ? "Failed" : f.status === "done" ? "Done" : `${f.progress}%`}
+                  {f.status === "error" ? "Missed it" : f.status === "done" ? "Aboard" : `${f.progress}%`}
                 </span>
               </div>
               <div style={{ height: 4, background: "var(--bg-deep)", borderRadius: 2, overflow: "hidden" }}>
@@ -99,7 +101,7 @@ export function UploadDock() {
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "var(--space-2)" }}>
             <Link to="/upload" style={{ fontSize: "var(--font-size-xs)", color: "var(--primary)", textDecoration: "none" }}>
-              Open upload page
+              Open the loading dock
             </Link>
             {doneCount > 0 && (
               <button
@@ -107,7 +109,7 @@ export function UploadDock() {
                 className="btn-secondary"
                 style={{ fontSize: "var(--font-size-xs)", padding: "2px 10px" }}
               >
-                Clear done
+                Clear finished
               </button>
             )}
           </div>

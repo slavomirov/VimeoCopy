@@ -24,7 +24,23 @@ import { UploadDock } from "./components/UploadDock";
 import { AudiencePage } from "./components/AudiencePage";
 import { ModerationPage } from "./components/ModerationPage";
 import { useTheme } from "./theme/useTheme";
+import {
+  SeaBackdrop,
+  FerryLogo,
+  ProwMark,
+  IconHarbour,
+  IconLoad,
+  IconDeck,
+  IconCompass,
+  IconVoyage,
+  IconSonar,
+  IconBuoy,
+  IconTicket,
+  IconHelm,
+  IconGangway,
+} from "./brand/FerryMarks";
 import "./App.css";
+import "./ferry.css";
 
 function App() {
   return (
@@ -49,6 +65,14 @@ function MainLayout() {
   const isMobile = useCallback(() => window.innerWidth <= 768, []);
   const [sidebarOpen, setSidebarOpen] = useState(() => !isMobile());
 
+  // Clicking the brand always brings you back to the top of the home page
+  const handleBrandClick = useCallback(() => {
+    const behavior: ScrollBehavior =
+      location.pathname === "/" ? "smooth" : "auto";
+    window.scrollTo({ top: 0, behavior });
+    document.querySelector(".app-content")?.scrollTo({ top: 0, behavior });
+  }, [location.pathname]);
+
   // Close sidebar on route change (mobile)
   useEffect(() => {
     if (isMobile()) setSidebarOpen(false);
@@ -66,6 +90,7 @@ function MainLayout() {
 
   return (
     <div className="app-container">
+      <SeaBackdrop />
       <Toaster
         position="top-right"
         toastOptions={{
@@ -104,12 +129,9 @@ function MainLayout() {
             )}
           </svg>
         </button>
-        <Link to="/" className="mobile-topbar-brand">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M23 7l-7 5 7 5V7z" />
-            <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-          </svg>
-          VimeoCopy
+        <Link to="/" className="mobile-topbar-brand ferry-logo" onClick={handleBrandClick}>
+          <ProwMark size={24} title="Ferry" />
+          <span className="ferry-wordmark">Ferry</span>
         </Link>
       </div>
 
@@ -124,12 +146,8 @@ function MainLayout() {
 
       <aside className={`sidebar ${sidebarOpen ? "open" : "closed"}`}>
         <div className="sidebar-header">
-          <Link to="/" className="sidebar-brand">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M23 7l-7 5 7 5V7z"></path>
-              <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-            </svg>
-            <span className="brand-text">VimeoCopy</span>
+          <Link to="/" className="sidebar-brand" onClick={handleBrandClick}>
+            <FerryLogo size={32} tagline="Keep your resolution" />
           </Link>
           {
             !sidebarOpen &&
@@ -158,79 +176,52 @@ function MainLayout() {
         </div>
 
         <nav className="sidebar-nav">
-          <Link to="/" className="nav-item" title="Home">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-              <polyline points="9 22 9 12 15 12 15 22"></polyline>
-            </svg>
-            <span className="nav-label">Home</span>
+          <Link to="/" className="nav-item" title="Harbour — the home page">
+            <IconHarbour />
+            <span className="nav-label">Harbour</span>
           </Link>
 
           {isLoggedIn && (
-            <Link to="/upload" className="nav-item" title="Upload">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="17 8 12 3 7 8"></polyline>
-                <line x1="12" y1="3" x2="12" y2="15"></line>
-              </svg>
+            <Link to="/upload" className="nav-item" title="Upload — load work aboard">
+              <IconLoad />
               <span className="nav-label">Upload</span>
             </Link>
           )}
 
-          <Link to="/videos" className="nav-item" title="Videos">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polygon points="23 7 16 12 23 17 23 7"></polygon>
-              <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-            </svg>
+          <Link to="/videos" className="nav-item" title="Media">
+            <IconDeck />
             <span className="nav-label">Media</span>
           </Link>
 
           <Link to="/artists" className="nav-item" title="Artists">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="9" cy="7" r="4"></circle>
-              <path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"></path>
-              <circle cx="18" cy="8" r="2.5"></circle>
-              <path d="M16.5 21v-1.5a3 3 0 0 1 3-3"></path>
-            </svg>
+            <IconCompass />
             <span className="nav-label">Artists</span>
           </Link>
 
           {isLoggedIn && (
             <Link to="/projects" className="nav-item" title="Projects">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-              </svg>
+              <IconVoyage />
               <span className="nav-label">Projects</span>
             </Link>
           )}
 
           {isLoggedIn && (
-            <Link to="/audience" className="nav-item" title="Audience">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="18" y1="20" x2="18" y2="10" />
-                <line x1="12" y1="20" x2="12" y2="4" />
-                <line x1="6" y1="20" x2="6" y2="14" />
-              </svg>
+            <Link to="/audience" className="nav-item" title="Audience — who is out there">
+              <IconSonar />
               <span className="nav-label">Audience</span>
             </Link>
           )}
 
           {isStaff && (
             <Link to="/moderation" className="nav-item" title="Moderation">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
+              <IconBuoy />
               <span className="nav-label">Moderation</span>
             </Link>
           )}
 
-          <Link to="/buy" className="nav-item" title={isLoggedIn ? "Buy" : "Pricing"}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="9" cy="21" r="1"></circle>
-              <circle cx="20" cy="21" r="1"></circle>
-              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
-            </svg>
-            <span className="nav-label">{isLoggedIn ? "Buy" : "Pricing"}</span>
+          <Link to="/buy" className="nav-item" title="Fares — plans and pricing">
+            <IconTicket />
+            <span className="nav-label">Fares</span>
           </Link>
 
         </nav>
@@ -263,22 +254,15 @@ function MainLayout() {
           </div>
 
           <div className="sidebar-auth">
-            <Link to="/profile" className="nav-item nav-item-secondary" title="Profile">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
-              </svg>
+            <Link to="/profile" className="nav-item nav-item-secondary" title="Profile — the helm">
+              <IconHelm />
               <span className="nav-label">Profile</span>
             </Link>
 
             {isLoggedIn && (
-              <button onClick={logout} className="nav-item nav-item-secondary" title="Logout">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                  <polyline points="16 17 21 12 16 7"></polyline>
-                  <line x1="21" y1="12" x2="9" y2="12"></line>
-                </svg>
-                <span className="nav-label">Logout</span>
+              <button onClick={logout} className="nav-item nav-item-secondary" title="Sign out — head ashore">
+                <IconGangway />
+                <span className="nav-label">Sign out</span>
               </button>
             )}
           </div>

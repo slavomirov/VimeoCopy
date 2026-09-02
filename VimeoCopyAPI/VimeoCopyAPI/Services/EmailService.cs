@@ -14,6 +14,7 @@ namespace VimeoCopyAPI.Services
         private readonly string _emailProvider;
         private readonly string _fromEmail;
         private readonly string _fromName;
+        private readonly string _frontendOrigin;
 
         public EmailService(IConfiguration config, ILogger<EmailService> logger)
         {
@@ -21,7 +22,13 @@ namespace VimeoCopyAPI.Services
             _logger = logger;
             _emailProvider = _config["Email:Provider"] ?? "Resend";
             _fromEmail = _config["Email:FromEmail"] ?? "onboarding@resend.dev";
-            _fromName = _config["Email:FromName"] ?? "VimeoCopy";
+            _fromName = _config["Email:FromName"] ?? "Ferry";
+
+            // Links in these mails used to point at a hard-coded vimeocopy.com, a domain that
+            // isn't ours — every "renew your plan" button led nowhere. Same source of truth as
+            // the Stripe checkout redirect.
+            _frontendOrigin = _config.GetSection("Frontend:AllowedOrigins").Get<string[]>()?.FirstOrDefault()
+                ?? "http://localhost:5173";
         }
 
         public async Task SendPlanExpiringIn1DayAsync(string email, string userName)
@@ -33,7 +40,7 @@ namespace VimeoCopyAPI.Services
                     <h1>Hello {userName},</h1>
                     <p>Your subscription plan will expire in 1 day.</p>
                     <p>If you don't renew your plan within 4 days, all your photos will be deleted.</p>
-                    <p>Please <strong><a href='https://vimeocopy.com/buy'>renew your plan</a></strong> to continue using our service.</p>
+                    <p>Please <strong><a href='{_frontendOrigin}/buy'>renew your plan</a></strong> to continue using our service.</p>
                 ");
 
                 await SendEmailAsync(email, subject, body);
@@ -55,7 +62,7 @@ namespace VimeoCopyAPI.Services
                     <h1>Hello {userName},</h1>
                     <p><strong>FINAL NOTICE:</strong> Your subscription plan has expired and will be deleted tomorrow.</p>
                     <p>If you do not renew your plan immediately, all your photos will be permanently erased tomorrow.</p>
-                    <p>Please <strong><a href='https://vimeocopy.com/buy'>renew your plan now</a></strong> to prevent data loss.</p>
+                    <p>Please <strong><a href='{_frontendOrigin}/buy'>renew your plan now</a></strong> to prevent data loss.</p>
                 ");
 
                 await SendEmailAsync(email, subject, body);
@@ -77,7 +84,7 @@ namespace VimeoCopyAPI.Services
                     <h1>Hello {userName},</h1>
                     <p>Your subscription plan has expired and all your media files have been permanently deleted.</p>
                     <p>If you believe this is an error, please contact support.</p>
-                    <p><a href='https://vimeocopy.com/buy'>View our plans</a></p>
+                    <p><a href='{_frontendOrigin}/buy'>View our plans</a></p>
                 ");
 
                 await SendEmailAsync(email, subject, body);
@@ -99,7 +106,7 @@ namespace VimeoCopyAPI.Services
                     <h1>Hello {userName},</h1>
                     <p>Your media has used up the bandwidth included in your current plan for this cycle.</p>
                     <p>Your work is still being served, but to guarantee smooth playback for your audience we recommend
-                       <strong><a href='https://vimeocopy.com/buy'>upgrading your plan or adding a bandwidth top-up</a></strong>.</p>
+                       <strong><a href='{_frontendOrigin}/buy'>upgrading your plan or adding a bandwidth top-up</a></strong>.</p>
                     <p>Your allowance resets at the start of your next cycle.</p>
                 ");
 
@@ -117,14 +124,14 @@ namespace VimeoCopyAPI.Services
         {
             try
             {
-                var subject = $"Your VimeoCopy password reset code: {code}";
+                var subject = $"Your Ferry password reset code: {code}";
                 var body = BuildEmailTemplate($@"
                     <h1>Hello {userName},</h1>
-                    <p>Use this code to reset your VimeoCopy password:</p>
+                    <p>Use this code to reset your Ferry password:</p>
                     <p class='code'>{code}</p>
                     <p>The code expires in <strong>{minutesValid} minutes</strong> and can only be used once.</p>
                     <p>If you didn't ask to reset your password you can ignore this email — your password stays unchanged.
-                       Never share this code with anyone; VimeoCopy will never ask you for it.</p>
+                       Never share this code with anyone; Ferry will never ask you for it.</p>
                 ");
 
                 await SendEmailAsync(email, subject, body);
@@ -210,15 +217,16 @@ namespace VimeoCopyAPI.Services
                     <style>
                         body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif; color: #333; margin: 0; padding: 0; }}
                         .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-                        .header {{ background: linear-gradient(135deg, #6a5af9, #8f7bff); padding: 30px; text-align: center; color: white; border-radius: 8px 8px 0 0; }}
-                        .header h2 {{ margin: 0; font-size: 24px; }}
+                        .header {{ background: linear-gradient(160deg, #071E31, #041320); padding: 28px 30px; text-align: center; color: #F4FBFF; border-radius: 8px 8px 0 0; }}
+                        .header h2 {{ margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -1px; color: #F4FBFF; }}
+                        .header p {{ margin: 6px 0 0; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #6892AF; }}
                         .content {{ padding: 30px; background-color: #ffffff; border: 1px solid #e5e7eb; }}
                         .content h1 {{ color: #1f2937; margin-top: 0; }}
                         .content p {{ line-height: 1.6; color: #4b5563; }}
                         .footer {{ background-color: #f9fafb; padding: 20px; text-align: center; font-size: 12px; color: #6b7280; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px; }}
-                        .footer a {{ color: #6a5af9; text-decoration: none; }}
+                        .footer a {{ color: #0369A1; text-decoration: none; }}
                         .footer a:hover {{ text-decoration: underline; }}
-                        a {{ color: #6a5af9; text-decoration: none; font-weight: 600; }}
+                        a {{ color: #0369A1; text-decoration: none; font-weight: 600; }}
                         a:hover {{ text-decoration: underline; }}
                         .warning {{ color: #dc2626; font-weight: bold; }}
                         .code {{ font-family: Consolas, 'SFMono-Regular', Menlo, monospace; font-size: 32px; font-weight: 700; letter-spacing: 8px; text-align: center; color: #1f2937; background-color: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px 12px; margin: 24px 0; }}
@@ -227,14 +235,15 @@ namespace VimeoCopyAPI.Services
                 <body>
                     <div class='container'>
                         <div class='header'>
-                            <h2>VimeoCopy</h2>
+                            <h2>&#9654;&#8195;Ferry</h2>
+                            <p>Keep your resolution</p>
                         </div>
                         <div class='content'>
                             {content}
                         </div>
                         <div class='footer'>
-                            <p>&copy; 2026 VimeoCopy. All rights reserved.</p>
-                            <p>If you have questions, please contact <a href='mailto:support@vimeocopy.com'>support@vimeocopy.com</a></p>
+                            <p>&copy; 2026 Ferry. All rights reserved.</p>
+                            <p>If you have questions, please contact <a href='mailto:support@ferry.app'>support@ferry.app</a></p>
                         </div>
                     </div>
                 </body>

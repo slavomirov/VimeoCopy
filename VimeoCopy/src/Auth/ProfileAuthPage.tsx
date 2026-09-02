@@ -73,8 +73,8 @@ export function ProfileAuthPage() {
   return (
     <div className="container profile-auth-container">
       <div className="profile-auth-header card">
-        <h1 className="card-title">Welcome to VimeoCopy</h1>
-        <p className="profile-auth-subtitle">Use your email/password or continue with Google.</p>
+        <h1 className="card-title">Come aboard</h1>
+        <p className="profile-auth-subtitle">Sign in with your email and password, or continue with Google.</p>
       </div>
 
       <div className="profile-auth-grid">

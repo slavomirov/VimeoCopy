@@ -1,0 +1,613 @@
+/* ═══════════════════════════════════════════════════════════════════
+   FERRY — identity layer
+
+   Loaded AFTER App.css so it can retune what's already there. Three jobs:
+     1. the brand marks (Prow / Porthole / Wake)
+     2. the sea the whole app floats on
+     3. motion — everything here moves the way something on water moves:
+        it rises, it settles, it never snaps.
+
+   One rule runs through the marks: ink draws the vessel, the accent is
+   the work in motion, and the accent shape is always a play triangle.
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  --font-display: 'Syne', 'Trebuchet MS', var(--font-family);
+  --horizon: 1px solid var(--border-color);
+}
+
+/* ═══════════════════════════════════════════════
+   1 · THE MARKS
+   ═══════════════════════════════════════════════ */
+
+.ferry-mark {
+  display: block;
+  overflow: visible;
+}
+
+.fm-vessel {
+  stroke: currentColor;
+  stroke-width: 2.4;
+  fill: none;
+  stroke-linecap: round;
+}
+
+.fm-wake {
+  opacity: 0.42;
+}
+
+.fm-work {
+  fill: var(--primary);
+}
+
+/* The mark bobs — barely. Two pixels over six seconds reads as "afloat",
+   not as an animation someone added. */
+.ferry-logo .ferry-mark,
+.landing-mark .ferry-mark {
+  animation: ferry-bob 6s ease-in-out infinite;
+}
+
+.ferry-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--gray-700);
+  text-decoration: none;
+  min-width: 0;
+}
+
+.ferry-logo-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ferry-wordmark {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.4rem;
+  letter-spacing: -0.045em;
+  line-height: 1;
+  color: var(--gray-900);
+  white-space: nowrap;
+}
+
+.ferry-logo-tagline {
+  font-size: 0.6rem;
+  letter-spacing: 0.19em;
+  text-transform: uppercase;
+  color: var(--gray-400);
+  margin-top: 4px;
+  white-space: nowrap;
+}
+
+.ferry-logo:hover .ferry-wordmark { color: var(--primary); }
+.ferry-logo:hover .fm-work { fill: var(--secondary); }
+
+/* Headings carry the display face — the mark alone can't hold an identity. */
+h1, h2, .ferry-wordmark, .stat-number, .hero h1 {
+  font-family: var(--font-display);
+  letter-spacing: -0.03em;
+}
+
+/* ═══════════════════════════════════════════════
+   2 · THE SEA
+   ═══════════════════════════════════════════════ */
+
+.sea-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* Depth: light at the surface, pressure below. */
+.sea-depth {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 80% at 50% -20%, rgba(var(--primary-rgb), 0.13) 0%, transparent 55%),
+    radial-gradient(90% 60% at 85% 8%, rgba(34, 211, 238, 0.07) 0%, transparent 60%),
+    linear-gradient(180deg, var(--bg-base) 0%, var(--bg-deep) 100%);
+}
+
+/* Caustics — light shafts coming down through the surface. */
+.sea-shafts {
+  position: absolute;
+  inset: -20% -30% auto -30%;
+  height: 90%;
+  background: repeating-linear-gradient(
+    102deg,
+    transparent 0 90px,
+    var(--sea-shaft) 90px 132px,
+    transparent 132px 240px
+  );
+  filter: blur(22px);
+  opacity: 0.85;
+  animation: ferry-drift 34s ease-in-out infinite alternate;
+}
+
+.sea-swells {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 46vh;
+  min-height: 260px;
+}
+
+.sea-swell {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 200%;
+  height: 100%;
+  color: var(--primary);
+}
+
+.sea-swell path { fill: var(--sea-swell); }
+
+.sea-swell-1 { height: 44%; opacity: 0.9;  animation: ferry-swell 19s linear infinite; }
+.sea-swell-2 { height: 62%; opacity: 0.62; animation: ferry-swell 31s linear infinite reverse; }
+.sea-swell-3 { height: 84%; opacity: 0.38; animation: ferry-swell 47s linear infinite; }
+
+/* Let the ocean show through the chrome. */
+.app-container { background-color: transparent; position: relative; z-index: 1; }
+.app-content   { background-color: transparent; }
+
+.sidebar {
+  background: linear-gradient(180deg,
+    rgba(var(--primary-rgb), 0.045) 0%,
+    color-mix(in srgb, var(--bg-surface) 88%, transparent) 22%,
+    color-mix(in srgb, var(--bg-deep) 92%, transparent) 100%);
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  border-right: 1px solid var(--border-color);
+}
+
+/* The waterline: a lit horizon under the brand block. */
+.sidebar-header {
+  position: relative;
+  background: linear-gradient(135deg,
+    rgba(var(--primary-rgb), 0.08) 0%,
+    transparent 90%);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-header::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent, var(--primary) 45%, var(--secondary) 55%, transparent);
+  opacity: 0.55;
+  animation: ferry-horizon 7s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════
+   3 · WAKE LOADER — replaces every spinner
+   ═══════════════════════════════════════════════ */
+
+.wake-loader {
+  display: inline-block;
+  color: var(--gray-400);
+}
+
+.wake-loader svg { width: 100%; height: 100%; overflow: visible; }
+
+.wl-hull { animation: ferry-bob 2.4s ease-in-out infinite; transform-origin: center; }
+
+.wl-ring {
+  stroke-width: 2.4;
+  transform-origin: 24px 24px;
+  animation: ferry-wake 2.1s ease-out infinite;
+  opacity: 0;
+}
+
+.wl-ring-1 { animation-delay: 0s; }
+.wl-ring-2 { animation-delay: 0.3s; }
+.wl-ring-3 { animation-delay: 0.6s; }
+
+/* Retire the borrowed CSS spinner in favour of the wake. */
+.loading,
+.embed-spinner {
+  position: relative;
+  border: none !important;
+  animation: none !important;
+  width: 48px;
+  height: 48px;
+  background: transparent;
+}
+
+.loading::before,
+.embed-spinner::before,
+.loading::after,
+.embed-spinner::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2.5px solid var(--primary);
+  border-radius: 50%;
+  clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%);
+  opacity: 0;
+  animation: ferry-wake-ring 1.9s ease-out infinite;
+}
+
+.loading::after,
+.embed-spinner::after { animation-delay: 0.65s; }
+
+/* ═══════════════════════════════════════════════
+   4 · CROSSING — progress as a route
+   ═══════════════════════════════════════════════ */
+
+.crossing { width: 100%; padding: 10px 0 4px; }
+
+.crossing-route {
+  position: relative;
+  height: 3px;
+  border-radius: var(--radius-full);
+  background:
+    repeating-linear-gradient(90deg,
+      var(--gray-200) 0 6px, transparent 6px 12px);
+}
+
+.crossing-swell {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: var(--radius-full);
+  background: linear-gradient(90deg, var(--primary-dark), var(--primary), var(--secondary));
+  box-shadow: 0 0 12px rgba(var(--primary-rgb), 0.5);
+  transition: width 0.4s var(--ease-swell);
+}
+
+.crossing-boat {
+  position: absolute;
+  top: 50%;
+  translate: 0 -50%;
+  color: var(--secondary);
+  transition: left 0.4s var(--ease-swell);
+  filter: drop-shadow(0 0 6px rgba(var(--primary-rgb), 0.6));
+}
+
+.crossing-boat .ferry-mark { animation: ferry-bob 1.8s ease-in-out infinite; }
+
+/* ═══════════════════════════════════════════════
+   5 · PORTHOLE — the frame, promoted out of the logo
+   ═══════════════════════════════════════════════ */
+
+.porthole {
+  position: relative;
+  display: inline-block;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  flex: none;
+  isolation: isolate;
+}
+
+.porthole-glass {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  display: block;
+  background: var(--bg-elevated);
+}
+
+.porthole-glass > * {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.porthole-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--border-glow);
+  box-shadow:
+    inset 0 0 18px rgba(var(--primary-rgb), 0.18),
+    0 0 0 4px rgba(var(--primary-rgb), 0.06),
+    var(--shadow-md);
+  pointer-events: none;
+}
+
+/* A single glint across the glass, top-left, like real curved glass. */
+.porthole-glint {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(133deg,
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0.05) 26%,
+    transparent 44%);
+  pointer-events: none;
+}
+
+/* Avatars everywhere become portholes — the brand shape, not a logo. */
+.artist-avatar,
+.profile-avatar,
+.search-result-avatar {
+  border-radius: 50%;
+  box-shadow: inset 0 0 16px rgba(var(--primary-rgb), 0.15), 0 0 0 2px var(--border-glow);
+}
+
+/* ═══════════════════════════════════════════════
+   6 · MOTION — how things behave on water
+   ═══════════════════════════════════════════════ */
+
+/* Every route change surfaces from below rather than cutting in. */
+.app-content > * {
+  animation: ferry-surface 0.5s var(--ease-swell) both;
+}
+
+/* Cards float: they rise on hover and settle back, never snap. */
+.card,
+.feature-card,
+.media-card,
+.project-card,
+.stat-card {
+  transition:
+    transform 0.45s var(--ease-swell),
+    box-shadow 0.45s var(--ease-swell),
+    border-color 0.3s ease;
+}
+
+.card:hover,
+.feature-card:hover,
+.media-card:hover,
+.project-card:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-lg), 0 0 32px rgba(var(--primary-rgb), 0.14);
+  border-color: var(--border-glow);
+}
+
+/* Nav items push a small bow-wave from the left edge on hover. */
+.nav-item {
+  position: relative;
+  overflow: hidden;
+  transition: color 0.25s ease, background-color 0.25s ease, padding-left 0.35s var(--ease-swell);
+}
+
+.nav-item::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--primary), var(--secondary));
+  transform: scaleY(0);
+  transform-origin: center;
+  transition: transform 0.35s var(--ease-swell);
+  border-radius: 0 2px 2px 0;
+}
+
+.nav-item:hover::before,
+.nav-item.active::before { transform: scaleY(1); }
+
+.nav-item:hover { padding-left: calc(var(--space-4) + 4px); }
+
+/* Buttons leave a wake when pressed. */
+.btn-primary,
+.btn-outline {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary::after,
+.btn-outline::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.22) 50%,
+    transparent 80%);
+  transform: translateX(-120%);
+  transition: transform 0.75s var(--ease-swell);
+}
+
+.btn-primary:hover::after,
+.btn-outline:hover::after { transform: translateX(120%); }
+
+/* The drop zone becomes a loading ramp: the dashes drift like a current. */
+.upload-dropzone {
+  border-color: rgba(var(--primary-rgb), 0.28);
+  background:
+    radial-gradient(120% 90% at 50% 120%, rgba(var(--primary-rgb), 0.09), transparent 60%),
+    rgba(var(--primary-rgb), 0.02);
+}
+
+.upload-dropzone-active {
+  animation: ferry-board 1.4s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════
+   7 · HORIZON RULES — section dividers as waterlines
+   ═══════════════════════════════════════════════ */
+
+.horizon-rule {
+  position: relative;
+  height: 1px;
+  border: none;
+  margin: var(--space-12) 0;
+  background: linear-gradient(90deg, transparent, var(--border-color) 20%, var(--border-color) 80%, transparent);
+}
+
+.horizon-rule::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  translate: -50% -50%;
+  rotate: 45deg;
+  background: var(--primary);
+  opacity: 0.65;
+  box-shadow: 0 0 12px rgba(var(--primary-rgb), 0.6);
+}
+
+/* A wave crest that can cap any section. */
+.wave-cap {
+  display: block;
+  width: 100%;
+  height: 54px;
+  color: var(--primary);
+}
+
+.wave-cap path { fill: var(--sea-swell); }
+
+/* ═══════════════════════════════════════════════
+   8 · RESOLUTION BADGE — the product promise, stated
+   ═══════════════════════════════════════════════ */
+
+.res-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 14px 6px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-glow);
+  background: rgba(var(--primary-rgb), 0.07);
+  color: var(--secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  backdrop-filter: blur(6px);
+}
+
+.res-badge svg { color: var(--primary); }
+
+.res-badge .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 8px var(--success);
+  animation: ferry-pulse 2.6s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════
+   9 · EMPTY STATES — the beacon, not a shrug
+   ═══════════════════════════════════════════════ */
+
+.sea-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-16) var(--space-6);
+  text-align: center;
+  color: var(--gray-400);
+}
+
+.sea-empty svg {
+  color: var(--primary);
+  opacity: 0.75;
+  animation: ferry-bob 5s ease-in-out infinite;
+}
+
+.sea-empty h3 { color: var(--gray-700); margin: 0; }
+.sea-empty p { max-width: 42ch; margin: 0; }
+
+/* ═══════════════════════════════════════════════
+   10 · KEYFRAMES
+   ═══════════════════════════════════════════════ */
+
+@keyframes ferry-bob {
+  0%, 100% { transform: translateY(0)      rotate(0deg); }
+  50%      { transform: translateY(-2.5px) rotate(-1.2deg); }
+}
+
+@keyframes ferry-swell {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-25%); }
+}
+
+@keyframes ferry-drift {
+  from { transform: translateX(-3%)  skewX(0deg); }
+  to   { transform: translateX(3%)   skewX(-1.5deg); }
+}
+
+@keyframes ferry-horizon {
+  0%, 100% { opacity: 0.25; }
+  50%      { opacity: 0.7; }
+}
+
+@keyframes ferry-wake {
+  0%   { opacity: 0;    transform: scale(0.55); }
+  35%  { opacity: 0.75; }
+  100% { opacity: 0;    transform: scale(1.35); }
+}
+
+@keyframes ferry-wake-ring {
+  0%   { opacity: 0;   transform: scale(0.35); }
+  30%  { opacity: 0.8; }
+  100% { opacity: 0;   transform: scale(1.15); }
+}
+
+@keyframes ferry-surface {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ferry-board {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.10), var(--glow-md); }
+  50%      { box-shadow: 0 0 0 9px rgba(var(--primary-rgb), 0.04), var(--glow-lg); }
+}
+
+@keyframes ferry-pulse {
+  0%, 100% { opacity: 1;    transform: scale(1); }
+  50%      { opacity: 0.45; transform: scale(0.82); }
+}
+
+@keyframes ferry-sail {
+  from { transform: translateX(-8vw); }
+  to   { transform: translateX(108vw); }
+}
+
+/* ═══════════════════════════════════════════════
+   11 · CALM SEAS — respect reduced motion
+   ═══════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  .sea-shafts,
+  .sea-swell,
+  .ferry-logo .ferry-mark,
+  .landing-mark .ferry-mark,
+  .crossing-boat .ferry-mark,
+  .sidebar-header::after,
+  .sea-empty svg,
+  .res-badge .dot,
+  .upload-dropzone-active,
+  .wl-hull,
+  .app-content > * {
+    animation: none !important;
+  }
+
+  .wl-ring,
+  .loading::before,
+  .loading::after,
+  .embed-spinner::before,
+  .embed-spinner::after {
+    animation-duration: 3s !important;
+  }
+
+  .card:hover,
+  .feature-card:hover,
+  .media-card:hover,
+  .project-card:hover { transform: none; }
+}
+
+/* ═══════════════════════════════════════════════
+   12 · COLLAPSED SIDEBAR — the mark alone still reads
+   ═══════════════════════════════════════════════ */
+
+.sidebar.closed .ferry-logo-text { display: none; }
+.sidebar.closed .ferry-logo { gap: 0; justify-content: center; }
+.sidebar.closed .sidebar-header::after { opacity: 0.3; }
+
+.mobile-topbar-brand .ferry-wordmark { font-size: 1.15rem; }

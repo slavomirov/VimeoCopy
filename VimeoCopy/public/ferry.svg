@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <!-- Ferry — the Prow mark. At favicon size the wake line is dropped:
+       one waterline, one play triangle. -->
+  <rect width="48" height="48" rx="11" fill="#041320"/>
+  <line x1="8" y1="35" x2="40" y2="35" stroke="#9CBED4" stroke-width="3" stroke-linecap="round"/>
+  <path d="M16 13 L16 35 L37 24 Z" fill="#38BDF8"/>
+</svg>

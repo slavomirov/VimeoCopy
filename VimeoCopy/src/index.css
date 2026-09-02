@@ -38,9 +38,13 @@
   --transition: all 0.2s ease;
 
   /* Raw RGB channels for rgba() usage in inline styles */
-  --primary-rgb: 34, 197, 94;
-  --danger-rgb: 239, 68, 68;
-  --warning-rgb: 245, 158, 11;
+  --primary-rgb: 56, 189, 248;
+  --danger-rgb: 251, 113, 133;
+  --warning-rgb: 251, 191, 36;
+
+  /* Ferry motion — one easing curve for the whole app: a hull settling in water */
+  --ease-swell: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-buoy: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* ═══════════════════════════════════════════════════
@@ -48,61 +52,67 @@
    ═══════════════════════════════════════════════════ */
 :root,
 [data-theme="dark"] {
-  /* Core Palette */
-  --primary: #22C55E;
-  --primary-dark: #15803D;
-  --primary-light: rgba(34, 197, 94, 0.1);
-  --secondary: #4ADE80;
-  --accent: #22C55E;
-  --success: #4ADE80;
-  --danger: #ef4444;
-  --warning: #f59e0b;
-  --info: #22C55E;
+  /* Core Palette — beacon blue on deep water */
+  --primary: #38BDF8;
+  --primary-dark: #0369A1;
+  --primary-light: rgba(56, 189, 248, 0.1);
+  --secondary: #7DD3FC;
+  --accent: #22D3EE;
+  --success: #34D399;
+  --danger: #FB7185;
+  --warning: #FBBF24;
+  --info: #38BDF8;
 
-  /* Surfaces */
-  --bg-deep: #050A12;
-  --bg-base: #0A0F1A;
-  --bg-surface: #0F172A;
-  --bg-elevated: #1E293B;
-  --bg-card: #111827;
-  --bg-input: #0D1321;
-  --border-color: rgba(34, 197, 94, 0.15);
-  --border-glow: rgba(34, 197, 94, 0.35);
+  /* Surfaces — the water column, abyss to deck */
+  --bg-deep: #020A12;
+  --bg-base: #041320;
+  --bg-surface: #071E31;
+  --bg-elevated: #0C2C46;
+  --bg-card: #061A2B;
+  --bg-input: #051826;
+  --border-color: rgba(56, 189, 248, 0.16);
+  --border-glow: rgba(56, 189, 248, 0.38);
 
-  /* Gray Scale (inverted for dark theme) */
-  --gray-50: #0F172A;
-  --gray-100: #1E293B;
-  --gray-200: #334155;
-  --gray-300: #475569;
-  --gray-400: #64748B;
-  --gray-500: #94A3B8;
-  --gray-600: #CBD5E1;
-  --gray-700: #E2E8F0;
-  --gray-800: #F1F5F9;
-  --gray-900: #F8FAFC;
+  /* Gray Scale (inverted for dark theme, biased toward the sea) */
+  --gray-50: #071E31;
+  --gray-100: #0C2C46;
+  --gray-200: #14405F;
+  --gray-300: #2C5F82;
+  --gray-400: #6892AF;
+  --gray-500: #9CBED4;
+  --gray-600: #C2DBEA;
+  --gray-700: #DBEBF5;
+  --gray-800: #EAF4FA;
+  --gray-900: #F4FBFF;
 
-  /* Shadows — neon glow */
+  /* Shadows — beacon glow through water */
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.6);
   --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.6);
   --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.7);
-  --glow-sm: 0 0 10px rgba(34, 197, 94, 0.15);
-  --glow-md: 0 0 20px rgba(34, 197, 94, 0.2);
-  --glow-lg: 0 0 40px rgba(34, 197, 94, 0.25);
-  --glow-xl: 0 0 60px rgba(34, 197, 94, 0.3);
+  --glow-sm: 0 0 10px rgba(56, 189, 248, 0.15);
+  --glow-md: 0 0 20px rgba(56, 189, 248, 0.2);
+  --glow-lg: 0 0 40px rgba(56, 189, 248, 0.25);
+  --glow-xl: 0 0 60px rgba(56, 189, 248, 0.3);
 
   /* Semantic overlay / text */
-  --overlay-bg: rgba(5, 10, 18, 0.85);
-  --overlay-medium: rgba(0, 0, 0, 0.7);
-  --overlay-light: rgba(0, 0, 0, 0.3);
-  --text-on-dark: rgba(255, 255, 255, 0.85);
-  --text-on-surface: #F8FAFC;
-  --btn-primary-text: #050A12;
-  --scrollbar-track: #050A12;
-  --scrollbar-thumb: #475569;
-  --selection-bg: rgba(34, 197, 94, 0.3);
-  --selection-color: white;
+  --overlay-bg: rgba(2, 10, 18, 0.85);
+  --overlay-medium: rgba(2, 10, 18, 0.72);
+  --overlay-light: rgba(2, 10, 18, 0.35);
+  --text-on-dark: rgba(240, 250, 255, 0.85);
+  --text-on-surface: #F4FBFF;
+  --btn-primary-text: #021018;
+  --scrollbar-track: #020A12;
+  --scrollbar-thumb: #14405F;
+  --selection-bg: rgba(56, 189, 248, 0.3);
+  --selection-color: #F4FBFF;
   --toaster-text: #fff;
+
+  /* Ferry atmosphere */
+  --sea-shaft: rgba(56, 189, 248, 0.07);
+  --sea-swell: rgba(56, 189, 248, 0.055);
+  --foam: #7DD3FC;
+  --hull: #0C2C46;
   color-scheme: dark;
 }
 
@@ -110,64 +120,70 @@
    LIGHT THEME
    ═══════════════════════════════════════════════════ */
 [data-theme="light"] {
-  /* Core Palette — slightly deeper greens for contrast on white */
-  --primary: #16A34A;
-  --primary-dark: #15803D;
-  --primary-light: rgba(22, 163, 74, 0.08);
-  --secondary: #22C55E;
-  --accent: #16A34A;
-  --success: #16A34A;
-  --danger: #dc2626;
-  --warning: #d97706;
-  --info: #16A34A;
+  /* Core Palette — "Shallows": deep channel blue for contrast on sea mist */
+  --primary: #0369A1;
+  --primary-dark: #075985;
+  --primary-light: rgba(3, 105, 161, 0.08);
+  --secondary: #0284C7;
+  --accent: #0E7490;
+  --success: #047857;
+  --danger: #be123c;
+  --warning: #b45309;
+  --info: #0369A1;
 
   /* Surfaces */
-  --bg-deep: #F1F5F9;
-  --bg-base: #F8FAFC;
+  --bg-deep: #DDEBF5;
+  --bg-base: #F3F9FD;
   --bg-surface: #FFFFFF;
-  --bg-elevated: #F1F5F9;
+  --bg-elevated: #EAF3FA;
   --bg-card: #FFFFFF;
   --bg-input: #FFFFFF;
-  --border-color: #E2E8F0;
-  --border-glow: rgba(22, 163, 74, 0.3);
+  --border-color: #D3E3EF;
+  --border-glow: rgba(3, 105, 161, 0.3);
 
-  /* Gray Scale (natural order for light theme) */
-  --gray-50: #F8FAFC;
-  --gray-100: #F1F5F9;
-  --gray-200: #E2E8F0;
-  --gray-300: #CBD5E1;
-  --gray-400: #94A3B8;
-  --gray-500: #64748B;
-  --gray-600: #475569;
-  --gray-700: #334155;
-  --gray-800: #1E293B;
-  --gray-900: #0F172A;
+  /* Gray Scale (natural order for light theme, biased toward the sea) */
+  --gray-50: #F3F9FD;
+  --gray-100: #E8F1F8;
+  --gray-200: #D3E3EF;
+  --gray-300: #B2CADC;
+  --gray-400: #7C9CB4;
+  --gray-500: #4E7189;
+  --gray-600: #35566C;
+  --gray-700: #234152;
+  --gray-800: #142C3B;
+  --gray-900: #071E31;
 
   /* Shadows — subtle, no glow */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.1);
-  --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.12);
+  --shadow-sm: 0 1px 3px rgba(7, 30, 49, 0.08);
+  --shadow-md: 0 4px 12px rgba(7, 30, 49, 0.08);
+  --shadow-lg: 0 10px 25px rgba(7, 30, 49, 0.1);
+  --shadow-xl: 0 20px 40px rgba(7, 30, 49, 0.12);
   --glow-sm: 0 0 0 transparent;
-  --glow-md: 0 1px 4px rgba(22, 163, 74, 0.08);
-  --glow-lg: 0 2px 8px rgba(22, 163, 74, 0.1);
-  --glow-xl: 0 4px 16px rgba(22, 163, 74, 0.12);
+  --glow-md: 0 1px 4px rgba(3, 105, 161, 0.08);
+  --glow-lg: 0 2px 8px rgba(3, 105, 161, 0.1);
+  --glow-xl: 0 4px 16px rgba(3, 105, 161, 0.12);
 
   /* Semantic */
-  --overlay-bg: rgba(0, 0, 0, 0.45);
-  --overlay-medium: rgba(0, 0, 0, 0.5);
-  --overlay-light: rgba(0, 0, 0, 0.15);
-  --text-on-dark: rgba(0, 0, 0, 0.85);
-  --text-on-surface: #0F172A;
+  --overlay-bg: rgba(7, 30, 49, 0.45);
+  --overlay-medium: rgba(7, 30, 49, 0.5);
+  --overlay-light: rgba(7, 30, 49, 0.15);
+  --text-on-dark: rgba(7, 30, 49, 0.85);
+  --text-on-surface: #071E31;
   --btn-primary-text: #FFFFFF;
-  --scrollbar-track: #F1F5F9;
-  --scrollbar-thumb: #CBD5E1;
-  --selection-bg: rgba(22, 163, 74, 0.2);
-  --selection-color: #0F172A;
+  --scrollbar-track: #E8F1F8;
+  --scrollbar-thumb: #B2CADC;
+  --selection-bg: rgba(3, 105, 161, 0.2);
+  --selection-color: #071E31;
   --toaster-text: #fff;
-  --primary-rgb: 22, 163, 74;
-  --danger-rgb: 220, 38, 38;
-  --warning-rgb: 217, 119, 6;
+  --primary-rgb: 3, 105, 161;
+  --danger-rgb: 190, 18, 60;
+  --warning-rgb: 180, 83, 9;
+
+  /* Ferry atmosphere */
+  --sea-shaft: rgba(3, 105, 161, 0.05);
+  --sea-swell: rgba(3, 105, 161, 0.06);
+  --foam: #0284C7;
+  --hull: #D3E3EF;
   color-scheme: light;
 }
 

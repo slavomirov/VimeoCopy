@@ -1,165 +1,273 @@
 import { Link } from "react-router-dom";
+import {
+  ProwMark,
+  IconLoad,
+  IconDeck,
+  IconCompass,
+  IconVoyage,
+  IconSonar,
+  IconAnchor,
+  IconResolution,
+  IconBeacon,
+  IconTicket,
+} from "./brand/FerryMarks";
 import "./LandingPage.css";
+
+/** A crest that caps a section — the same swell used in the backdrop, held still. */
+function WaveCap({ flip = false }: { flip?: boolean }) {
+  return (
+    <svg
+      className={`wave-cap ${flip ? "wave-cap-flip" : ""}`}
+      viewBox="0 0 1440 54"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <path d="M0,28 c180,-30 360,30 720,0 c360,-30 540,30 720,0 V54 H0 Z" />
+    </svg>
+  );
+}
 
 export function LandingPage() {
   return (
     <div className="landing-page">
 
-      {/* ================= HERO ================= */}
+      {/* ═══════════ HERO — the thesis ═══════════ */}
       <section className="hero">
         <div className="hero-content">
-          <h1>VimeoCopy</h1>
-          <p className="hero-subtitle">Your Professional Video Management Platform</p>
 
-          <p className="hero-description">
-            Upload, organize, and share your videos with ease. A powerful platform designed
-            for creators, teams, and businesses who demand simplicity and elegance.
+          <span className="landing-mark">
+            <ProwMark size={92} title="Ferry" />
+          </span>
+
+          <h1>Ferry</h1>
+          <p className="hero-subtitle">
+            In the open sea of the internet, your work keeps its resolution.
           </p>
 
+          <p className="hero-description">
+            Everywhere else re-encodes you. Feeds crush your frames, timelines flatten your
+            audio, algorithms decide who ever sees it. Ferry does one thing: it carries the
+            file you made, at the quality you made it, to the people you send it to — and
+            gives it a permanent address on the way.
+          </p>
+
+          <div className="res-badge">
+            <span className="dot" aria-hidden="true" />
+            Original file · no re-encode · streamed direct
+          </div>
+
           <div className="hero-actions">
-            <Link to="/upload" className="btn btn-primary">Start Uploading</Link>
-            <Link to="/videos" className="btn btn-ghost">Browse Videos</Link>
+            <Link to="/upload" className="btn btn-primary">Load your work aboard</Link>
+            <Link to="/videos" className="btn btn-ghost">See what&rsquo;s sailing</Link>
+          </div>
+
+          {/* The crossing: a ferry actually makes the trip, once, on load. */}
+          <div className="hero-crossing" aria-hidden="true">
+            <span className="hero-port hero-port-left">
+              <span className="port-dot" />
+              <span className="port-label">Your drive</span>
+            </span>
+            <span className="hero-route">
+              <span className="hero-ferry"><ProwMark size={26} /></span>
+            </span>
+            <span className="hero-port hero-port-right">
+              <span className="port-dot" />
+              <span className="port-label">Their screen</span>
+            </span>
+          </div>
+
+        </div>
+      </section>
+
+      <WaveCap />
+
+      {/* ═══════════ THE PROMISE ═══════════ */}
+      <section className="promise-section">
+        <div className="container">
+          <div className="promise-grid">
+            <div className="promise-lead">
+              <span className="eyebrow">Why the name</span>
+              <h2>A ferry has one job, and it doesn&rsquo;t improvise.</h2>
+              <p>
+                It runs the same route, on schedule, for anyone who turns up at the dock. It
+                doesn&rsquo;t rank its passengers. It doesn&rsquo;t decide that some cargo
+                deserves the crossing more than others. It takes what you loaded and puts it
+                down on the other side in the condition it left.
+              </p>
+              <p>
+                That is the whole product, and it is the opposite of a feed.
+              </p>
+            </div>
+
+            <ul className="promise-list">
+              <li>
+                <IconResolution size={22} />
+                <div>
+                  <strong>Your original, not our version of it</strong>
+                  <span>The bytes you uploaded are the bytes that stream back. Nothing is re-compressed to save us money.</span>
+                </div>
+              </li>
+              <li>
+                <IconAnchor size={22} />
+                <div>
+                  <strong>A permanent berth</strong>
+                  <span>Every piece gets a stable address and an artist page you control — your palette, your fonts, your wall.</span>
+                </div>
+              </li>
+              <li>
+                <IconCompass size={22} />
+                <div>
+                  <strong>No algorithm at the helm</strong>
+                  <span>No ranking, no recommended-for-you, no reach to buy back. People arrive because you sent them.</span>
+                </div>
+              </li>
+            </ul>
           </div>
         </div>
       </section>
 
-      {/* ================= FEATURES ================= */}
+      {/* ═══════════ FEATURES ═══════════ */}
       <section className="features-section">
         <div className="container">
-          <h2>Why Choose VimeoCopy?</h2>
+          <span className="eyebrow">Aboard</span>
+          <h2>Everything the crossing needs</h2>
 
           <div className="features-grid">
 
-            {/* Feature 1 */}
             <div className="feature-card">
-              <div className="feature-icon">
-                <svg width="40" height="40" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="17 8 12 3 7 8"></polyline>
-                  <line x1="12" y1="3" x2="12" y2="15"></line>
-                </svg>
-              </div>
-              <h3>Easy Upload</h3>
-              <p>Drag and drop your media or click to browse. Supports all major formats with lightning-fast uploads.</p>
+              <div className="feature-icon"><IconLoad size={38} /></div>
+              <h3>Load aboard</h3>
+              <p>
+                Drag a whole batch onto the deck — video, audio and stills together. Uploads
+                run in the background and survive you navigating away.
+              </p>
             </div>
 
-            {/* Feature 2 */}
             <div className="feature-card">
-              <div className="feature-icon">
-                <svg width="40" height="40" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <polygon points="23 7 16 12 23 17 23 7"></polygon>
-                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-                </svg>
-              </div>
-              <h3>Organize & Store</h3>
-              <p>Keep all your media files organized in one place. Search, filter, and manage your library effortlessly.</p>
+              <div className="feature-icon"><IconDeck size={38} /></div>
+              <h3>Keep the hold in order</h3>
+              <p>
+                Group work into projects, set covers, choose what&rsquo;s public and what stays
+                below deck. Your library, arranged the way you think about it.
+              </p>
             </div>
 
-            {/* Feature 3 */}
             <div className="feature-card">
-              <div className="feature-icon">
-                <svg width="40" height="40" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                  <circle cx="9" cy="7" r="4"></circle>
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                </svg>
-              </div>
-              <h3>Share & Collaborate</h3>
-              <p>Share videos with your team or clients. Control permissions and get detailed viewing analytics.</p>
+              <div className="feature-icon"><IconTicket size={38} /></div>
+              <h3>Issue a boarding pass</h3>
+              <p>
+                Share links that expire when you say and can be revoked the moment you change
+                your mind. One click to pull a pass back out of circulation.
+              </p>
             </div>
 
-            {/* Feature 4 */}
             <div className="feature-card">
-              <div className="feature-icon">
-                <svg width="40" height="40" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-                </svg>
-              </div>
-              <h3>Embed Anywhere</h3>
-              <p>Drop any public video into your blog, portfolio or a client's site with a single line of code.</p>
+              <div className="feature-icon"><IconVoyage size={38} /></div>
+              <h3>Sail anywhere</h3>
+              <p>
+                Drop any public piece into a blog, a portfolio or a client&rsquo;s site with a
+                single line of embed code. It travels with the player attached.
+              </p>
             </div>
 
-            {/* Feature 5 */}
             <div className="feature-card">
-              <div className="feature-icon">
-                <svg width="40" height="40" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none">
-                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                  <polyline points="8 21 12 17 16 21"></polyline>
-                </svg>
-              </div>
-              <h3>Play On Any Screen</h3>
-              <p>A custom player built for video, audio and images — with one-tap casting to your TV, keyboard shortcuts, and boosted audio.</p>
+              <div className="feature-icon"><IconResolution size={38} /></div>
+              <h3>A player that respects the file</h3>
+              <p>
+                Built for video, audio <em>and</em> images. Cast to a TV, drive it from the
+                keyboard, boosted audio for quiet masters, full-screen with no letterbox.
+              </p>
             </div>
 
-            {/* Feature 6 */}
             <div className="feature-card">
-              <div className="feature-icon">
-                <svg width="40" height="40" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none">
-                  <path d="M12 19a7 7 0 0 1 0-14 5 5 0 0 1 0 10h-1.5a1.5 1.5 0 0 0 0 3H12z"></path>
-                  <circle cx="8" cy="10" r="1"></circle>
-                  <circle cx="12" cy="8" r="1"></circle>
-                  <circle cx="16" cy="10" r="1"></circle>
-                </svg>
-              </div>
-              <h3>Your Own Artist Page</h3>
-              <p>Claim your handle for a public profile you control — your palette, your fonts, your gallery wall. No feed, no algorithm.</p>
+              <div className="feature-icon"><IconSonar size={38} /></div>
+              <h3>Know who came aboard</h3>
+              <p>
+                Views, unique viewers and data delivered — counted once per viewer per hour,
+                and never sold on. Numbers for you, not for advertisers.
+              </p>
             </div>
 
           </div>
         </div>
       </section>
 
-      {/* ================= CTA ================= */}
+      <WaveCap flip />
+
+      {/* ═══════════ THE ROUTE ═══════════ */}
+      <section className="route-section">
+        <div className="container">
+          <span className="eyebrow">The route</span>
+          <h2>Three stops, no detours</h2>
+
+          <ol className="route-steps">
+            <li>
+              <span className="route-num">01</span>
+              <h3>Cast off</h3>
+              <p>Drop your files in. They go straight to storage over a signed, one-time link — the file never sits on a middleman&rsquo;s disk.</p>
+            </li>
+            <li>
+              <span className="route-num">02</span>
+              <h3>Under way</h3>
+              <p>Claim your handle and arrange the wall. Set the palette, pick the fonts, choose what the public sees.</p>
+            </li>
+            <li>
+              <span className="route-num">03</span>
+              <h3>Made port</h3>
+              <p>Send a link, embed it, or point people at your page. It arrives at full resolution on whatever they open it with.</p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      {/* ═══════════ CTA ═══════════ */}
       <section className="cta-section">
         <div className="container">
           <div className="cta-content">
-            <h2>Ready to Elevate Your Video Content?</h2>
-            <p>Join thousands of creators and teams who trust VimeoCopy for their video management needs.</p>
+            <IconBeacon size={44} className="cta-beacon" />
+            <h2>The next crossing is yours</h2>
+            <p>
+              Start free. Load something aboard and see what it looks like when nothing
+              stands between your work and the person you made it for.
+            </p>
 
             <div className="cta-actions">
-              <Link to="/profile" className="btn btn-primary btn-large">Create Free Account</Link>
-              <Link to="/profile" className="btn btn-ghost btn-large">Sign In</Link>
+              <Link to="/profile" className="btn btn-primary btn-large">Board for free</Link>
+              <Link to="/profile" className="btn btn-ghost btn-large">Sign in</Link>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ================= STATS ================= */}
+      {/* ═══════════ STATS ═══════════ */}
       <section className="stats-section">
         <div className="container">
           <div className="stats-grid">
-
             <div className="stat">
-              <div className="stat-number">10M+</div>
-              <div className="stat-label">Videos Hosted</div>
+              <div className="stat-number">1:1</div>
+              <div className="stat-label">Bytes in, bytes out</div>
             </div>
-
             <div className="stat">
-              <div className="stat-number">50K+</div>
-              <div className="stat-label">Active Users</div>
+              <div className="stat-number">0</div>
+              <div className="stat-label">Algorithms aboard</div>
             </div>
-
             <div className="stat">
-              <div className="stat-number">99.9%</div>
-              <div className="stat-label">Uptime SLA</div>
+              <div className="stat-number">3</div>
+              <div className="stat-label">Media types, one player</div>
             </div>
-
             <div className="stat">
-              <div className="stat-number">180+</div>
-              <div className="stat-label">Countries Served</div>
+              <div className="stat-number">7d</div>
+              <div className="stat-label">Free trial, no card</div>
             </div>
-
           </div>
         </div>
       </section>
 
-      {/* ================= FOOTER CTA ================= */}
+      {/* ═══════════ FOOTER ═══════════ */}
       <section className="footer-cta">
         <div className="container">
-          <p>Start your free trial today. No credit card required.</p>
-          <Link to="/profile" className="btn btn-primary">Get Started Now</Link>
+          <p>Every crossing starts at the dock. No card required.</p>
+          <Link to="/profile" className="btn btn-primary">Get your handle</Link>
         </div>
       </section>
 
