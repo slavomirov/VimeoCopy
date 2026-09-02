@@ -872,3 +872,37 @@ textarea:focus-visible,
   .media-skeleton { animation: none !important; }
   .hp-loading { animation-duration: 3s !important; }
 }
+
+/* ═══════════════════════════════════════════════
+   17 · HOVER PREVIEW — specificity
+   `.media-gallery-preview img, .media-gallery-preview video` in App.css scores
+   (0,1,1) and was outranking the bare `.hp-*` classes (0,1,0), which quietly
+   dropped the poster→video crossfade. Scoping under `.hover-preview` scores
+   (0,2,0) and wins cleanly, without resorting to !important.
+   ═══════════════════════════════════════════════ */
+
+.hover-preview .hp-poster,
+.hover-preview .hp-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.hover-preview .hp-poster {
+  opacity: 1;
+  transition: opacity 0.35s var(--ease-swell);
+  z-index: 0;
+}
+
+.hover-preview .hp-poster[data-dimmed="true"] { opacity: 0; }
+
+.hover-preview .hp-video {
+  opacity: 0;
+  transition: opacity 0.4s var(--ease-swell);
+  z-index: 1;
+}
+
+.hover-preview .hp-video[data-visible="true"] { opacity: 1; }
