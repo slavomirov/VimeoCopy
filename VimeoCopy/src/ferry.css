@@ -684,30 +684,24 @@ h1, h2, .ferry-wordmark, .stat-number, .hero h1 {
 
 .hp-video[data-visible="true"] { opacity: 1; }
 
-/* Which of the sampled moments is on screen. */
-.hp-ticks {
+/* Playback position, the way a video platform shows it: a hairline across the
+   very bottom edge of the tile, not a floating control. */
+.hp-progress {
   position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: 9px;
-  display: flex;
-  gap: 4px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: rgba(0, 0, 0, 0.45);
   z-index: 2;
   pointer-events: none;
 }
 
-.hp-tick {
-  flex: 1;
-  height: 3px;
-  border-radius: var(--radius-full);
-  background: rgba(255, 255, 255, 0.28);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-  transition: background-color 0.3s ease;
-}
-
-.hp-tick[data-active="true"] {
-  background: var(--secondary);
-  box-shadow: 0 0 10px rgba(var(--primary-rgb), 0.9);
+.hp-progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--primary);
+  box-shadow: 0 0 8px rgba(var(--primary-rgb), 0.8);
 }
 
 /* A wake ring while the first frame decodes, so the tile doesn't sit dead. */
@@ -906,3 +900,15 @@ textarea:focus-visible,
 }
 
 .hover-preview .hp-video[data-visible="true"] { opacity: 1; }
+
+/* While a preview is actually playing, drop the hover zoom and the dark scrim —
+   YouTube shows the frame clean, and a 1.05 scale on `object-fit: cover` just
+   crops more off the edges of the clip. */
+.media-gallery-card:hover .hover-preview .hp-video,
+.media-gallery-card:hover .hover-preview .hp-poster {
+  transform: none;
+}
+
+.media-gallery-card:has(.hp-video[data-visible="true"]) .media-play-overlay {
+  opacity: 0;
+}
