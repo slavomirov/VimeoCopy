@@ -4,6 +4,8 @@ import { useAuth } from "../Auth/useAuth";
 import { API_BASE_URL } from "../config";
 import { EnhancedPlayer } from "./EnhancedPlayer";
 import { ReportButton } from "./ReportButton";
+import { HoverPreview } from "./HoverPreview";
+import { IconBeacon } from "../brand/FerryMarks";
 import "../App.css";
 
 /* ── Types ─────────────────────────────────── */
@@ -265,19 +267,32 @@ export function Videos() {
       </div>
 
       {!loaded ? (
-        <div style={{ textAlign: "center", padding: "var(--space-16)" }}>
-          <div className="loading" style={{ margin: "0 auto" }}></div>
-          <p className="text-muted" style={{ marginTop: "var(--space-4)" }}>Loading gallery...</p>
+        // Skeletons, not a spinner: the grid's real shape appears immediately, so the
+        // page doesn't reflow when data lands and the wait reads as shorter.
+        <div className="grid grid-2" aria-busy="true" aria-label="Loading gallery">
+          {Array.from({ length: 8 }, (_, i) => (
+            <div key={i} className="card media-skeleton" style={{ animationDelay: `${i * 0.05}s` }}>
+              <div className="sk-preview" />
+              <div className="sk-body">
+                <div className="sk-line sk-line-lg" />
+                <div className="sk-line sk-line-sm" />
+                <div className="sk-owner">
+                  <div className="sk-avatar" />
+                  <div className="sk-line sk-line-xs" />
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       ) : items.length === 0 ? (
-        <div className="card fade-in-up" style={{ textAlign: "center", padding: "var(--space-12)" }}>
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="1.5" style={{ margin: "0 auto var(--space-4)", display: "block" }}>
-            <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18" />
-            <line x1="7" y1="2" x2="7" y2="22" />
-            <line x1="17" y1="2" x2="17" y2="22" />
-            <line x1="2" y1="12" x2="22" y2="12" />
-          </svg>
-          <p className="text-muted">No media files available. <a href="/upload">Upload one now</a></p>
+        <div className="sea-empty fade-in-up">
+          <IconBeacon size={48} />
+          <h3>Nothing has sailed yet</h3>
+          <p>
+            When people publish work it arrives here, newest first — no ranking, no algorithm.
+            Be the first to send something out.
+          </p>
+          <Link to="/upload" className="btn-primary">Load your work aboard</Link>
         </div>
       ) : (
         <>
@@ -464,30 +479,55 @@ function GalleryMediaItem({
   compact?: boolean;
 }) {
   if (!url) return (
-    <div className="card stagger-in" style={{ padding: "var(--space-8)", textAlign: "center", animationDelay: `${index * 0.06}s` }}>
-      <div className="loading" style={{ margin: "0 auto" }}></div>
+    <div className="card media-skeleton" style={{ animationDelay: `${index * 0.05}s` }}>
+      <div className="sk-preview" />
+      <div className="sk-body">
+        <div className="sk-line sk-line-lg" />
+        <div className="sk-line sk-line-sm" />
+      </div>
     </div>
   );
 
   const isImage = media.contentType.startsWith("image/");
 
+  const isAudio = media.contentType.startsWith("audio/");
+
   return (
+    // A clickable <div> is invisible to the keyboard and to screen readers. This is a
+    // control, so it announces as one and responds to Enter/Space like every other button.
     <div
       className={`card media-gallery-card stagger-in ${compact ? "compact" : ""}`}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open ${media.fileName || "untitled media"}`}
       style={{ cursor: "pointer", overflow: "hidden", animationDelay: `${index * 0.06}s` }}
     >
       {/* Media preview */}
       <div className="media-gallery-preview">
         {isImage ? (
-          <img src={thumbnailUrl || url} alt={media.fileName || "Media"} />
+          <img src={thumbnailUrl || url} alt={media.fileName || "Media"} loading="lazy" />
+        ) : isAudio ? (
+          <>
+            <img src={thumbnailUrl || url} alt={media.fileName || "Media"} loading="lazy" />
+            <div className="media-play-overlay">
+              <div className="media-play-btn">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="white" style={{ marginLeft: "2px" }}>
+                  <polygon points="5,3 19,12 5,21" />
+                </svg>
+              </div>
+            </div>
+          </>
         ) : (
           <>
-            {thumbnailUrl ? (
-              <img src={thumbnailUrl} alt={media.fileName || "Media"} />
-            ) : (
-              <video src={url} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-            )}
+            {/* Hover samples four moments from across the clip. */}
+            <HoverPreview src={url} poster={thumbnailUrl} alt={media.fileName || "Media"} />
             <div className="media-play-overlay">
               <div className="media-play-btn">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="white" style={{ marginLeft: "2px" }}>

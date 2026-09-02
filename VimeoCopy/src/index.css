@@ -141,14 +141,20 @@
   --border-color: #D3E3EF;
   --border-glow: rgba(3, 105, 161, 0.3);
 
-  /* Gray Scale (natural order for light theme, biased toward the sea) */
+  /* Gray Scale (natural order for light theme, biased toward the sea).
+     Measured against the four grounds this theme actually paints (#F3F9FD base,
+     #E9F2F9 sidebar, #FFFFFF card, #EAF3FA elevated). The ramp used to start at
+     #7C9CB4, which rendered secondary nav at 2.55:1 — below the 4.5:1 AA floor for
+     text and even below the 3:1 floor for icons, so icons looked "missing" in light
+     mode. Every tone from --gray-400 up now clears 4.5:1 on all four. --gray-300 and
+     below are borders and disabled fills only; never put text on them. */
   --gray-50: #F3F9FD;
   --gray-100: #E8F1F8;
   --gray-200: #D3E3EF;
-  --gray-300: #B2CADC;
-  --gray-400: #7C9CB4;
-  --gray-500: #4E7189;
-  --gray-600: #35566C;
+  --gray-300: #A8C3D6;
+  --gray-400: #4E7189;
+  --gray-500: #3D6178;
+  --gray-600: #2C4B60;
   --gray-700: #234152;
   --gray-800: #142C3B;
   --gray-900: #071E31;

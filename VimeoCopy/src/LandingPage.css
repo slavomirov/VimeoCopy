@@ -817,3 +817,47 @@
   .hero-port { width: 70px; }
   .port-label { font-size: 10px; }
 }
+
+/* ── Hero buttons: theme-aware ────────────────────────────────
+   These were hard-coded to white back when the hero sat on a dark neon
+   gradient. On the sea-blue primary, white text measured ~1.9:1 (WCAG needs
+   4.5:1), and in light mode the ghost button was white-on-near-white — i.e.
+   invisible. Both now read from the same tokens as every other button. */
+
+.hero-actions .btn-primary {
+  color: var(--btn-primary-text);
+}
+
+.hero-actions .btn-ghost {
+  color: var(--gray-800);
+  border: 2px solid var(--border-glow);
+  background: rgba(var(--primary-rgb), 0.07);
+}
+
+.hero-actions .btn-ghost:hover {
+  background: rgba(var(--primary-rgb), 0.14);
+  border-color: var(--primary);
+  color: var(--gray-900);
+  box-shadow: var(--glow-md);
+}
+
+.cta-actions .btn-primary { color: var(--btn-primary-text); }
+
+.cta-actions .btn-ghost {
+  color: var(--gray-800);
+  border: 2px solid var(--border-glow);
+  background: rgba(var(--primary-rgb), 0.07);
+}
+
+.cta-actions .btn-ghost:hover {
+  background: rgba(var(--primary-rgb), 0.14);
+  border-color: var(--primary);
+  color: var(--gray-900);
+}
+
+.footer-cta .btn { color: var(--btn-primary-text); }
+
+/* --primary rather than --secondary: in light mode --secondary (#0284C7) measured
+   3.86:1 against the page ground, which only clears WCAG at the largest end of the
+   subtitle's clamp. --primary (#0369A1) holds 5.59:1 at every size. */
+.hero-subtitle { color: var(--primary); }

@@ -623,3 +623,252 @@ h1, h2, .ferry-wordmark, .stat-number, .hero h1 {
 .sidebar.closed .sidebar-header::after { opacity: 0.3; }
 
 .mobile-topbar-brand .ferry-wordmark { font-size: 1.15rem; }
+
+/* ═══════════════════════════════════════════════
+   13 · GALLERY WIDTH
+   The gallery is the one page whose job is to show as many tiles as the
+   screen allows. Capping it at the 1200px reading measure wasted a third
+   of a wide display and pushed the grid off-centre against the sidebar.
+   Reading pages keep the narrow measure; the grid gets the room.
+   ═══════════════════════════════════════════════ */
+
+/* Both classes, so the intent to override `.container` is explicit rather than a
+   bet on which stylesheet happens to load last. */
+.container.media-gallery-page {
+  max-width: min(1760px, 100%);
+  width: 100%;
+}
+
+.media-gallery-page .grid-2 {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+@media (min-width: 1600px) {
+  .media-gallery-page .grid-2 {
+    grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   14 · HOVER PREVIEW — the flyover
+   ═══════════════════════════════════════════════ */
+
+.hover-preview {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--bg-deep);
+}
+
+.hp-poster,
+.hp-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.hp-poster {
+  transition: opacity 0.35s var(--ease-swell), transform 6s linear;
+  opacity: 1;
+}
+
+.hp-poster[data-dimmed="true"] { opacity: 0; }
+
+.hp-video {
+  opacity: 0;
+  transition: opacity 0.4s var(--ease-swell);
+}
+
+.hp-video[data-visible="true"] { opacity: 1; }
+
+/* Which of the sampled moments is on screen. */
+.hp-ticks {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 9px;
+  display: flex;
+  gap: 4px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.hp-tick {
+  flex: 1;
+  height: 3px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  transition: background-color 0.3s ease;
+}
+
+.hp-tick[data-active="true"] {
+  background: var(--secondary);
+  box-shadow: 0 0 10px rgba(var(--primary-rgb), 0.9);
+}
+
+/* A wake ring while the first frame decodes, so the tile doesn't sit dead. */
+.hp-loading {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 26px;
+  height: 26px;
+  margin: -13px 0 0 -13px;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%);
+  opacity: 0;
+  animation: ferry-wake-ring 1.4s ease-out infinite;
+  z-index: 2;
+}
+
+/* Once the flyover is running, the big play button would just cover it. */
+.media-gallery-card:hover .hover-preview .hp-video[data-visible="true"] ~ * { pointer-events: none; }
+.media-gallery-card:has(.hp-video[data-visible="true"]) .media-play-overlay { opacity: 0; }
+
+/* ═══════════════════════════════════════════════
+   15 · SKELETONS — show the shape, not a spinner
+   ═══════════════════════════════════════════════ */
+
+.media-skeleton {
+  padding: 0;
+  overflow: hidden;
+  pointer-events: none;
+  animation: ferry-surface 0.4s var(--ease-swell) both;
+}
+
+.media-skeleton .sk-preview {
+  aspect-ratio: 16 / 10;
+  width: 100%;
+  background: var(--bg-elevated);
+}
+
+.media-skeleton .sk-body {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.media-skeleton .sk-line {
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: var(--bg-elevated);
+}
+
+.sk-line-lg { width: 72%; }
+.sk-line-sm { width: 45%; }
+.sk-line-xs { width: 90px; height: 8px; }
+
+.media-skeleton .sk-owner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.media-skeleton .sk-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  flex: none;
+}
+
+/* One shimmer pass across the whole card, not per-element — reads as a single
+   object loading rather than a pile of blinking bars. */
+.media-skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg,
+    transparent 30%,
+    rgba(var(--primary-rgb), 0.09) 50%,
+    transparent 70%);
+  transform: translateX(-100%);
+  animation: ferry-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes ferry-shimmer {
+  to { transform: translateX(100%); }
+}
+
+/* ═══════════════════════════════════════════════
+   16 · UX BASELINE
+   ═══════════════════════════════════════════════ */
+
+/* Keyboard focus was invisible on most controls. One visible, consistent ring. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+
+/* Tiles reserve their space before the image lands, so nothing jumps (CLS). */
+.media-gallery-preview {
+  aspect-ratio: 16 / 10;
+  height: auto;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-deep);
+}
+
+.media-gallery-card { position: relative; }
+
+/* The search + filter bar stays reachable while scrolling a long gallery. */
+.media-filters-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: var(--space-3) var(--space-2);
+  margin-inline: calc(var(--space-2) * -1);
+  background: color-mix(in srgb, var(--bg-base) 88%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.3s ease;
+}
+
+.media-filters-bar:hover,
+.media-filters-bar:focus-within { border-bottom-color: var(--border-color); }
+
+/* Touch targets: 44px is the accessibility floor for anything tappable. */
+.media-filter-tab,
+.nav-item,
+.btn-primary,
+.btn-secondary,
+.btn-outline,
+.btn-ghost { min-height: 44px; }
+
+/* Figures that sit in columns should line up. */
+.stat-number,
+.media-gallery-meta,
+.crossing,
+[class*="-count"] { font-variant-numeric: tabular-nums; }
+
+/* Long filenames must wrap or ellipsize, never overflow their card. */
+.media-gallery-filename {
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Empty states get a real call to action rather than a dead end. */
+.sea-empty .btn-primary { margin-top: var(--space-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .media-skeleton::after,
+  .media-skeleton { animation: none !important; }
+  .hp-loading { animation-duration: 3s !important; }
+}

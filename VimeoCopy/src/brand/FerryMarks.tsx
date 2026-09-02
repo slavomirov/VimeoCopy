@@ -183,7 +183,9 @@ const ico = (size: number, className: string) => ({
   viewBox: "0 0 24 24",
   fill: "none",
   stroke: "currentColor",
-  strokeWidth: 1.8,
+  // 2 rather than 1.8: hairline strokes on a pale ground read as washed out even when
+  // the colour itself passes contrast. Icon legibility is weight as much as hue.
+  strokeWidth: 2,
   strokeLinecap: "round" as const,
   strokeLinejoin: "round" as const,
   className: `ferry-icon ${className}`,
