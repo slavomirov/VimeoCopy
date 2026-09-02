@@ -109,6 +109,10 @@
   --toaster-text: #fff;
 
   /* Ferry atmosphere */
+  /* Filled icon tiles. Kept light in dark mode so the near-black glyph contrasts
+     across the WHOLE gradient, not just its top edge. */
+  --tile-from: #7DD3FC;
+  --tile-to: #38BDF8;
   --sea-shaft: rgba(56, 189, 248, 0.07);
   --sea-swell: rgba(56, 189, 248, 0.055);
   --foam: #7DD3FC;
@@ -186,6 +190,9 @@
   --warning-rgb: 180, 83, 9;
 
   /* Ferry atmosphere */
+  /* Deep in light mode, so the white glyph contrasts across the whole gradient. */
+  --tile-from: #0369A1;
+  --tile-to: #075985;
   --sea-shaft: rgba(3, 105, 161, 0.05);
   --sea-swell: rgba(3, 105, 161, 0.06);
   --foam: #0284C7;
