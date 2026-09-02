@@ -338,9 +338,19 @@ h1, h2, .ferry-wordmark, .stat-number, .hero h1 {
    6 · MOTION — how things behave on water
    ═══════════════════════════════════════════════ */
 
-/* Every route change surfaces from below rather than cutting in. */
+/* Every route change surfaces rather than cutting in.
+ *
+ * DELIBERATELY opacity-only. This wrapper is an ancestor of `.vp-overlay`,
+ * `.modal-overlay` and `.confirm-overlay`, all of which are `position: fixed`.
+ * Any non-`none` transform here makes this element their containing block, so
+ * `inset: 0` would resolve to the page wrapper instead of the viewport and every
+ * overlay in the app would collapse into a small box mid-page. `animation-fill-mode:
+ * both` retained that transform permanently, which is exactly what happened.
+ *
+ * Don't add translate/scale/filter/backdrop-filter to this rule. The "rising"
+ * character lives in the sea, the mark and the loaders, where it is safe. */
 .app-content > * {
-  animation: ferry-surface 0.5s var(--ease-swell) both;
+  animation: ferry-surface 0.45s var(--ease-swell) both;
 }
 
 /* Cards float: they rise on hover and settle back, never snap. */
@@ -549,9 +559,11 @@ h1, h2, .ferry-wordmark, .stat-number, .hero h1 {
   100% { opacity: 0;   transform: scale(1.15); }
 }
 
+/* Opacity only — see the note on `.app-content > *`. A transform here breaks every
+   fixed-position overlay in the app. */
 @keyframes ferry-surface {
-  from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 @keyframes ferry-board {

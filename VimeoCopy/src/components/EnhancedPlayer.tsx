@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import "../App.css";
 
 /* ── Shared media shape for the player ─────── */
@@ -558,7 +559,12 @@ export function EnhancedPlayer({
     </div>
   );
 
-  return (
+  // Rendered into <body>, not in place. `.vp-overlay` is position:fixed, and any
+  // ancestor carrying a transform, filter, backdrop-filter or `contain` becomes its
+  // containing block — which collapses the full-screen overlay into that ancestor's
+  // box. A page-transition animation on the route wrapper did exactly that. Going
+  // through a portal makes the player immune to whatever CSS the pages above it grow.
+  return createPortal(
     <div className="vp-overlay" ref={overlayRef} onClick={onClose}>
       {/* Close button */}
       <button className="vp-close" onClick={(e) => { e.stopPropagation(); onClose(); }} aria-label="Close (Esc)" title="Close (Esc)">
@@ -761,6 +767,7 @@ export function EnhancedPlayer({
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

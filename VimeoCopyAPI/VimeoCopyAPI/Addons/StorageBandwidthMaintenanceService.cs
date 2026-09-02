@@ -126,7 +126,10 @@ public class StorageBandwidthMaintenanceService : BackgroundService
                 return;
             }
 
-            foreach (var obj in page.S3Objects)
+            // AWS SDK v4 leaves response collections NULL when the service returns no elements —
+            // v3.7 always handed back an empty list. An empty bucket (or a page with no keys) would
+            // otherwise NRE right here and take the whole maintenance loop down on startup.
+            foreach (var obj in page.S3Objects ?? [])
             {
                 if (ct.IsCancellationRequested) return;
 
