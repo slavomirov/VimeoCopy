@@ -25,8 +25,8 @@ public class MediaController : ControllerBase
 
     [AllowAnonymous]
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] int skip = 0, [FromQuery] int take = 24)
-        => Ok(await _mediaService.GetAllMediaAsync(skip, take));
+    public async Task<IActionResult> GetAll([FromQuery] int skip = 0, [FromQuery] int take = 24, [FromQuery] bool mine = false)
+        => Ok(await _mediaService.GetAllMediaAsync(skip, take, mine));
 
     /// <summary>Metered streaming URL — call when the viewer actually opens/plays the media. Private media is owner-only.</summary>
     [AllowAnonymous]

@@ -5,8 +5,11 @@ namespace VimeoCopyAPI.Services.Interfaces;
 
 public interface IMediaService
 {
-    /// <summary>One page of the public gallery, with preview URLs already presigned.</summary>
-    public Task<PagedResultDTO<PublicMediaDTO>> GetAllMediaAsync(int skip = 0, int take = 24);
+    /// <summary>
+    /// One page of the public gallery, with preview URLs already presigned. When <paramref name="mine"/>
+    /// is true the page is scoped to the signed-in caller's own media (and requires authentication).
+    /// </summary>
+    public Task<PagedResultDTO<PublicMediaDTO>> GetAllMediaAsync(int skip = 0, int take = 24, bool mine = false);
     public Task<IEnumerable<Media>> GetUserMediaAsync(string userId);
     public Task<Media?> GetMediaByIdAsync(string mediaId);
     /// <summary>Metered streaming URL. <paramref name="source"/> may be "embed" to attribute the view.</summary>

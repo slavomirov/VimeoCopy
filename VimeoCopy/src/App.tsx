@@ -261,14 +261,21 @@ function MainLayout() {
           </div>
 
           <div className="sidebar-auth">
-            {/* Shortcut to how the outside world sees you. Only shown once a handle exists —
-                without one there is no public profile to visit, and a dead link is worse than
-                no link. */}
-            {isLoggedIn && myHandle && (
+            {/* Shortcut to how the outside world sees you.
+                Always present while signed in. It used to be hidden unless a handle existed, on the
+                grounds that a dead link is worse than no link — but an account with no handle is the
+                normal state for a new user, so the entry point vanished for exactly the people who
+                had never seen it and couldn't know it was there. Without a handle it now leads to the
+                editor, where a handle is claimed, instead of nowhere. */}
+            {isLoggedIn && (
               <Link
-                to={`/u/${myHandle}`}
+                to={myHandle ? `/u/${myHandle}` : "/profile/customize"}
                 className="nav-item nav-item-secondary"
-                title="Public profile — how visitors see you"
+                title={
+                  myHandle
+                    ? `Public profile — how visitors see you (/u/${myHandle})`
+                    : "Public profile — claim a handle to publish yours"
+                }
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="9" />

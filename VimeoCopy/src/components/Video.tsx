@@ -72,19 +72,28 @@ export function Videos() {
   const [selected, setSelected] = useState<PublicMedia | null>(null);
   const [playerUrl, setPlayerUrl] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterMode>("all");
+  /**
+   * "My media". Applied by the SERVER, so it changes what the page requests rather than hiding rows
+   * from the page already loaded — a client-side filter over 24 of 10,000 rows would silently claim
+   * you own only what happens to be on screen.
+   */
+  const [mineOnly, setMineOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedProject, setExpandedProject] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const { authFetch } = useAuth();
+  const { authFetch, accessToken } = useAuth();
+  const isLoggedIn = !!accessToken;
 
   // Load media list. The response is a page, and each item already carries its presigned preview
   // URL — the grid used to fire one sequential request per tile, so 200 items meant 200 round
   // trips before a single thumbnail appeared.
   useEffect(() => {
     async function load() {
-      const res = await authFetch(`${API_BASE_URL}/api/media?take=${PAGE_SIZE}`);
+      const res = await authFetch(
+        `${API_BASE_URL}/api/media?take=${PAGE_SIZE}${mineOnly ? "&mine=true" : ""}`
+      );
       if (!res.ok) {
         setLoaded(true);
         return;
@@ -100,12 +109,15 @@ export function Videos() {
       setLoaded(true);
     }
     load();
-  }, [authFetch]);
+    // Flipping "My media" is a different query, so the list is refetched from the first page.
+  }, [authFetch, mineOnly]);
 
   const loadMore = useCallback(async () => {
     setLoadingMore(true);
     try {
-      const res = await authFetch(`${API_BASE_URL}/api/media?skip=${items.length}&take=${PAGE_SIZE}`);
+      const res = await authFetch(
+        `${API_BASE_URL}/api/media?skip=${items.length}&take=${PAGE_SIZE}${mineOnly ? "&mine=true" : ""}`
+      );
       if (!res.ok) return;
 
       const data = await res.json();
@@ -118,7 +130,7 @@ export function Videos() {
     } finally {
       setLoadingMore(false);
     }
-  }, [authFetch, items.length]);
+  }, [authFetch, items.length, mineOnly]);
 
   // Opening the player is the metered action — fetch the real (charged) streaming URL here.
   const openMedia = useCallback(async (m: PublicMedia) => {
@@ -268,6 +280,27 @@ export function Videos() {
               {f.label}
             </button>
           ))}
+
+          {/* Only offered to signed-in visitors — there is no "mine" for an anonymous viewer, and
+              the endpoint refuses it. Sits with the filters because that is what it is. */}
+          {isLoggedIn && (
+            <button
+              className={`media-filter-tab ${mineOnly ? "active" : ""}`}
+              onClick={() => setMineOnly((v) => !v)}
+              title={
+                mineOnly
+                  ? "Showing only your uploads — click to see everyone's"
+                  : "Show only your own uploads"
+              }
+              aria-pressed={mineOnly}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+              My media
+            </button>
+          )}
         </div>
       </div>
 

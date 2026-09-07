@@ -35,13 +35,29 @@ public class MediaService : IMediaService
     public const int DefaultPageSize = 24;
     public const int MaxPageSize = 100;
 
-    public async Task<PagedResultDTO<PublicMediaDTO>> GetAllMediaAsync(int skip = 0, int take = DefaultPageSize)
+    public async Task<PagedResultDTO<PublicMediaDTO>> GetAllMediaAsync(int skip = 0, int take = DefaultPageSize, bool mine = false)
     {
         skip = Math.Max(0, skip);
         take = Math.Clamp(take, 1, MaxPageSize);
 
         var query = _dbContext.Media
             .Where(m => m.IsPublic && m.ShowOnMediaPage && !m.IsProfileAsset);
+
+        // "My media" is filtered in SQL, not in the client. Filtering a page of 24 in the browser
+        // would only ever hide items from the page already loaded — the gallery would claim you have
+        // three files because three of the newest 24 happen to be yours. Scoping the query means the
+        // count, the paging and the "load more" all stay truthful.
+        if (mine)
+        {
+            var viewerId = _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? throw new UnauthorizedAccessException("Sign in to see your own media.");
+
+            // Own private media is included: it belongs to the caller and they are authenticated for
+            // it. ShowOnMediaPage is still respected, because that flag is the owner's own decision
+            // about what appears on this page and overriding it here would contradict them.
+            query = _dbContext.Media
+                .Where(m => m.UserId == viewerId && m.ShowOnMediaPage && !m.IsProfileAsset);
+        }
 
         var total = await query.CountAsync();
 
