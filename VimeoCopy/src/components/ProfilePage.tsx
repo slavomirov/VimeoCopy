@@ -41,6 +41,9 @@ interface UserData {
   media: Media[];
 }
 
+/** Tiles rendered per page on the dashboard, matching the public gallery's page size. */
+const DASHBOARD_PAGE_SIZE = 24;
+
 function formatBytes(value: number | null | undefined) {
   if (value === null || value === undefined) return "N/A";
 
@@ -66,6 +69,8 @@ export function ProfilePage() {
   const [gifBusyId, setGifBusyId] = useState<string | null>(null);
   /** Presigned clip URLs, so the owner can see the result of Generate GIF on this page. */
   const [gifUrls, setGifUrls] = useState<Record<string, string>>({});
+  /** How many tiles are on screen. The dashboard used to render the whole library at once. */
+  const [visibleCount, setVisibleCount] = useState(DASHBOARD_PAGE_SIZE);
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [shareLinkExpiry, setShareLinkExpiry] = useState<string | null>(null);
   const [shareToken, setShareToken] = useState<string | null>(null);
@@ -307,6 +312,24 @@ export function ProfilePage() {
     }
   }
 
+  /**
+   * Opening a tile is the metered action, so the charged URL is fetched here rather than for every
+   * tile up front. The unmetered preview URL is handed to the player immediately so playback can
+   * start, and swapped for the charged one when it arrives — the same pattern the gallery uses.
+   */
+  async function handleExpand(m: Media) {
+    const optimistic = urls[m.id];
+    if (!optimistic) return;
+
+    setViewerMedia({ media: m, url: optimistic });
+    try {
+      const res = await authFetch(`${API_BASE_URL}/api/media/${m.id}/url`, { silent: true });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.url) setViewerMedia((prev) => (prev && prev.media.id === m.id ? { ...prev, url: data.url } : prev));
+    } catch { /* keep the preview URL; playback already started */ }
+  }
+
   /** Drops a clip and its storage cost; hovering the tile goes back to streaming the full file. */
   async function handleRemoveGif(mediaId: string) {
     setGifBusyId(mediaId);
@@ -377,34 +400,63 @@ export function ProfilePage() {
     }
   }
 
-  // Load AWS URLs for each media item
+  /**
+   * Resolve the URLs the visible tiles need.
+   *
+   * Three things were wrong with how this used to work, and all three only show up once a library
+   * gets big:
+   *   • it hit /url, the METERED endpoint, which charges the owner's bandwidth for the full file
+   *     size per item — so merely opening your own dashboard billed you for your entire library.
+   *     Rendering a grid is browsing, so it belongs on the unmetered /preview, exactly as the
+   *     gallery does; the charged URL is now fetched when a tile is actually opened.
+   *   • it awaited one request per item in series, so 200 files meant 200 sequential round trips.
+   *   • it asked for every item in the library, not the ones on screen.
+   */
   useEffect(() => {
-    async function loadUrls() {
-      if (!user) return;
+    if (!user) return;
+    let cancelled = false;
 
-      const newUrls: Record<string, string> = {};
-      const newThumbs: Record<string, string> = {};
-      const newGifs: Record<string, string> = {};
+    const pending = user.media
+      .slice(0, visibleCount)
+      .filter((m) => !urls[m.id]);
 
-      for (const m of user.media) {
-        const res = await authFetch(`${API_BASE_URL}/api/media/${m.id}/url`);
-        const data = await res.json();
-        newUrls[m.id] = data.url;
-        if (data.thumbnailUrl) {
-          newThumbs[m.id] = data.thumbnailUrl;
+    if (pending.length === 0) return;
+
+    (async () => {
+      const gotUrls: Record<string, string> = {};
+      const gotThumbs: Record<string, string> = {};
+      const gotGifs: Record<string, string> = {};
+
+      // Bounded pool. Unlimited parallel fetches just starve each other and can trip the API's
+      // rate limiter; a handful at a time is what makes the grid fill quickly.
+      let next = 0;
+      const workers = Array.from({ length: Math.min(6, pending.length) }, async () => {
+        while (next < pending.length && !cancelled) {
+          const m = pending[next++];
+          try {
+            const res = await authFetch(`${API_BASE_URL}/api/media/${m.id}/preview`, { silent: true });
+            if (!res.ok) continue;
+            const data = await res.json();
+            if (data.url) gotUrls[m.id] = data.url;
+            if (data.thumbnailUrl) gotThumbs[m.id] = data.thumbnailUrl;
+            if (data.gifUrl) gotGifs[m.id] = data.gifUrl;
+          } catch { /* a tile that can't resolve keeps its loading state */ }
         }
-        if (data.gifUrl) {
-          newGifs[m.id] = data.gifUrl;
-        }
-      }
+      });
 
-      setUrls(newUrls);
-      setThumbnailUrls(newThumbs);
-      setGifUrls(newGifs);
-    }
+      await Promise.all(workers);
+      if (cancelled) return;
 
-    loadUrls();
-  }, [user, authFetch]);
+      // Merge, don't replace: paging in more tiles must not drop the ones already resolved.
+      setUrls((p) => ({ ...p, ...gotUrls }));
+      setThumbnailUrls((p) => ({ ...p, ...gotThumbs }));
+      setGifUrls((p) => ({ ...p, ...gotGifs }));
+    })();
+
+    return () => { cancelled = true; };
+    // urls is read to skip what's already resolved; including it would re-run on every merge.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, authFetch, visibleCount]);
 
   if (!user) return <div className="loading" style={{ margin: "var(--space-16) auto" }}></div>;
 
@@ -464,7 +516,7 @@ export function ProfilePage() {
           </div>
         ) : (
           <div className="grid grid-2">
-            {user.media.map((m) => (
+            {user.media.slice(0, visibleCount).map((m) => (
               <MediaItem
                 key={m.id}
                 media={m}
@@ -481,7 +533,7 @@ export function ProfilePage() {
                 onGenerateGif={() => handleGenerateGif(m.id)}
                 onRemoveGif={() => handleRemoveGif(m.id)}
                 gifBusy={gifBusyId === m.id}
-                onExpand={() => urls[m.id] && setViewerMedia({ media: m, url: urls[m.id] })}
+                onExpand={() => handleExpand(m)}
                 shareLoading={shareLoading}
                 isEditingDesc={editingDesc === m.id}
                 descDraft={editingDesc === m.id ? descDraft : ""}
@@ -491,6 +543,20 @@ export function ProfilePage() {
                 onCancelDesc={() => setEditingDesc(null)}
               />
             ))}
+          </div>
+        )}
+
+        {/* Page in the rest on demand. Rendering a whole library at once is what made a large
+            account unusable — every extra tile is a card, a video element and a presign. */}
+        {user.media.length > visibleCount && (
+          <div style={{ textAlign: "center", marginTop: "var(--space-6)" }}>
+            <button
+              type="button"
+              className="btn-outline"
+              onClick={() => setVisibleCount((n) => n + DASHBOARD_PAGE_SIZE)}
+            >
+              Show more ({user.media.length - visibleCount} remaining)
+            </button>
           </div>
         )}
       </div>

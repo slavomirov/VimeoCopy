@@ -53,6 +53,8 @@ export function ProjectDetailPage() {
   const [showUploadMedia, setShowUploadMedia] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [thumbPickerMediaId, setThumbPickerMediaId] = useState<string | null>(null);
+  /** Media whose visibility is mid-flight, so its toggle can't be double-fired. */
+  const [visibilityBusyId, setVisibilityBusyId] = useState<string | null>(null);
   const [thumbUploading, setThumbUploading] = useState(false);
   const [viewerMedia, setViewerMedia] = useState<{ media: ProjectMedia; url: string } | null>(null);
 
@@ -199,6 +201,50 @@ export function ProjectDetailPage() {
     }
   }
 
+  // ── Per-media visibility ─────────────────
+
+  /**
+   * Flip one file between public and private without leaving the project.
+   *
+   * The project page showed visibility as a read-only badge, so the only way to change it was to go
+   * to the dashboard and find the file again. The endpoint is owner-only and toggles server-side, so
+   * the local row is patched from the known-new value rather than re-fetching the whole project.
+   */
+  async function toggleMediaVisibility(mediaId: string) {
+    if (!project) return;
+    setVisibilityBusyId(mediaId);
+    try {
+      const res = await authFetch(`${API_BASE_URL}/api/media/${mediaId}/toggle-visibility`, {
+        method: "PATCH",
+        silent: true,
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message || "Couldn't change that file's visibility.");
+      }
+
+      let nowPublic = false;
+      setProject((prev) =>
+        prev
+          ? {
+              ...prev,
+              media: prev.media.map((m) => {
+                if (m.id !== mediaId) return m;
+                nowPublic = !m.isPublic;
+                return { ...m, isPublic: nowPublic };
+              }),
+            }
+          : prev
+      );
+
+      toast.success(nowPublic ? "File is now public" : "File is now private");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to change visibility");
+    } finally {
+      setVisibilityBusyId(null);
+    }
+  }
+
   // ── Remove media ─────────────────────────
 
   async function removeMedia(mediaId: string) {
@@ -303,7 +349,7 @@ export function ProjectDetailPage() {
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "var(--space-3)" }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <h1 style={{ marginBottom: "var(--space-2)" }}>{project.title}</h1>
+                <h1 className="project-detail-title">{project.title}</h1>
                 {project.description && (
                   <p className="text-muted" style={{ marginBottom: "var(--space-2)" }}>
                     {project.description}
@@ -383,6 +429,8 @@ export function ProjectDetailPage() {
               isThumbnail={project.thumbnailMediaId === m.id}
               onSetThumbnail={() => setThumbnail(m.id)}
               onRemove={() => removeMedia(m.id)}
+              onToggleVisibility={() => toggleMediaVisibility(m.id)}
+              visibilityBusy={visibilityBusyId === m.id}
               onChangeThumbnail={() => setThumbPickerMediaId(m.id)}
               onExpand={() => urls[m.id] && setViewerMedia({ media: m, url: urls[m.id] })}
             />
@@ -519,6 +567,8 @@ function MediaCard({
   isThumbnail,
   onSetThumbnail,
   onRemove,
+  onToggleVisibility,
+  visibilityBusy,
   onChangeThumbnail,
   onExpand,
 }: {
@@ -528,6 +578,8 @@ function MediaCard({
   isThumbnail: boolean;
   onSetThumbnail: () => void;
   onRemove: () => void;
+  onToggleVisibility: () => void;
+  visibilityBusy: boolean;
   onChangeThumbnail: () => void;
   onExpand: () => void;
 }) {
@@ -622,17 +674,43 @@ function MediaCard({
           {(media.fileSize / (1024 * 1024)).toFixed(2)} MB · {media.contentType.split("/")[1]?.toUpperCase()}
         </p>
         <p style={{ fontSize: "var(--font-size-xs)", marginBottom: 0 }}>
-          <span style={{
-            display: "inline-block",
-            padding: "1px 6px",
-            borderRadius: "var(--radius-sm)",
-            fontWeight: 600,
-            fontSize: "10px",
-            backgroundColor: media.isPublic ? "rgba(var(--primary-rgb), 0.15)" : "rgba(var(--danger-rgb), 0.15)",
-            color: media.isPublic ? "var(--success)" : "var(--danger)",
-          }}>
-            {media.isPublic ? "Public" : "Private"}
-          </span>
+          {/* The badge IS the control now. It used to be a read-only <span>, which meant the only
+              way to change one file's visibility was to leave the project and find it again on the
+              dashboard. */}
+          <button
+            type="button"
+            onClick={onToggleVisibility}
+            disabled={visibilityBusy}
+            title={media.isPublic
+              ? "Public — anyone with the link can see this file. Click to make it private."
+              : "Private — only you can see this file. Click to make it public."}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              padding: "2px 7px",
+              border: "none",
+              cursor: visibilityBusy ? "default" : "pointer",
+              borderRadius: "var(--radius-sm)",
+              fontWeight: 600,
+              fontSize: "10px",
+              fontFamily: "inherit",
+              opacity: visibilityBusy ? 0.6 : 1,
+              backgroundColor: media.isPublic ? "rgba(var(--primary-rgb), 0.15)" : "rgba(var(--danger-rgb), 0.15)",
+              color: media.isPublic ? "var(--success)" : "var(--danger)",
+            }}
+          >
+            {media.isPublic ? (
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15 15 0 0 1 0 20a15 15 0 0 1 0-20" />
+              </svg>
+            ) : (
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            )}
+            {visibilityBusy ? "…" : media.isPublic ? "Public" : "Private"}
+          </button>
         </p>
       </div>
 

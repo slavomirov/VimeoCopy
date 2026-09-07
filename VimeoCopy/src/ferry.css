@@ -912,3 +912,36 @@ textarea:focus-visible,
 .media-gallery-card:has(.hp-video[data-visible="true"]) .media-play-overlay {
   opacity: 0;
 }
+
+/* ═══════════════════════════════════════════════
+   18 · PROJECT DETAIL — the title
+   The global h1 renders this in Syne at weight 800 with -0.03em tracking, which is a poster
+   headline: loud, condensed, and fighting a page whose job is to present someone's work quietly.
+   This drops back to the text face at a normal weight, lets the size scale with the viewport, and
+   balances the wrap so a two-word title doesn't leave one word stranded on its own line.
+   To try a serif instead, swap font-family for a Georgia/serif stack — nothing else needs to move.
+   ═══════════════════════════════════════════════ */
+
+.project-detail-title {
+  font-family: var(--font-family);
+  font-size: clamp(1.6rem, 3vw, 2.35rem);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+  color: var(--text-primary, var(--gray-900));
+  margin-bottom: var(--space-2);
+  text-wrap: balance;
+}
+
+/* A short accent rule instead of a heavier weight — it marks the title as the page's anchor
+   without shouting, and picks up the brand colour the rest of the page already uses. */
+.project-detail-title::after {
+  content: "";
+  display: block;
+  width: 44px;
+  height: 3px;
+  margin-top: var(--space-3);
+  border-radius: 2px;
+  background: var(--primary);
+  opacity: 0.85;
+}

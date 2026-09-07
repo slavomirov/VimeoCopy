@@ -34,6 +34,20 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .IsRequired()
             .OnDelete(DeleteBehavior.Cascade);
 
+        // The public gallery's exact query: the three visibility flags, newest first, paged with
+        // OFFSET/FETCH. Media carried no index at all beyond the UserId foreign key, so this ran as
+        // a table scan plus a sort on every page — survivable on a dev database, not at 10k rows
+        // where the sort alone decides how long the first paint takes. The key order matches the
+        // predicate (equality columns first) and ends on the sort column so the ORDER BY is free.
+        modelBuilder.Entity<Media>()
+            .HasIndex(m => new { m.IsPublic, m.ShowOnMediaPage, m.IsProfileAsset, m.UploadedAt })
+            .HasDatabaseName("IX_Media_Gallery");
+
+        // The owner's library and the public portfolio both filter by owner and order by date.
+        modelBuilder.Entity<Media>()
+            .HasIndex(m => new { m.UserId, m.UploadedAt })
+            .HasDatabaseName("IX_Media_Owner_UploadedAt");
+
         modelBuilder.Entity<ApplicationUser>()
             .HasOne(u => u.Plan)
             .WithMany(p => p.Users)

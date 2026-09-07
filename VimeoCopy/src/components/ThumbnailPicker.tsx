@@ -6,6 +6,8 @@
  *  2. From a URL string (changing thumbnail on an existing video)
  */
 import { useRef, useState, useEffect, useCallback } from "react";
+import toast from "react-hot-toast";
+import { generateThumbnail } from "../utils/thumbnailGenerator";
 import "../App.css";
 
 const THUMB_MAX_WIDTH = 480;
@@ -30,6 +32,9 @@ export function ThumbnailPicker({ videoFile, videoUrl, onCapture, onCancel }: Th
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null);
   const [seeking, setSeeking] = useState(false);
+  /** Where the pending thumbnail came from, so the preview can say which one is about to be saved. */
+  const [source, setSource] = useState<"frame" | "upload" | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Create object URL for File, or use URL directly
   useEffect(() => {
@@ -110,10 +115,42 @@ export function ThumbnailPicker({ videoFile, videoUrl, onCapture, onCancel }: Th
         const url = URL.createObjectURL(blob);
         setPreviewUrl(url);
         setCapturedBlob(blob);
+        setSource("frame");
       },
       "image/jpeg",
       THUMB_QUALITY
     );
+  }
+
+  /**
+   * Use a picture from disk instead of a frame from the video.
+   *
+   * It goes through the same generateThumbnail() the uploader uses, so an 8MP phone photo is
+   * downscaled to the same 480x360 JPEG a captured frame produces. That matters: the server caps a
+   * thumbnail at 2 MB and charges its real size against the plan, so handing it the original file
+   * would either be rejected or quietly eat storage.
+   */
+  async function handleImagePicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    // Let the same file be re-picked later; without this, choosing it twice fires no change event.
+    e.target.value = "";
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Pick an image file (PNG, JPEG or WebP).");
+      return;
+    }
+
+    const blob = await generateThumbnail(file);
+    if (!blob) {
+      toast.error("That image couldn't be read. Try a different file.");
+      return;
+    }
+
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(URL.createObjectURL(blob));
+    setCapturedBlob(blob);
+    setSource("upload");
   }
 
   function handleConfirm() {
@@ -131,7 +168,7 @@ export function ThumbnailPicker({ videoFile, videoUrl, onCapture, onCancel }: Th
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
       <p style={{ fontWeight: 600, fontSize: "var(--font-size-sm)", color: "var(--gray-400)", marginBottom: 0 }}>
-        Scrub through the video and capture the frame you want as the thumbnail.
+        Capture a frame from the video, or upload your own picture instead.
       </p>
 
       {/* Video preview */}
@@ -189,20 +226,40 @@ export function ThumbnailPicker({ videoFile, videoUrl, onCapture, onCancel }: Th
         </div>
       )}
 
-      {/* Capture button */}
-      <button onClick={captureFrame} className="btn-primary" style={{ alignSelf: "center" }}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: "6px", verticalAlign: "middle" }}>
-          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-          <circle cx="12" cy="13" r="4" />
-        </svg>
-        Capture Frame
-      </button>
+      {/* Two ways to get a thumbnail. Neither is the "real" one — whichever produced the pending
+          preview is what Use This Thumbnail saves. */}
+      <div style={{ display: "flex", gap: "var(--space-3)", justifyContent: "center", flexWrap: "wrap" }}>
+        <button onClick={captureFrame} className="btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: "6px", verticalAlign: "middle" }}>
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+            <circle cx="12" cy="13" r="4" />
+          </svg>
+          Capture Frame
+        </button>
+
+        <button onClick={() => fileInputRef.current?.click()} className="btn-outline">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: "6px", verticalAlign: "middle" }}>
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+          Upload an image
+        </button>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
+          onChange={handleImagePicked}
+          style={{ display: "none" }}
+        />
+      </div>
 
       {/* Preview of captured frame */}
       {previewUrl && (
         <div style={{ textAlign: "center" }}>
           <p style={{ fontWeight: 500, fontSize: "var(--font-size-sm)", marginBottom: "var(--space-2)", color: "var(--gray-400)" }}>
-            Captured Thumbnail Preview
+            {source === "upload" ? "Uploaded image — preview" : "Captured frame — preview"}
           </p>
           <img
             src={previewUrl}
