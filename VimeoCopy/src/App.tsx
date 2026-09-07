@@ -23,7 +23,7 @@ import { ArtistProfileEditor } from "./profile/ArtistProfileEditor";
 import { UploadProvider } from "./components/UploadProvider";
 import { UploadDock } from "./components/UploadDock";
 import { AudiencePage } from "./components/AudiencePage";
-import { useMyHandle } from "./profile/useMyHandle";
+import { useMyPublicProfile } from "./profile/useMyHandle";
 import { ModerationPage } from "./components/ModerationPage";
 import { useTheme } from "./theme/useTheme";
 import {
@@ -67,9 +67,9 @@ function MainLayout() {
   const isMobile = useCallback(() => window.innerWidth <= 768, []);
   const [sidebarOpen, setSidebarOpen] = useState(() => !isMobile());
   const [contactOpen, setContactOpen] = useState(false);
-  // Shared with the dashboard's "View public profile" button — see useMyHandle for why the handle
-  // is tied to the token it was fetched for.
-  const myHandle = useMyHandle();
+  // Shared with the dashboard's "View public profile" button. `path` prefers the handle and falls
+  // back to the user id, so the shortcut always lands on the live public page.
+  const { path: publicProfilePath } = useMyPublicProfile();
 
   // Clicking the brand always brings you back to the top of the home page
   const handleBrandClick = useCallback(() => {
@@ -262,31 +262,22 @@ function MainLayout() {
 
           <div className="sidebar-auth">
             {/* Shortcut to how the outside world sees you.
-                Always present while signed in. It used to be hidden unless a handle existed, on the
-                grounds that a dead link is worse than no link — but an account with no handle is the
-                normal state for a new user, so the entry point vanished for exactly the people who
-                had never seen it and couldn't know it was there. Without a handle it now leads to the
-                editor, where a handle is claimed, instead of nowhere. */}
-            {isLoggedIn && (
+                Always the live page, never the editor. It used to be hidden without a handle, then
+                to divert to the editor — both wrong, because the profile exists either way and only
+                its ADDRESS was missing. The public endpoint now resolves a user id as well, so
+                /u/{id} works until a handle is claimed and /u/{handle} takes over after. */}
+            {isLoggedIn && publicProfilePath && (
               <Link
-                to={myHandle ? `/u/${myHandle}` : "/profile/customize"}
+                to={publicProfilePath}
                 className="nav-item nav-item-secondary"
-                title={
-                  myHandle
-                    ? `Open your public profile — /u/${myHandle}`
-                    : "You need a handle before you have a public page — this opens the editor to claim one"
-                }
+                title={`Open your public profile — ${publicProfilePath}`}
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="9" />
                   <path d="M3.6 9h16.8M3.6 15h16.8" />
                   <path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18z" />
                 </svg>
-                {/* The label changes with the destination. With a handle this goes straight to the
-                    live public page — that is the whole point of the shortcut. Without one there is
-                    no such URL to open, so it says what it will actually do rather than promising
-                    the public page and delivering the editor. */}
-                <span className="nav-label">{myHandle ? "Public profile" : "Set up profile"}</span>
+                <span className="nav-label">Public profile</span>
               </Link>
             )}
 

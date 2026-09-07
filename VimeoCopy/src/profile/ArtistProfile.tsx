@@ -35,7 +35,8 @@ interface Album {
 }
 
 interface PublicProfile {
-  handle: string;
+  /** Null when this artist hasn't claimed a handle — the page was reached by user id. */
+  handle: string | null;
   displayName: string;
   bio: string | null;
   websiteUrl: string | null;
@@ -133,7 +134,11 @@ export function ArtistProfile() {
   async function saveBannerOffset() {
     // The control shouldn't exist for a non-owner, but never let a stray click write from someone
     // else's page — the endpoint is /me-scoped, so it would silently move the viewer's own banner.
-    if (!profile || profile.isOwner !== true || ownHandle !== profile.handle) {
+    if (
+      !profile ||
+      profile.isOwner !== true ||
+      (profile.handle !== null && ownHandle !== profile.handle)
+    ) {
       toast.error("You can only reposition your own banner.");
       setRepositioning(false);
       return;
@@ -218,7 +223,19 @@ export function ArtistProfile() {
     );
   }
 
-  const isOwner = profile.isOwner === true && ownHandle !== null && ownHandle === profile.handle;
+  /**
+   * Ownership.
+   *
+   * `profile.isOwner` is the authority — the server compares the bearer's id to the profile's owner.
+   * The handle comparison on top of it guards against acting on a stale profile object while looking
+   * at someone else's page, but it can only do that when there IS a handle: an owner who hasn't
+   * claimed one has ownHandle === null, and requiring a match locked them out of their own controls.
+   * So the extra check applies only where it can mean something. Every write is /me-scoped and
+   * re-authorised server-side regardless.
+   */
+  const handleMatchesOwner =
+    profile.handle === null ? true : ownHandle !== null && ownHandle === profile.handle;
+  const isOwner = profile.isOwner === true && handleMatchesOwner;
   const cssVars = themeToCssVars(theme);
 
   const visibleWorks = selectedAlbum
@@ -292,7 +309,9 @@ export function ArtistProfile() {
         )}
         <div className="ap-identity">
           <h1 className="ap-name">{profile.displayName}</h1>
-          <div className="ap-handle">@{profile.handle}</div>
+          {/* Only shown when there is one. A profile reached by id has no handle, and "@null" is
+              worse than no line at all. */}
+          {profile.handle && <div className="ap-handle">@{profile.handle}</div>}
         </div>
       </header>
 

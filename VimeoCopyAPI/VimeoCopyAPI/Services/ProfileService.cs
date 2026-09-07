@@ -39,14 +39,28 @@ public partial class ProfileService : IProfileService
         _bucket = config["AWS:BucketName"];
     }
 
-    public async Task<PublicProfileDTO?> GetPublicProfileAsync(string handle, string? viewerUserId = null)
+    public async Task<PublicProfileDTO?> GetPublicProfileAsync(string handleOrId, string? viewerUserId = null)
     {
-        var normalized = (handle ?? string.Empty).Trim().ToLowerInvariant();
-        if (normalized.Length == 0) return null;
+        var key = (handleOrId ?? string.Empty).Trim();
+        if (key.Length == 0) return null;
 
+        // Handle first, then the user id.
+        //
+        // Claiming a handle is optional, and until someone does they had no reachable public page at
+        // all — the profile existed, nothing could address it. Accepting the id as well means every
+        // account has a public URL from the moment it is created, and a handle simply gives it a
+        // nicer one. Ids are GUIDs, so this is not an enumerable listing, and IsProfilePublic is
+        // still required either way.
+        var normalized = key.ToLowerInvariant();
         var user = await _db.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.Handle == normalized && u.IsProfilePublic);
+
+        // Compared case-sensitively and against the untouched value: an id is not a handle and
+        // lower-casing it would fail to match on a case-sensitive collation.
+        user ??= await _db.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == key && u.IsProfilePublic);
 
         if (user == null) return null;
 
@@ -91,8 +105,13 @@ public partial class ProfileService : IProfileService
 
         var dto = new PublicProfileDTO
         {
-            Handle = user.Handle!,
-            DisplayName = string.IsNullOrWhiteSpace(user.DisplayName) ? user.Handle! : user.DisplayName!,
+            // Null when no handle has been claimed — the page is then addressed by id, and the
+            // frontend hides the "@handle" line rather than printing "@null".
+            Handle = user.Handle,
+            // Must never come back null: the client does displayName.charAt(0) for the avatar
+            // fallback. Falls through handle to a neutral label, and never to the email address —
+            // that was the F-07 leak and it cannot come back this way.
+            DisplayName = FirstNonBlank(user.DisplayName, user.Handle) ?? "Unnamed artist",
             Bio = user.Bio,
             WebsiteUrl = user.WebsiteUrl,
             Location = user.Location,
@@ -170,6 +189,10 @@ public partial class ProfileService : IProfileService
             };
         }).ToList();
     }
+
+    /// <summary>First value that isn't null or whitespace, or null when there isn't one.</summary>
+    private static string? FirstNonBlank(params string?[] candidates)
+        => candidates.FirstOrDefault(c => !string.IsNullOrWhiteSpace(c));
 
     public async Task<MyProfileDTO?> GetMyProfileAsync(string userId)
     {

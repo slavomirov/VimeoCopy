@@ -3,7 +3,8 @@ namespace VimeoCopyAPI.Models.DTOs;
 /// <summary>Public, sanitized artist profile. Never exposes email, storage, bandwidth or billing.</summary>
 public class PublicProfileDTO
 {
-    public string Handle { get; set; } = default!;
+    /// <summary>Null when the artist hasn't claimed a handle; the page is addressed by id instead.</summary>
+    public string? Handle { get; set; }
     public string DisplayName { get; set; } = default!;
     public string? Bio { get; set; }
     public string? WebsiteUrl { get; set; }

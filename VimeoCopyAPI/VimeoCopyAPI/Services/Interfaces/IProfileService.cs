@@ -8,7 +8,8 @@ public interface IProfileService
     /// Public profile by handle. Returns null when missing or not public. Pass the signed-in
     /// viewer's id (null when anonymous) so the owner can be offered in-place editing.
     /// </summary>
-    Task<PublicProfileDTO?> GetPublicProfileAsync(string handle, string? viewerUserId = null);
+    /// <summary>Public profile by handle, or by user id for accounts with no handle yet.</summary>
+    Task<PublicProfileDTO?> GetPublicProfileAsync(string handleOrId, string? viewerUserId = null);
 
     /// <summary>Search public profiles by handle or display name.</summary>
     Task<IEnumerable<ProfileSearchResultDTO>> SearchProfilesAsync(string query);

@@ -6,7 +6,7 @@ import { API_BASE_URL } from "../config";
 import toast from "react-hot-toast";
 import { ThumbnailPicker } from "./ThumbnailPicker";
 import { HoverPreview } from "./HoverPreview";
-import { useMyHandle } from "../profile/useMyHandle";
+import { useMyPublicProfile } from "../profile/useMyHandle";
 import { canGeneratePreviewClip } from "../utils/gifGenerator";
 import { deletePreviewClip, generateAndStorePreviewClip } from "../utils/gifUpload";
 import { EnhancedPlayer } from "./EnhancedPlayer";
@@ -77,8 +77,8 @@ export function ProfilePage() {
   /** Whether this account's plan includes downloads at all — decides toggle vs upsell. */
   const [downloadsAllowed, setDownloadsAllowed] = useState(false);
   const [downloadBusyId, setDownloadBusyId] = useState<string | null>(null);
-  /** Shared with the sidebar shortcut; null until a handle is claimed. */
-  const myHandle = useMyHandle();
+  /** Shared with the sidebar shortcut. Resolves to /u/{handle} or /u/{id}. */
+  const { handle: myHandle, path: publicProfilePath } = useMyPublicProfile();
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [shareLinkExpiry, setShareLinkExpiry] = useState<string | null>(null);
   const [shareToken, setShareToken] = useState<string | null>(null);
@@ -525,11 +525,15 @@ export function ProfilePage() {
               someone thinking about their public profile actually is. With no handle there is no
               public page to open, so say that rather than hiding the button and leaving the
               feature undiscovered; the neighbouring Customize button is where a handle is claimed. */}
-          {myHandle ? (
+          {publicProfilePath && (
             <Link
-              to={`/u/${myHandle}`}
+              to={publicProfilePath}
               className="btn-outline"
-              title={`Open your public profile at /u/${myHandle}`}
+              title={
+                myHandle
+                  ? `Open your public profile at ${publicProfilePath}`
+                  : `Open your public profile at ${publicProfilePath} — claim a handle for a nicer link`
+              }
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: "6px", verticalAlign: "middle" }}>
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
@@ -537,13 +541,6 @@ export function ProfilePage() {
               </svg>
               View public profile
             </Link>
-          ) : (
-            <span
-              className="text-muted"
-              style={{ fontSize: "var(--font-size-xs)", alignSelf: "center", maxWidth: "220px" }}
-            >
-              Claim a handle to get a public profile.
-            </span>
           )}
           <Link to="/settings" className="btn-secondary">Account settings</Link>
           <Link to="/profile/customize" className="btn-primary">
