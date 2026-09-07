@@ -23,5 +23,12 @@ public class Plan
 
     public long Price { get; set; }
 
+    /// <summary>
+    /// Whether creators on this plan may offer their files for download. A column rather than a
+    /// hardcoded plan name, so which tiers include it is an operational decision that can be
+    /// changed in the database without a deploy.
+    /// </summary>
+    public bool AllowDownloads { get; set; }
+
     public ICollection<ApplicationUser> Users { get; set; } = [];
 }

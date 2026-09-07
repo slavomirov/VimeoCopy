@@ -28,6 +28,8 @@ public class MediaDTO
     public bool HasThumbnail { get; set; }
     /// <summary>True once the GIF generator has stored a hover-preview clip for this media.</summary>
     public bool HasGif { get; set; }
+    /// <summary>Whether the owner offers this file for download.</summary>
+    public bool Downloadable { get; set; }
     public bool ShowOnMediaPage { get; set; }
     public string? Description { get; set; }
     public string? FileName { get; set; }
@@ -45,6 +47,12 @@ public class PublicMediaDTO
     public bool IsPublic { get; set; }
     public string? Description { get; set; }
     public bool HasThumbnail { get; set; }
+
+    /// <summary>
+    /// Whether a visitor may download this file. Already accounts for the owner's plan, so the
+    /// client can show the button on this alone rather than knowing anything about plans.
+    /// </summary>
+    public bool Downloadable { get; set; }
 
     // Presigned up front so the gallery doesn't need a round trip per tile. Unmetered — browsing a
     // grid must not charge the owner's bandwidth; the metered URL is fetched only on play.

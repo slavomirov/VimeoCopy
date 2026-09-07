@@ -103,6 +103,37 @@ public class MediaController : ControllerBase
     public async Task<IActionResult> ConfirmGif(string mediaId, [FromBody] GifUploadRequestDTO dto)
         => Ok(await _mediaService.ConfirmGifAsync(mediaId, dto.ContentType));
 
+    /// <summary>
+    /// Metered download URL. Public read: a download link is meant to be usable by a visitor, and
+    /// the two gates (file flagged downloadable, owner's plan allows it) are enforced in the service.
+    /// </summary>
+    [AllowAnonymous]
+    [EnableRateLimiting("presign")]
+    [HttpGet("{id}/download")]
+    public async Task<IActionResult> GetDownloadUrl(string id)
+        => Ok(await _mediaService.GetDownloadUrlAsync(id));
+
+    /// <summary>Owner-only: turn downloads on or off for one file.</summary>
+    [HttpPatch("{mediaId}/downloadable")]
+    public async Task<IActionResult> SetDownloadable(string mediaId, [FromBody] SetDownloadableDTO dto)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new UnauthorizedAccessException("User not authenticated.");
+
+        await _mediaService.SetDownloadableAsync(mediaId, userId, dto.Downloadable);
+        return Ok(new { message = dto.Downloadable ? "Downloads enabled." : "Downloads disabled." });
+    }
+
+    /// <summary>Whether the signed-in user's plan includes downloads, so the UI can explain itself.</summary>
+    [HttpGet("downloads-allowed")]
+    public async Task<IActionResult> DownloadsAllowed()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new UnauthorizedAccessException("User not authenticated.");
+
+        return Ok(new { allowed = await _mediaService.PlanAllowsDownloadsAsync(userId) });
+    }
+
     /// <summary>Removes this media's hover-preview clip and refunds its bytes.</summary>
     [HttpDelete("{mediaId}/gif")]
     public async Task<IActionResult> DeleteGif(string mediaId)

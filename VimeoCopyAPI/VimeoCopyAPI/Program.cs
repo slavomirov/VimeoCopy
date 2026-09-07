@@ -68,6 +68,13 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("presign", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(ClientKey(httpContext),
             _ => new FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+
+    // The contact form is anonymous and sends mail on our Resend account, so it is the cheapest
+    // thing on the site to abuse and the most expensive to have abused — a sender's reputation is
+    // hard to win back. Three a minute is plenty for a human writing in.
+    options.AddPolicy("contact", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(ClientKey(httpContext),
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = 3, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 
 // AWS S3 storage config

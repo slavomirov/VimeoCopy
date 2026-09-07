@@ -8,6 +8,7 @@ import SocialLoginPage from "./SocialLoginPage";
 import { Toaster } from "react-hot-toast";
 import { ProfilePage } from "./components/ProfilePage";
 import { SettingsPage } from "./components/SettingsPage";
+import { ContactPage, ContactForm } from "./components/ContactPage";
 import { SharedMediaViewer } from "./components/SharedMediaViewer";
 import { BuyPage } from "./Payments/BuyPage";
 import { ProfileAuthPage } from "./Auth/ProfileAuthPage";
@@ -22,6 +23,7 @@ import { ArtistProfileEditor } from "./profile/ArtistProfileEditor";
 import { UploadProvider } from "./components/UploadProvider";
 import { UploadDock } from "./components/UploadDock";
 import { AudiencePage } from "./components/AudiencePage";
+import { API_BASE_URL } from "./config";
 import { ModerationPage } from "./components/ModerationPage";
 import { useTheme } from "./theme/useTheme";
 import {
@@ -56,7 +58,7 @@ function App() {
 }
 
 function MainLayout() {
-  const { accessToken, logout, roles } = useAuth();
+  const { accessToken, logout, roles, authFetch } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const isLoggedIn = !!accessToken;
   const isStaff = roles.includes("Admin") || roles.includes("Moderator");
@@ -64,6 +66,17 @@ function MainLayout() {
 
   const isMobile = useCallback(() => window.innerWidth <= 768, []);
   const [sidebarOpen, setSidebarOpen] = useState(() => !isMobile());
+  const [contactOpen, setContactOpen] = useState(false);
+  /**
+   * The signed-in user's public handle, for the "Public profile" shortcut.
+   *
+   * Stored WITH the token it was fetched for, and the usable value is derived from that. Keeping a
+   * bare handle in state means that after a sign-out and a sign-in as someone else, the shortcut
+   * points at the previous account's profile until the new fetch lands. Tying it to the token makes
+   * that window impossible, and it means nothing has to be cleared on the way out.
+   */
+  const [handleFor, setHandleFor] = useState<{ token: string; handle: string | null } | null>(null);
+  const myHandle = handleFor && handleFor.token === accessToken ? handleFor.handle : null;
 
   // Clicking the brand always brings you back to the top of the home page
   const handleBrandClick = useCallback(() => {
@@ -72,6 +85,24 @@ function MainLayout() {
     window.scrollTo({ top: 0, behavior });
     document.querySelector(".app-content")?.scrollTo({ top: 0, behavior });
   }, [location.pathname]);
+
+  // Fetch the handle for the public-profile shortcut. Signed-out state needs no work here: the
+  // derived value above already resolves to null once the token is gone.
+  useEffect(() => {
+    if (!accessToken) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await authFetch(`${API_BASE_URL}/api/profile/me`, { silent: true });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setHandleFor({ token: accessToken, handle: data.handle ?? null });
+      } catch { /* no shortcut is fine; the dashboard still links onward */ }
+    })();
+
+    return () => { cancelled = true; };
+  }, [accessToken, authFetch]);
 
   // Close sidebar on route change (mobile)
   useEffect(() => {
@@ -254,6 +285,39 @@ function MainLayout() {
           </div>
 
           <div className="sidebar-auth">
+            {/* Shortcut to how the outside world sees you. Only shown once a handle exists —
+                without one there is no public profile to visit, and a dead link is worse than
+                no link. */}
+            {isLoggedIn && myHandle && (
+              <Link
+                to={`/u/${myHandle}`}
+                className="nav-item nav-item-secondary"
+                title="Public profile — how visitors see you"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M3.6 9h16.8M3.6 15h16.8" />
+                  <path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18z" />
+                </svg>
+                <span className="nav-label">Public profile</span>
+              </Link>
+            )}
+
+            {/* A modal rather than a page change: writing in is a detour, not a destination, and
+                losing your place in the app to do it is the thing that stops people bothering.
+                /contact still exists for direct links and for anyone who can't sign in. */}
+            <button
+              onClick={() => setContactOpen(true)}
+              className="nav-item nav-item-secondary"
+              title="Contact us — reach the crew"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
+                <polyline points="22,6 12,13 2,6" />
+              </svg>
+              <span className="nav-label">Contact us</span>
+            </button>
+
             <Link to="/profile" className="nav-item nav-item-secondary" title="Profile — the helm">
               <IconHelm />
               <span className="nav-label">Profile</span>
@@ -268,6 +332,10 @@ function MainLayout() {
           </div>
         </div>
       </aside>
+
+      {contactOpen && (
+        <ContactModal onClose={() => setContactOpen(false)} />
+      )}
 
       <main className="app-content">
         <Routes>
@@ -294,6 +362,8 @@ function MainLayout() {
           <Route path="/shared/:token" element={<SharedMediaViewer />} />
           <Route path="/social-login" element={<SocialLoginPage />} />
           <Route path="/buy" element={<BuyPage />} />
+          {/* Anonymous on purpose — someone locked out of their account still needs to reach us. */}
+          <Route path="/contact" element={<ContactPage />} />
 
           <Route
             path="/audience"
@@ -333,6 +403,81 @@ function MainLayout() {
       </main>
 
       <UploadDock />
+    </div>
+  );
+}
+
+/**
+ * Contact us, as an overlay.
+ *
+ * Escape closes it and the backdrop click closes it; the click inside is stopped so dragging a
+ * selection across the form doesn't dismiss the thing you're filling in. On a successful send it
+ * lingers briefly so the confirmation is actually readable before it disappears.
+ */
+function ContactModal({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Contact us"
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        background: "var(--overlay-medium)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "var(--space-4)",
+        overflowY: "auto",
+      }}
+    >
+      <div
+        className="card"
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: "100%", maxWidth: "560px", margin: "auto" }}
+      >
+        <div
+          className="card-header"
+          style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--space-3)" }}
+        >
+          <div>
+            <h2 style={{ marginBottom: "var(--space-1)" }}>Contact us</h2>
+            <p className="text-muted" style={{ marginBottom: 0, fontSize: "var(--font-size-sm)" }}>
+              Tell us what's wrong or what you need — a human reads these.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            title="Close"
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--gray-400)",
+              fontSize: "1.4rem",
+              lineHeight: 1,
+              padding: "2px 6px",
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="card-body">
+          <ContactForm onSent={() => window.setTimeout(onClose, 2200)} />
+        </div>
+      </div>
     </div>
   );
 }

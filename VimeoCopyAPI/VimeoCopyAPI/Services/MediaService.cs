@@ -68,6 +68,15 @@ public class MediaService : IMediaService
             .GroupBy(pm => pm.ProjectId)
             .ToDictionaryAsync(g => g.Key, g => g.Count());
 
+        // Which of these owners may offer downloads at all. Resolved in one query for the page
+        // rather than per tile, so the flag the client sees already accounts for the plan.
+        var ownerIds = mediaList.Select(m => m.UserId).Distinct().ToList();
+        var downloadOwners = (await _dbContext.Users
+                .Where(u => ownerIds.Contains(u.Id) && u.Plan != null && u.Plan.AllowDownloads)
+                .Select(u => u.Id)
+                .ToListAsync())
+            .ToHashSet();
+
         var items = mediaList.Select(m =>
         {
             var dto = new PublicMediaDTO
@@ -81,6 +90,7 @@ public class MediaService : IMediaService
                 IsPublic = m.IsPublic,
                 Description = m.Description,
                 HasThumbnail = !string.IsNullOrEmpty(m.ThumbnailUrl),
+                Downloadable = m.Downloadable && downloadOwners.Contains(m.UserId),
                 // Presigning here removes one HTTP round trip per tile.
                 PreviewUrl = PresignKey(m.Id.ToString()),
                 ThumbnailUrl = string.IsNullOrEmpty(m.ThumbnailUrl) ? null : PresignKey(m.ThumbnailUrl),
@@ -380,6 +390,104 @@ public class MediaService : IMediaService
         await _dbContext.SaveChangesAsync();
     }
 
+    /* ── Downloads ─────────────────────────────────────────────────────────────────────────────
+       Two independent switches have to be on: the file is flagged Downloadable by its owner, and
+       the owner's plan allows downloads at all. Checking only the file would let a lapsed plan keep
+       serving originals; checking only the plan would hand over every file the moment someone
+       upgraded. Neither is what the owner agreed to.
+       ──────────────────────────────────────────────────────────────────────────────────────── */
+
+    /// <summary>
+    /// Owner-only: turn downloads on or off for one file. Refused when the owner's plan doesn't
+    /// include downloads, so the flag can never be set to something the UI would then contradict.
+    /// </summary>
+    public async Task SetDownloadableAsync(string mediaId, string userId, bool downloadable)
+    {
+        var media = await GetOwnedMediaAsync(mediaId, userId);
+
+        if (downloadable && !await PlanAllowsDownloadsAsync(userId))
+            throw new ForbiddenException("Your plan doesn't include file downloads. Upgrade to offer downloads.");
+
+        media.Downloadable = downloadable;
+        await _dbContext.SaveChangesAsync();
+    }
+
+    /// <summary>Whether this user's current plan includes downloads.</summary>
+    public async Task<bool> PlanAllowsDownloadsAsync(string userId)
+        => await _dbContext.Users
+            .Where(u => u.Id == userId)
+            .Select(u => u.Plan != null && u.Plan.AllowDownloads)
+            .FirstOrDefaultAsync();
+
+    /// <summary>
+    /// A presigned URL that saves the file instead of streaming it, via a response-content-
+    /// disposition override so storage sets the attachment header on our behalf.
+    ///
+    /// This is metered. A download is the largest single piece of egress the platform can serve —
+    /// the entire file, at full quality — so it is charged to the owner exactly like playback. Not
+    /// charging for it would leave the cheapest way to move bytes off the platform invisible in
+    /// every bandwidth figure we show.
+    /// </summary>
+    public async Task<GetPresignedURLDTO> GetDownloadUrlAsync(string mediaId)
+    {
+        var media = await GetMediaByIdAsync(mediaId) ?? throw new NotFoundException("Media not found.");
+        EnsureViewable(media);
+
+        if (!media.Downloadable)
+            throw new ForbiddenException("This file isn't available for download.");
+
+        if (!await PlanAllowsDownloadsAsync(media.UserId))
+            throw new ForbiddenException("This file isn't available for download.");
+
+        var allowed = await _bandwidthService.TrackPresignAsync(media, ResolveSource(media, null));
+        if (!allowed)
+            throw new QuotaExceededException("This media's owner has exceeded their monthly bandwidth allowance.");
+
+        // Fall back to the media id when there is no stored name, and strip anything that could
+        // break out of the quoted filename in the Content-Disposition header.
+        var fileName = SafeDownloadName(media);
+
+        var request = new GetPreSignedUrlRequest
+        {
+            BucketName = bucket,
+            Key = media.Id.ToString(),
+            Verb = HttpVerb.GET,
+            Expires = DateTime.UtcNow.AddMinutes(15),
+        };
+        request.ResponseHeaderOverrides.ContentDisposition = $"attachment; filename=\"{fileName}\"";
+        request.ResponseHeaderOverrides.ContentType = media.ContentType;
+
+        return new GetPresignedURLDTO
+        {
+            Url = _s3.GetPreSignedURL(request),
+            ContentType = media.ContentType,
+        };
+    }
+
+    /// <summary>
+    /// A file name safe to place inside a quoted header value. Quotes, backslashes, control
+    /// characters and path separators are what turn a stored name into a header-injection or a
+    /// path-traversal filename on the way out.
+    /// </summary>
+    private static string SafeDownloadName(Media media)
+    {
+        var raw = string.IsNullOrWhiteSpace(media.FileName) ? media.Id.ToString() : media.FileName!;
+
+        // Quote (34), backslash (92) and forward slash (47), by code point: these are what would let
+        // a stored name break out of the quoted Content-Disposition value or smuggle a path back in.
+        // Written numerically because an escaped backslash in a string literal is exactly the kind of
+        // thing that does not survive being edited by a tool.
+        var forbidden = new[] { (char)34, (char)92, (char)47 };
+
+        var cleaned = new string(raw
+            .Where(c => !char.IsControl(c) && !forbidden.Contains(c))
+            .ToArray())
+            .Trim();
+
+        return cleaned.Length == 0 ? media.Id.ToString() : cleaned[..Math.Min(cleaned.Length, 200)];
+    }
+
+    /* ── GIF generator ─────────────────────────────────────────────────────────────────────────
     /* ── GIF generator ─────────────────────────────────────────────────────────────────────────
        A "GIF" here is a short muted video clip, not an image/gif — the same thing YouTube hovers.
        An actual GIF of a 3-second 320px clip runs several megabytes and looks worse than the WebM

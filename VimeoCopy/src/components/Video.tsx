@@ -6,6 +6,7 @@ import { EnhancedPlayer } from "./EnhancedPlayer";
 import { ReportButton } from "./ReportButton";
 import { HoverPreview } from "./HoverPreview";
 import { IconBeacon } from "../brand/FerryMarks";
+import toast from "react-hot-toast";
 import "../App.css";
 
 /* ── Types ─────────────────────────────────── */
@@ -20,6 +21,8 @@ interface PublicMedia {
   isPublic: boolean;
   description: string | null;
   hasThumbnail: boolean;
+  /** Already accounts for the owner's plan, so this alone decides whether to offer a download. */
+  downloadable: boolean;
   /** Presigned by the server with the list, so the grid needs no per-tile request. */
   previewUrl: string | null;
   thumbnailUrl: string | null;
@@ -463,6 +466,59 @@ function ProjectMediaCard({
   );
 }
 
+/* ── Download ──────────────────────────────── */
+
+/**
+ * Offers the original file. The presigned URL carries a Content-Disposition of attachment, so
+ * navigating to it saves the file rather than playing it — which is why this is a plain navigation
+ * and not an <a download>, whose attribute is ignored cross-origin anyway.
+ *
+ * The click is stopped from bubbling: this button sits inside the card, and the card's own click
+ * opens the player.
+ */
+function DownloadButton({ media }: { media: PublicMedia }) {
+  const [busy, setBusy] = useState(false);
+  const { authFetch } = useAuth();
+
+  async function handleClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (busy) return;
+
+    setBusy(true);
+    try {
+      const res = await authFetch(`${API_BASE_URL}/api/media/${media.id}/download`, { silent: true });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message || "This file isn't available for download.");
+      }
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't start the download");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      className="media-download-btn"
+      disabled={busy}
+      title={`Download ${media.fileName || "this file"}`}
+      aria-label={`Download ${media.fileName || "this file"}`}
+    >
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="7 10 12 15 17 10" />
+        <line x1="12" y1="15" x2="12" y2="3" />
+      </svg>
+    </button>
+  );
+}
+
+/* ── Gallery Media Item ────────────────────── */
 /* ── Gallery Media Item ────────────────────── */
 
 function GalleryMediaItem({
@@ -544,6 +600,8 @@ function GalleryMediaItem({
             </div>
           </>
         )}
+
+        {media.downloadable && <DownloadButton media={media} />}
 
         {/* Type badge */}
         <span className="media-type-badge">

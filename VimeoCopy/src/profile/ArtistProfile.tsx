@@ -410,85 +410,6 @@ export function ArtistProfile() {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════════════════════════
-   TEMPORARY DIAGNOSTIC — remove this whole block, <WorkDiagnostic /> in WorkTile, and .ap-diag in
-   artist-profile.css once the hover-preview question on this page is settled.
-
-   It answers the three things we cannot see from the outside, per tile:
-     • did this work receive a gifUrl from /api/media/{id}/preview?
-     • is there a thumbnail (which decides whether HoverPreview renders at all)?
-     • does the clip URL actually LOAD — a presign can be valid-looking but expired, or point at an
-       object that was swept from the bucket, and either way it fails in total silence.
-   ═══════════════════════════════════════════════════════════════════════════════════════════════ */
-
-type ProbeState = "none" | "probing" | "ok" | "error";
-
-/**
- * Loads the clip's metadata in a detached element to prove the URL really resolves.
- *
- * The outcome is keyed by URL and the "none"/"probing" states are DERIVED rather than stored, so
- * the effect only ever calls setState from an event callback. Setting it synchronously in the effect
- * body is what react-hooks/set-state-in-effect objects to, and keying by URL also stops a stale
- * result showing against a presign that has since been replaced.
- */
-function useClipProbe(clip?: string): ProbeState {
-  const [results, setResults] = useState<Record<string, "ok" | "error">>({});
-
-  useEffect(() => {
-    if (!clip) return;
-
-    const v = document.createElement("video");
-    v.muted = true;
-    v.preload = "metadata";
-
-    let settled = false;
-    const finish = (outcome: "ok" | "error") => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timer);
-      setResults((prev) => (prev[clip] ? prev : { ...prev, [clip]: outcome }));
-      v.removeAttribute("src");
-      v.load();
-    };
-
-    const timer = window.setTimeout(() => finish("error"), 8000);
-    v.addEventListener("loadedmetadata", () => finish("ok"), { once: true });
-    v.addEventListener("error", () => finish("error"), { once: true });
-    v.src = clip;
-
-    return () => { settled = true; window.clearTimeout(timer); };
-  }, [clip]);
-
-  if (!clip) return "none";
-  return results[clip] ?? "probing";
-}
-
-function WorkDiagnostic({ work, thumb, gif }: { work: Work; thumb?: string; gif?: string }) {
-  const probe = useClipProbe(gif);
-  const isVideo = work.contentType.startsWith("video/");
-
-  // Non-video can't have a clip, so say that rather than showing a scary cross.
-  const clipLabel = !isVideo
-    ? "n/a"
-    : !gif
-      ? "MISSING"
-      : probe === "ok" ? "loads"
-      : probe === "error" ? "BROKEN URL"
-      : "checking…";
-
-  const bad = isVideo && (!gif || probe === "error");
-
-  return (
-    <span className="ap-diag" data-bad={bad ? "true" : "false"}>
-      {isVideo ? "VID" : work.contentType.split("/")[0]}
-      {" · thumb "}{thumb ? "yes" : "no"}
-      {" · clip "}{clipLabel}
-      {isVideo && (thumb || gif ? " · hover" : " · plain")}
-    </span>
-  );
-}
-/* ══════════════════════════════════════ end temporary diagnostic ══════════════════════════════ */
-
 function WorkTile({
   work, url, thumb, gif, onOpen,
 }: { work: Work; url?: string; thumb?: string; gif?: string; onOpen: () => void }) {
@@ -534,8 +455,6 @@ function WorkTile({
           </div>
         )}
         <span className="ap-badge">{isImage ? "IMG" : isAudio ? "AUD" : "VID"}</span>
-        {/* TEMPORARY — remove with the WorkDiagnostic block above. */}
-        <WorkDiagnostic work={work} thumb={thumb} gif={gif} />
       </div>
       <div className="ap-work-caption">
         <p className="ap-work-title">{work.fileName || "Untitled"}</p>

@@ -14,6 +14,11 @@ interface Plan {
   tagline: string;
   features: string[];
   popular?: boolean;
+  /**
+   * Whether creators on this plan can offer their files for download. Must stay in step with
+   * Plan.AllowDownloads on the server, which is the actual gate — this only advertises it.
+   */
+  downloads?: boolean;
 }
 
 const plans: Plan[] = [
@@ -23,6 +28,7 @@ const plans: Plan[] = [
     priceEur: 15,
     icon: "🥈",
     tagline: "Perfect for creators just getting started",
+    downloads: false,
     features: [
       "200GB cloud storage",
       "Full quality video hosting",
@@ -36,10 +42,12 @@ const plans: Plan[] = [
     icon: "🥇",
     tagline: "For growing channels that need more power",
     popular: true,
+    downloads: true,
     features: [
       "1TB cloud storage",
       "Full quality video hosting",
       "Advanced analytics",
+      "Viewer downloads — let people save your originals",
       "Priority support",
     ],
   },
@@ -49,10 +57,12 @@ const plans: Plan[] = [
     priceEur: 60,
     icon: "💎",
     tagline: "Unlimited ambition, enterprise-grade delivery",
+    downloads: true,
     features: [
       "2TB cloud storage",
       "Full quality video hosting",
       "Premium analytics suite",
+      "Viewer downloads — let people save your originals",
       "Dedicated support",
       "Early access to features",
     ],
@@ -342,6 +352,34 @@ export function BuyPage() {
                   margin: "0",
                 }}
               />
+
+              {/* Downloads flag. A bullet in the list is easy to skim past, and this is the one
+                  capability that differs between the tiers rather than just getting bigger. */}
+              {plan.downloads && (
+                <span
+                  style={{
+                    alignSelf: "flex-start",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    marginBottom: "var(--space-3)",
+                    padding: "3px 9px",
+                    borderRadius: "var(--radius-full, 9999px)",
+                    fontSize: "var(--font-size-xs)",
+                    fontWeight: 600,
+                    color: "var(--primary)",
+                    backgroundColor: "rgba(var(--primary-rgb), 0.12)",
+                    border: "1px solid rgba(var(--primary-rgb), 0.28)",
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Downloads included
+                </span>
+              )}
 
               {/* Feature list */}
               <ul

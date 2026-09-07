@@ -22,6 +22,8 @@ interface Media {
   hasThumbnail: boolean;
   /** True once the GIF generator has stored a hover-preview clip for this video. */
   hasGif: boolean;
+  /** Whether the owner offers this file for download. */
+  downloadable: boolean;
   showOnMediaPage: boolean;
   description: string | null;
 }
@@ -71,6 +73,9 @@ export function ProfilePage() {
   const [gifUrls, setGifUrls] = useState<Record<string, string>>({});
   /** How many tiles are on screen. The dashboard used to render the whole library at once. */
   const [visibleCount, setVisibleCount] = useState(DASHBOARD_PAGE_SIZE);
+  /** Whether this account's plan includes downloads at all — decides toggle vs upsell. */
+  const [downloadsAllowed, setDownloadsAllowed] = useState(false);
+  const [downloadBusyId, setDownloadBusyId] = useState<string | null>(null);
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [shareLinkExpiry, setShareLinkExpiry] = useState<string | null>(null);
   const [shareToken, setShareToken] = useState<string | null>(null);
@@ -271,6 +276,53 @@ export function ProfilePage() {
       toast.error(err instanceof Error ? err.message : "Failed to revoke link");
     } finally {
       setRevoking(false);
+    }
+  }
+
+  // Does this plan include downloads? Asked once, and it decides whether each file gets a working
+  // toggle or an explanation of why it doesn't.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await authFetch(`${API_BASE_URL}/api/media/downloads-allowed`, { silent: true });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setDownloadsAllowed(Boolean(data.allowed));
+      } catch { /* treat as not allowed; the server refuses anyway */ }
+    })();
+    return () => { cancelled = true; };
+  }, [authFetch]);
+
+  /** Offer one file for download, or stop offering it. The server re-checks the plan. */
+  async function handleToggleDownloadable(mediaId: string, current: boolean) {
+    setDownloadBusyId(mediaId);
+    try {
+      const res = await authFetch(`${API_BASE_URL}/api/media/${mediaId}/downloadable`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ downloadable: !current }),
+        silent: true,
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message || "Couldn't change the download setting.");
+      }
+
+      toast.success(!current ? "Downloads enabled for this file." : "Downloads disabled.");
+      setUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              media: prev.media.map((m) => (m.id === mediaId ? { ...m, downloadable: !current } : m)),
+            }
+          : prev
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to change the download setting");
+    } finally {
+      setDownloadBusyId(null);
     }
   }
 
@@ -530,6 +582,9 @@ export function ProfilePage() {
                 onShare={() => handleShareMedia(m.id)}
                 onEmbed={() => setEmbedMedia(m)}
                 onChangeThumbnail={() => setThumbPickerMediaId(m.id)}
+                downloadsAllowed={downloadsAllowed}
+                downloadBusy={downloadBusyId === m.id}
+                onToggleDownloadable={() => handleToggleDownloadable(m.id, m.downloadable)}
                 onGenerateGif={() => handleGenerateGif(m.id)}
                 onRemoveGif={() => handleRemoveGif(m.id)}
                 gifBusy={gifBusyId === m.id}
@@ -754,6 +809,9 @@ function MediaItem({
   onShare,
   onEmbed,
   onChangeThumbnail,
+  downloadsAllowed,
+  downloadBusy,
+  onToggleDownloadable,
   onGenerateGif,
   onRemoveGif,
   gifBusy,
@@ -777,6 +835,9 @@ function MediaItem({
   onShare: () => void;
   onEmbed: () => void;
   onChangeThumbnail: () => void;
+  downloadsAllowed: boolean;
+  downloadBusy: boolean;
+  onToggleDownloadable: () => void;
   onGenerateGif: () => void;
   onRemoveGif: () => void;
   gifBusy: boolean;
@@ -995,6 +1056,27 @@ function MediaItem({
             {gifBusy ? "Working…" : media.hasGif ? "Remove GIF" : "Generate GIF"}
           </button>
         )}
+        {/* Downloads are plan-gated. When the plan doesn't include them the control stays visible
+            but inert and says why — hiding it entirely just leaves people wondering where it went. */}
+        <button
+          onClick={downloadsAllowed ? onToggleDownloadable : undefined}
+          className={media.downloadable ? "btn-secondary" : "btn-outline"}
+          disabled={!downloadsAllowed || downloadBusy}
+          title={
+            !downloadsAllowed
+              ? "File downloads are included with the Gold and Platinum plans."
+              : media.downloadable
+                ? "Anyone who can see this file can download the original. Click to stop offering it."
+                : "Let viewers download the original file."
+          }
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: "4px", verticalAlign: "middle" }}>
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          {downloadBusy ? "…" : media.downloadable ? "Downloads on" : "Downloads off"}
+        </button>
         <button onClick={onDelete} className="btn-danger" disabled={deleting}>
           Delete
         </button>

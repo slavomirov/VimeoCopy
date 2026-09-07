@@ -42,4 +42,16 @@ public interface IMediaService
 
     /// <summary>Removes a clip and refunds its bytes; hover falls back to the full file.</summary>
     public Task DeleteGifAsync(string mediaId);
+
+    /// <summary>Owner-only: offer this file for download, or stop offering it. Plan-gated.</summary>
+    public Task SetDownloadableAsync(string mediaId, string userId, bool downloadable);
+
+    /// <summary>Whether this user's plan includes file downloads.</summary>
+    public Task<bool> PlanAllowsDownloadsAsync(string userId);
+
+    /// <summary>
+    /// Metered presigned URL that saves the original file. Requires the file to be flagged
+    /// downloadable AND the owner's plan to allow downloads.
+    /// </summary>
+    public Task<GetPresignedURLDTO> GetDownloadUrlAsync(string mediaId);
 }

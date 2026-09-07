@@ -384,34 +384,6 @@
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 2px 16px rgba(var(--primary-rgb), 0.5);
 }
-/* ═══════════════════════════════════════════════════════════════════════════════════════════
-   TEMPORARY DIAGNOSTIC — delete alongside <WorkDiagnostic /> in ArtistProfile.tsx.
-   pointer-events:none is not optional here: this sits over the tile, and an interactive layer
-   over a tile is the exact bug we spent this session chasing.
-   ═══════════════════════════════════════════════════════════════════════════════════════════ */
-.ap-diag {
-  pointer-events: none;
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 5;
-  padding: 3px 6px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 10px;
-  line-height: 1.4;
-  letter-spacing: 0.02em;
-  color: #0f0;
-  background: rgba(0, 0, 0, 0.82);
-  text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.ap-diag[data-bad="true"] { color: #ff6b6b; }
-/* ═════════════════════════════════════ end temporary diagnostic ═══════════════════════════ */
-
 .ap-badge {
   pointer-events: none; /* a label, not a control — see .ap-play */
   position: absolute;

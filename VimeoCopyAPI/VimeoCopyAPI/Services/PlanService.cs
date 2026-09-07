@@ -58,7 +58,8 @@ public class PlanService : IPlanService
                 Description = "Gold Plan",
                 StorageLimitMB = 1048576, //1 TB
                 BandwidthMB = 2097152, //2 TB
-                Price = 3500 // $35.00
+                Price = 3500, // $35.00
+                AllowDownloads = true
             });
         }
 
@@ -70,8 +71,17 @@ public class PlanService : IPlanService
                 Description = "Platinum Plan",
                 StorageLimitMB = 2097152, //2 TB
                 BandwidthMB = 4194304, //4 TB
-                Price = 6000 // $60.00
+                Price = 6000, // $60.00
+                AllowDownloads = true
             });
+        }
+
+        // Downloads belong to the expensive tiers. Applied to rows that already exist too, because
+        // the checks above only ADD missing plans — a database seeded before this column existed
+        // would otherwise keep AllowDownloads = false on Gold and Platinum forever.
+        foreach (var plan in plans.Where(p => p.Name is "Gold" or "Platinum" && !p.AllowDownloads))
+        {
+            plan.AllowDownloads = true;
         }
 
         await _dbContext.SaveChangesAsync();

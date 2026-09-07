@@ -945,3 +945,45 @@ textarea:focus-visible,
   background: var(--primary);
   opacity: 0.85;
 }
+
+/* ═══════════════════════════════════════════════
+   19 · DOWNLOAD — offered only where the owner opted in
+   Sits over the tile like the type badge, so it needs the same discipline: it IS a control, so it
+   keeps pointer events, but it is the only thing over the preview that does.
+   ═══════════════════════════════════════════════ */
+
+.media-download-btn {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 3;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-full, 9999px);
+  cursor: pointer;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity 0.25s var(--ease-swell), background 0.2s ease, transform 0.2s ease;
+}
+
+/* Revealed on hover like the rest of the tile's affordances, but always present for keyboard use. */
+.media-gallery-card:hover .media-download-btn,
+.media-download-btn:focus-visible {
+  opacity: 1;
+}
+
+.media-download-btn:hover {
+  background: rgba(var(--primary-rgb), 0.9);
+  transform: translateY(-1px);
+}
+
+.media-download-btn:disabled {
+  cursor: default;
+  opacity: 0.5;
+}

@@ -71,6 +71,14 @@ public class Media
     /// </summary>
     public bool IsProfileAsset { get; set; } = false;
 
+    /// <summary>
+    /// Whether the owner offers this file as a download. Off by default: a download hands over the
+    /// original file, so it has to be opted into per file, never inferred. It is only honoured while
+    /// the owner's plan also allows downloads — both must be true, so a file stays flagged if a plan
+    /// lapses and starts working again on renewal rather than silently resetting.
+    /// </summary>
+    public bool Downloadable { get; set; }
+
     /// <summary>Optional user-provided description for the media.</summary>
     [MaxLength(2000)]
     public string? Description { get; set; }

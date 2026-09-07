@@ -146,11 +146,44 @@ namespace VimeoCopyAPI.Services
             }
         }
 
-        private async Task SendEmailAsync(string recipientEmail, string subject, string htmlBody)
+        public async Task SendContactMessageAsync(string senderName, string senderEmail, string subject, string message)
+        {
+            // The destination is configuration, not input. Taking it from the request would turn this
+            // endpoint into an open relay for anyone who found it.
+            var recipient = _config["ContactUs:Recipient"];
+            if (string.IsNullOrWhiteSpace(recipient))
+            {
+                _logger.LogError("ContactUs:Recipient is not configured — contact message dropped.");
+                throw new InvalidOperationException("The contact form isn't configured yet.");
+            }
+
+            // Everything below is attacker-controlled text going into an HTML document, so it is
+            // encoded rather than interpolated. Newlines are converted after encoding, so a message
+            // keeps its paragraphs without letting a <br> through from the sender.
+            var safeName = System.Net.WebUtility.HtmlEncode(senderName);
+            var safeEmail = System.Net.WebUtility.HtmlEncode(senderEmail);
+            var safeSubject = System.Net.WebUtility.HtmlEncode(subject);
+            var safeMessage = System.Net.WebUtility.HtmlEncode(message).Replace("\n", "<br>");
+
+            var body = BuildEmailTemplate($@"
+                <h1>New message from the contact form</h1>
+                <p><strong>From:</strong> {safeName} &lt;{safeEmail}&gt;</p>
+                <p><strong>Subject:</strong> {safeSubject}</p>
+                <hr>
+                <p>{safeMessage}</p>
+            ");
+
+            // Subject is prefixed so these are filterable, and Reply-To is the sender so hitting
+            // reply in a mail client actually answers the person who wrote in.
+            await SendEmailAsync(recipient, $"[Contact] {subject}", body, replyTo: senderEmail);
+            _logger.LogInformation("Contact form message forwarded to the site owners.");
+        }
+
+        private async Task SendEmailAsync(string recipientEmail, string subject, string htmlBody, string? replyTo = null)
         {
             if (_emailProvider.Equals("Resend", StringComparison.OrdinalIgnoreCase))
             {
-                await SendViaResendAsync(recipientEmail, subject, htmlBody);
+                await SendViaResendAsync(recipientEmail, subject, htmlBody, replyTo);
             }
             else
             {
@@ -158,7 +191,7 @@ namespace VimeoCopyAPI.Services
             }
         }
 
-        private async Task SendViaResendAsync(string recipientEmail, string subject, string htmlBody)
+        private async Task SendViaResendAsync(string recipientEmail, string subject, string htmlBody, string? replyTo = null)
         {
             var resendApiKey = _config["Email:Resend:ApiKey"];
 
@@ -172,13 +205,22 @@ namespace VimeoCopyAPI.Services
             {
                 client.DefaultRequestHeaders.Add("Authorization", $"Bearer {resendApiKey}");
 
-                var payload = new
-                {
-                    from = _fromEmail,
-                    to = recipientEmail,
-                    subject = subject,
-                    html = htmlBody
-                };
+                object payload = string.IsNullOrWhiteSpace(replyTo)
+                    ? new
+                    {
+                        from = _fromEmail,
+                        to = recipientEmail,
+                        subject = subject,
+                        html = htmlBody
+                    }
+                    : new
+                    {
+                        from = _fromEmail,
+                        to = recipientEmail,
+                        subject = subject,
+                        html = htmlBody,
+                        reply_to = replyTo
+                    };
 
                 var jsonContent = System.Text.Json.JsonSerializer.Serialize(payload);
                 var content = new StringContent(jsonContent, System.Text.Encoding.UTF8, "application/json");

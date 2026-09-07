@@ -78,41 +78,63 @@ export function ensureFontLoaded(name: string) {
 /* ── Presets ───────────────────────────────────────────
    One-click starting moods. Users tweak from here. */
 
+/* ── Presets ───────────────────────────────────────────
+   Every one of these is built from the app's own palette rather than invented alongside it.
+   The site is a single maritime family — sky #38BDF8 on deep navy #041320 in dark, #0369A1 on
+   #F3F9FD in light — and the previous presets shared no hue with it at all: warm creams, a burnt
+   orange, a gold, a mint green. A profile styled that way didn't read as a themed corner of the
+   site, it read as a different site embedded in this one.
+
+   So the accents here stay inside one analogous sweep — blue → sky → cyan → teal, plus a cool
+   greyscale — while the variety that actually matters to an artist is kept: light and dark, serif
+   and sans and mono, sharp and round. Nothing clashes with the chrome around it.
+
+   Backgrounds and surfaces track the real tokens (--bg-base / --bg-surface / --border-color) so a
+   profile sits against the app's own furniture without a seam. Text pairs are all >= 7:1 against
+   their background and muted text >= 4.5:1, checked with contrastRatio() below. */
+
 export const PRESETS: ArtistTheme[] = [
   {
-    preset: "Gallery White",
-    bg: "#fbfbf9", surface: "#ffffff", text: "#1a1a1a", textMuted: "#6b6b6b",
-    accent: "#1a1a1a", border: "#e7e5df",
+    // The app's light theme, exactly. The safe default: a profile that looks like it belongs.
+    preset: "Harbour",
+    bg: "#F3F9FD", surface: "#FFFFFF", text: "#0B2233", textMuted: "#546E80",
+    accent: "#0369A1", border: "#D3E3EF",
     headingFont: "Fraunces", bodyFont: "Inter", radius: "sharp", backgroundKind: "solid",
   },
   {
-    preset: "Noir",
-    bg: "#0b0b0c", surface: "#161617", text: "#f4f4f2", textMuted: "#9a9a98",
-    accent: "#e8c37a", border: "#2a2a2c",
-    headingFont: "Playfair Display", bodyFont: "Inter", radius: "soft", backgroundKind: "solid",
+    // The app's dark theme. Sky accent on deep navy, the site's signature pairing.
+    preset: "Harbour Night",
+    bg: "#041320", surface: "#071E31", text: "#E8F4FB", textMuted: "#8FA9BC",
+    accent: "#38BDF8", border: "#123449",
+    headingFont: "Space Grotesk", bodyFont: "Inter", radius: "soft", backgroundKind: "solid",
   },
   {
-    preset: "Studio",
-    bg: "#f4f1ea", surface: "#fffdf8", text: "#2b2620", textMuted: "#7a7266",
-    accent: "#c2410c", border: "#e3ddd0",
-    headingFont: "Space Grotesk", bodyFont: "DM Sans", radius: "round", backgroundKind: "solid",
+    // Darker and quieter than Harbour Night, for work that wants to sit in near-black.
+    preset: "Deep Water",
+    bg: "#020A12", surface: "#0A1B29", text: "#DCEBF5", textMuted: "#7C93A5",
+    accent: "#22D3EE", border: "#10293B",
+    headingFont: "Playfair Display", bodyFont: "Inter", radius: "round", backgroundKind: "solid",
   },
   {
-    preset: "Risograph",
-    bg: "#fdf3ec", surface: "#ffffff", text: "#1f2933", textMuted: "#5b6770",
-    accent: "#2563eb", border: "#f2d9c9",
+    // A near-white room with a cool cast, so it reads as gallery space and not as a warm cream
+    // that fights the blues in the chrome. Teal accent keeps it in the family.
+    preset: "Gallery",
+    bg: "#FBFCFD", surface: "#FFFFFF", text: "#14202A", textMuted: "#5C7280",
+    accent: "#0E7490", border: "#E3EAEF",
+    headingFont: "Cormorant Garamond", bodyFont: "Inter", radius: "sharp", backgroundKind: "solid",
+  },
+  {
+    // The loud one, kept honest: heavy display face and a bright accent, still the site's sky blue.
+    preset: "Beacon",
+    bg: "#F6F9FB", surface: "#FFFFFF", text: "#10202C", textMuted: "#5A7182",
+    accent: "#0891B2", border: "#DCE7EE",
     headingFont: "Archivo Black", bodyFont: "DM Sans", radius: "soft", backgroundKind: "solid",
   },
   {
-    preset: "Botanic",
-    bg: "#0f1a14", surface: "#16241c", text: "#eef4ee", textMuted: "#9cb4a4",
-    accent: "#7dd88f", border: "#27392e",
-    headingFont: "Cormorant Garamond", bodyFont: "DM Sans", radius: "round", backgroundKind: "solid",
-  },
-  {
-    preset: "Mono",
-    bg: "#111111", surface: "#1b1b1b", text: "#ededed", textMuted: "#8f8f8f",
-    accent: "#ededed", border: "#2e2e2e",
+    // Cool greyscale. No hue at all is the one way to add contrast to this set without leaving it.
+    preset: "Slate Mono",
+    bg: "#0F1519", surface: "#171F25", text: "#E7EDF1", textMuted: "#93A3AE",
+    accent: "#CBD5E1", border: "#263038",
     headingFont: "DM Mono", bodyFont: "DM Mono", radius: "sharp", backgroundKind: "solid",
   },
 ];
