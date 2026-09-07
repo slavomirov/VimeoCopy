@@ -1214,6 +1214,12 @@
   background: rgba(0, 0, 0, 0.25);
   opacity: 0;
   transition: opacity 0.3s ease;
+  /* MUST stay none. This is a decorative scrim stretched over the whole tile, and it is a SIBLING
+     of .hover-preview painted after it — so with hit-testing enabled it is the element under the
+     cursor everywhere on the tile. `opacity: 0` does not exempt an element from hit-testing, so it
+     silently swallowed every pointerenter and the hover preview never armed once. The card's own
+     click handler lives on .media-gallery-card, so nothing here needs to receive events. */
+  pointer-events: none;
 }
 
 .media-gallery-card:hover .media-play-overlay {
@@ -1237,6 +1243,7 @@
 }
 
 .media-type-badge {
+  pointer-events: none; /* a label, not a control — see .media-play-overlay */
   position: absolute;
   top: var(--space-2);
   right: var(--space-2);

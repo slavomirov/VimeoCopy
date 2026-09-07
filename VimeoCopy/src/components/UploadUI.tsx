@@ -86,6 +86,9 @@ export function FileRow({
               "Uploaded ✓" is the truth about the upload either way. */}
           {isDone && entry.gifStatus === "generating" && " · building hover preview…"}
           {isDone && entry.gifStatus === "ready" && " · hover preview ready"}
+          {/* Say so rather than staying quiet. A silent failure here is indistinguishable from the
+              feature not existing, which is exactly how it read the first time round. */}
+          {isDone && entry.gifStatus === "unavailable" && " · no hover preview"}
           {isError && ` · ${entry.message}`}
         </p>
       </div>

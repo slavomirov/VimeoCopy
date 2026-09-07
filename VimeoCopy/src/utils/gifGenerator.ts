@@ -170,6 +170,38 @@ async function loadVideo(source: File | string): Promise<{ video: HTMLVideoEleme
   return { video, revoke };
 }
 
+/**
+ * The video's real duration, or NaN if it can't be established.
+ *
+ * A file produced by MediaRecorder — a screen capture, a webcam recording, anything a browser
+ * recorded — carries no duration in its header, so `video.duration` reports Infinity until the
+ * browser has scanned to the end. Seeking far past the end forces that scan. Without this, every
+ * such upload failed the `Number.isFinite` check and silently got no clip at all.
+ */
+async function resolveDuration(video: HTMLVideoElement): Promise<number> {
+  if (Number.isFinite(video.duration) && video.duration > 0) return video.duration;
+
+  try {
+    video.currentTime = 1e101;
+    await waitForEvent(video, "durationchange", STEP_TIMEOUT_MS);
+  } catch {
+    return Number.NaN;
+  }
+
+  const duration = video.duration;
+  if (!Number.isFinite(duration) || duration <= 0) return Number.NaN;
+
+  // Put the head back before sampling starts, or the first seek measures from the far end.
+  try {
+    video.currentTime = 0;
+    await waitForEvent(video, "seeked", STEP_TIMEOUT_MS);
+  } catch {
+    /* sampling seeks to an absolute time anyway */
+  }
+
+  return duration;
+}
+
 /** The moments to record, as [startSeconds, lengthMs] pairs. */
 function planSegments(duration: number): Array<[number, number]> {
   if (duration <= SHORT_VIDEO_SECONDS) {
@@ -200,18 +232,24 @@ async function recordSegment(
   lengthMs: number
 ): Promise<void> {
   ctx.drawImage(video, 0, 0, width, height); // paint the seeked frame before playback starts
-  await video.play();
 
-  let raf = 0;
-  const draw = () => {
-    ctx.drawImage(video, 0, 0, width, height);
-    raf = window.requestAnimationFrame(draw);
-  };
-  raf = window.requestAnimationFrame(draw);
+  // Don't wait forever. A play() that never settles used to hang the whole generation, and because
+  // the uploader awaits these jobs it left the upload batch permanently "in progress".
+  const started = await Promise.race([
+    video.play().then(() => true),
+    delay(STEP_TIMEOUT_MS).then(() => false),
+  ]);
+  if (!started) throw new Error("Playback didn't start.");
+
+  // setInterval, NOT requestAnimationFrame. rAF is suspended outright in a background tab, and
+  // uploads are explicitly allowed to continue while the user browses elsewhere — so an rAF draw
+  // loop recorded a frozen frame, or nothing at all, whenever the tab lost focus. An interval at
+  // the capture rate is also exactly what captureStream samples, so nothing is drawn in vain.
+  const timer = window.setInterval(() => ctx.drawImage(video, 0, 0, width, height), 1000 / CLIP_FPS);
 
   await delay(lengthMs);
 
-  window.cancelAnimationFrame(raf);
+  window.clearInterval(timer);
   video.pause();
 }
 
@@ -236,10 +274,10 @@ export async function generatePreviewClip(source: File | string): Promise<Previe
     ]);
 
     const { video } = loaded;
-    const duration = video.duration;
+    const duration = await resolveDuration(video);
 
-    // A live stream or a fragmented file reports Infinity, and a still frame reports 0. Neither can
-    // be sampled at fractions of its length.
+    // A live stream reports Infinity even after a scan, and a still frame reports 0. Neither can be
+    // sampled at fractions of its length.
     if (!Number.isFinite(duration) || duration <= 0) return null;
     if (!video.videoWidth || !video.videoHeight) return null;
 
@@ -268,9 +306,15 @@ export async function generatePreviewClip(source: File | string): Promise<Previe
     const segments = planSegments(duration);
     let recorded = 0;
 
+    // OVERALL_TIMEOUT_MS used to guard only the metadata load, which left the sampling loop able to
+    // run unbounded. Checking it per segment means a file that seeks slowly gives back a short clip
+    // instead of stalling the upload batch that is waiting on it.
+    const deadline = Date.now() + OVERALL_TIMEOUT_MS;
+
     recorder.start();
 
     for (const [startSeconds, lengthMs] of segments) {
+      if (Date.now() > deadline) break;
       // Seeking takes real time and the recorder keeps running through it, so a montage made
       // without this pause is padded with a frozen frame between every moment.
       if (recorder.state === "recording") {
