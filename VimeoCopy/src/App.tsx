@@ -23,7 +23,7 @@ import { ArtistProfileEditor } from "./profile/ArtistProfileEditor";
 import { UploadProvider } from "./components/UploadProvider";
 import { UploadDock } from "./components/UploadDock";
 import { AudiencePage } from "./components/AudiencePage";
-import { API_BASE_URL } from "./config";
+import { useMyHandle } from "./profile/useMyHandle";
 import { ModerationPage } from "./components/ModerationPage";
 import { useTheme } from "./theme/useTheme";
 import {
@@ -58,7 +58,7 @@ function App() {
 }
 
 function MainLayout() {
-  const { accessToken, logout, roles, authFetch } = useAuth();
+  const { accessToken, logout, roles } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const isLoggedIn = !!accessToken;
   const isStaff = roles.includes("Admin") || roles.includes("Moderator");
@@ -67,16 +67,9 @@ function MainLayout() {
   const isMobile = useCallback(() => window.innerWidth <= 768, []);
   const [sidebarOpen, setSidebarOpen] = useState(() => !isMobile());
   const [contactOpen, setContactOpen] = useState(false);
-  /**
-   * The signed-in user's public handle, for the "Public profile" shortcut.
-   *
-   * Stored WITH the token it was fetched for, and the usable value is derived from that. Keeping a
-   * bare handle in state means that after a sign-out and a sign-in as someone else, the shortcut
-   * points at the previous account's profile until the new fetch lands. Tying it to the token makes
-   * that window impossible, and it means nothing has to be cleared on the way out.
-   */
-  const [handleFor, setHandleFor] = useState<{ token: string; handle: string | null } | null>(null);
-  const myHandle = handleFor && handleFor.token === accessToken ? handleFor.handle : null;
+  // Shared with the dashboard's "View public profile" button — see useMyHandle for why the handle
+  // is tied to the token it was fetched for.
+  const myHandle = useMyHandle();
 
   // Clicking the brand always brings you back to the top of the home page
   const handleBrandClick = useCallback(() => {
@@ -86,23 +79,6 @@ function MainLayout() {
     document.querySelector(".app-content")?.scrollTo({ top: 0, behavior });
   }, [location.pathname]);
 
-  // Fetch the handle for the public-profile shortcut. Signed-out state needs no work here: the
-  // derived value above already resolves to null once the token is gone.
-  useEffect(() => {
-    if (!accessToken) return;
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await authFetch(`${API_BASE_URL}/api/profile/me`, { silent: true });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!cancelled) setHandleFor({ token: accessToken, handle: data.handle ?? null });
-      } catch { /* no shortcut is fine; the dashboard still links onward */ }
-    })();
-
-    return () => { cancelled = true; };
-  }, [accessToken, authFetch]);
 
   // Close sidebar on route change (mobile)
   useEffect(() => {
