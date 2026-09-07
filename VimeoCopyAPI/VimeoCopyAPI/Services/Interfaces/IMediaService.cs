@@ -26,4 +26,20 @@ public interface IMediaService
     /// then writes the ThumbnailUrl column.
     /// </summary>
     public Task ConfirmThumbnailAsync(string mediaId);
+
+    /// <summary>
+    /// Presigned PUT for a hover-preview clip ("GIF generator" output — a short muted video, not an
+    /// image/gif). Owner-only, video-only. The content type is the client's because the browser that
+    /// recorded the clip chose the container.
+    /// </summary>
+    public Task<GifUploadResponseDTO> GetGifUploadUrlAsync(string mediaId, string contentType);
+
+    /// <summary>
+    /// Confirms a stored clip: reads its real size from the bucket, charges the delta against the
+    /// plan quota, and records the key. Returns a presigned URL for the clip just stored.
+    /// </summary>
+    public Task<GifConfirmResponseDTO> ConfirmGifAsync(string mediaId, string contentType);
+
+    /// <summary>Removes a clip and refunds its bytes; hover falls back to the full file.</summary>
+    public Task DeleteGifAsync(string mediaId);
 }

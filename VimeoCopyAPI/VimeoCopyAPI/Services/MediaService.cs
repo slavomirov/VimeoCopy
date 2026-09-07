@@ -84,6 +84,7 @@ public class MediaService : IMediaService
                 // Presigning here removes one HTTP round trip per tile.
                 PreviewUrl = PresignKey(m.Id.ToString()),
                 ThumbnailUrl = string.IsNullOrEmpty(m.ThumbnailUrl) ? null : PresignKey(m.ThumbnailUrl),
+                GifUrl = string.IsNullOrEmpty(m.GifUrl) ? null : PresignKey(m.GifUrl),
                 OwnerHandle = m.User?.Handle,
                 OwnerDisplayName = PublicNameFor(m.User),
             };
@@ -232,6 +233,7 @@ public class MediaService : IMediaService
             Url = PresignKey(media.Id.ToString()),
             ContentType = media.ContentType,
             ThumbnailUrl = string.IsNullOrEmpty(media.ThumbnailUrl) ? null : PresignKey(media.ThumbnailUrl),
+            GifUrl = string.IsNullOrEmpty(media.GifUrl) ? null : PresignKey(media.GifUrl),
         };
 
     /// <summary>Read-only presigned GET for a storage key.</summary>
@@ -273,7 +275,25 @@ public class MediaService : IMediaService
             catch { /* the original is already gone; a stray thumbnail is swept by maintenance */ }
         }
 
-        await _userService.DecreaseUsedMemoryAsync(userId, media.FileSize); // bytes (matches upload accounting)
+        if (!string.IsNullOrEmpty(media.GifUrl))
+        {
+            try
+            {
+                await _s3.DeleteObjectAsync(new DeleteObjectRequest
+                {
+                    BucketName = bucket,
+                    Key = media.GifUrl
+                });
+            }
+            catch { /* same story as the thumbnail: the sweeper will collect it */ }
+        }
+
+        // Refund everything that was charged, not just the original. Thumbnail bytes were counted at
+        // confirm time but never given back here, so deleting media left that much phantom usage on
+        // the account until the nightly reconcile happened to correct it. The clip is charged the
+        // same way, so it is refunded the same way.
+        var reclaimed = media.FileSize + (media.ThumbnailSize ?? 0) + (media.GifSize ?? 0);
+        await _userService.DecreaseUsedMemoryAsync(userId, reclaimed); // bytes (matches upload accounting)
         _dbContext.Remove(media);
         await _dbContext.SaveChangesAsync();
     }
@@ -357,6 +377,172 @@ public class MediaService : IMediaService
 
         media.ThumbnailUrl = thumbKey;
         media.ThumbnailSize = actualSize;
+        await _dbContext.SaveChangesAsync();
+    }
+
+    /* ── GIF generator ─────────────────────────────────────────────────────────────────────────
+       A "GIF" here is a short muted video clip, not an image/gif — the same thing YouTube hovers.
+       An actual GIF of a 3-second 320px clip runs several megabytes and looks worse than the WebM
+       that costs a couple of hundred kilobytes, so the name describes the feature and the format
+       stays a video. The clip is generated in the browser from the file the user already has
+       locally, then uploaded through the same presign → PUT → confirm handshake as thumbnails.
+       ──────────────────────────────────────────────────────────────────────────────────────── */
+
+    /// <summary>
+    /// Ceiling for a stored clip. Generation targets a small fraction of this; the cap is here so a
+    /// crafted PUT can't park an arbitrary file under a media id that browsing serves unmetered.
+    /// </summary>
+    public const long MaxGifBytes = 3 * 1024 * 1024;
+
+    /// <summary>
+    /// Containers a clip may be stored in. MediaRecorder emits WebM on Chrome and Firefox and MP4 on
+    /// Safari, and nothing else is accepted — the object is served straight to a &lt;video&gt; tag, so
+    /// letting the client name its own content type is how you end up serving HTML from your bucket.
+    /// </summary>
+    private static readonly string[] AllowedGifContentTypes =
+    [
+        "video/webm", "video/mp4",
+    ];
+
+    private static string GifKeyFor(Guid mediaId) => $"gif_{mediaId}";
+
+    private static string NormalizeGifContentType(string? contentType)
+    {
+        // MediaRecorder reports codec parameters ("video/webm;codecs=vp9"), which are meaningful to
+        // the recorder but not to storage. Keep the container, drop the rest.
+        var raw = (contentType ?? string.Empty).Split(';')[0].Trim().ToLowerInvariant();
+
+        if (!AllowedGifContentTypes.Contains(raw))
+            throw new ValidationException("A preview clip must be WebM or MP4.");
+
+        return raw;
+    }
+
+    /// <summary>
+    /// Mints a presigned PUT for a hover-preview clip. Owner-only, and only for video: a clip of an
+    /// image or an audio file has nothing to show and would just be billed storage.
+    /// </summary>
+    public async Task<GifUploadResponseDTO> GetGifUploadUrlAsync(string mediaId, string contentType)
+    {
+        var userId = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? throw new UnauthorizedAccessException("User not authenticated!");
+
+        var media = await GetOwnedMediaAsync(mediaId, userId);
+
+        if (!media.ContentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase))
+            throw new ValidationException("Only video can have a hover preview clip.");
+
+        var resolved = NormalizeGifContentType(contentType);
+
+        var request = new GetPreSignedUrlRequest
+        {
+            BucketName = bucket,
+            Key = GifKeyFor(media.Id),
+            Verb = HttpVerb.PUT,
+            Expires = DateTime.UtcNow.AddMinutes(15),
+            ContentType = resolved,
+        };
+
+        return new GifUploadResponseDTO
+        {
+            UploadUrl = _s3.GetPreSignedURL(request),
+            MediaId = mediaId,
+            ContentType = resolved,
+        };
+    }
+
+    /// <summary>
+    /// Verifies the clip actually landed in storage, charges its real size to the owner's quota, and
+    /// records the key. Size comes from the bucket, never the client — the same reason the thumbnail
+    /// path reads object metadata instead of trusting a number in the request body.
+    /// </summary>
+    public async Task<GifConfirmResponseDTO> ConfirmGifAsync(string mediaId, string contentType)
+    {
+        var userId = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? throw new UnauthorizedAccessException("User not authenticated!");
+
+        var media = await GetOwnedMediaAsync(mediaId, userId);
+        var resolved = NormalizeGifContentType(contentType);
+        var gifKey = GifKeyFor(media.Id);
+
+        long actualSize;
+        try
+        {
+            var meta = await _s3.GetObjectMetadataAsync(bucket, gifKey);
+            actualSize = meta.ContentLength;
+        }
+        catch
+        {
+            throw new NotFoundException("We couldn't find that preview clip in storage. Please try again.");
+        }
+
+        if (actualSize <= 0)
+            throw new ValidationException("That preview clip appears to be empty.");
+
+        if (actualSize > MaxGifBytes)
+        {
+            try { await _s3.DeleteObjectAsync(new DeleteObjectRequest { BucketName = bucket, Key = gifKey }); }
+            catch { /* the sweeper will catch it */ }
+
+            throw new ValidationException($"A preview clip must be no larger than {MaxGifBytes / (1024 * 1024)} MB.");
+        }
+
+        // Charge the delta. Regenerating overwrites the same key, so billing the full size each time
+        // would inflate usage without bound — the mistake the thumbnail path already learned.
+        var previousSize = media.GifSize ?? 0;
+        var delta = actualSize - previousSize;
+
+        if (delta > 0)
+        {
+            var quota = await _userService.CanUserUploadAsync(userId, delta);
+            if (quota != UserService.UploadAllowed)
+                throw new QuotaExceededException(quota);
+
+            await _userService.IncreaseUsedMemoryAsync(userId, delta);
+        }
+        else if (delta < 0)
+        {
+            await _userService.DecreaseUsedMemoryAsync(userId, -delta);
+        }
+
+        media.GifUrl = gifKey;
+        media.GifSize = actualSize;
+        media.GifContentType = resolved;
+        await _dbContext.SaveChangesAsync();
+
+        return new GifConfirmResponseDTO
+        {
+            GifUrl = PresignKey(gifKey),
+            Size = actualSize,
+        };
+    }
+
+    /// <summary>
+    /// Drops a clip and refunds its bytes. Hover falls back to the full file afterwards, so removing
+    /// one costs the owner nothing but the bandwidth the clip was saving.
+    /// </summary>
+    public async Task DeleteGifAsync(string mediaId)
+    {
+        var userId = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? throw new UnauthorizedAccessException("User not authenticated!");
+
+        var media = await GetOwnedMediaAsync(mediaId, userId);
+        if (string.IsNullOrEmpty(media.GifUrl)) return; // already gone; nothing to refund
+
+        // Storage first, then the row — the row is the only pointer to the key, so clearing it before
+        // the object is gone strands the object. Same ordering as DeleteMediaAsync.
+        try
+        {
+            await _s3.DeleteObjectAsync(new DeleteObjectRequest { BucketName = bucket, Key = media.GifUrl });
+        }
+        catch { /* leave the row intact so the caller can retry */ throw; }
+
+        if (media.GifSize.HasValue)
+            await _userService.DecreaseUsedMemoryAsync(userId, media.GifSize.Value);
+
+        media.GifUrl = null;
+        media.GifSize = null;
+        media.GifContentType = null;
         await _dbContext.SaveChangesAsync();
     }
 }

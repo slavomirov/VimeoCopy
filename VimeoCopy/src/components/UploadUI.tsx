@@ -82,6 +82,10 @@ export function FileRow({
           {(entry.file.size / 1024 / 1024).toFixed(2)} MB
           {isActive && ` · ${entry.progress}%`}
           {isDone && " · Uploaded ✓"}
+          {/* The clip is generated after the file is already stored, so it reports separately —
+              "Uploaded ✓" is the truth about the upload either way. */}
+          {isDone && entry.gifStatus === "generating" && " · building hover preview…"}
+          {isDone && entry.gifStatus === "ready" && " · hover preview ready"}
           {isError && ` · ${entry.message}`}
         </p>
       </div>

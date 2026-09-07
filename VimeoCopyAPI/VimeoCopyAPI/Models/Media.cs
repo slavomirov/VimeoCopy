@@ -36,6 +36,28 @@ public class Media
     [MaxLength(500)]
     public string? VideoUrl { get; set; }
 
+    /// <summary>
+    /// Storage key of the hover-preview clip the GIF generator produced (key = gif_{Id}), or null
+    /// when the media has none: audio, an image, a generator failure, or a video uploaded before the
+    /// feature existed. When it is null the gallery falls back to hovering the full file.
+    /// </summary>
+    [MaxLength(500)]
+    public string? GifUrl { get; set; }
+
+    /// <summary>
+    /// Bytes the stored clip occupies, charged to the owner's quota and refunded on delete, exactly
+    /// like <see cref="ThumbnailSize"/>.
+    /// </summary>
+    public long? GifSize { get; set; }
+
+    /// <summary>
+    /// Container the clip was recorded in. The generating browser picks it — Chrome and Firefox emit
+    /// WebM, Safari MP4 — so it is stored rather than assumed, and it types both the presigned PUT
+    /// and the object served back to the gallery.
+    /// </summary>
+    [MaxLength(100)]
+    public string? GifContentType { get; set; }
+
     public bool IsPublic { get; set; } = true;
 
     /// <summary>When true, the media appears on the public Media Gallery page.</summary>

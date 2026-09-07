@@ -2,6 +2,8 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useAuth } from "../Auth/useAuth";
 import { API_BASE_URL } from "../config";
 import { generateThumbnail } from "../utils/thumbnailGenerator";
+import { canGeneratePreviewClip, generatePreviewClip } from "../utils/gifGenerator";
+import { storePreviewClip } from "../utils/gifUpload";
 import toast from "react-hot-toast";
 
 /* ── Types ─────────────────────────────────── */
@@ -21,6 +23,12 @@ export interface FileEntry {
   customThumbnail?: Blob;
   /** Optional project this file should be linked to on completion. */
   projectId?: string;
+  /**
+   * Progress of the hover-preview clip (the "GIF generator"). Videos only, and it runs after the
+   * file itself is already stored — the clip is an enhancement, so its state is tracked separately
+   * rather than being allowed to hold the upload's own status open.
+   */
+  gifStatus?: "generating" | "ready" | "unavailable";
 }
 
 export interface UseFileUploaderOptions {
@@ -219,6 +227,9 @@ export function useFileUploader(options: UseFileUploaderOptions = {}) {
 
     setUploading(true);
     const uploadedMediaIds: string[] = [];
+    // Hover-preview clips, generated after each file lands. Recording is real-time, so these are
+    // collected and awaited once at the end instead of stalling the worker that owns the queue.
+    const gifJobs: Promise<void>[] = [];
 
     try {
       // The server caps a batch at 20, so chunk to match. Asking for more used to return fewer
@@ -350,6 +361,31 @@ export function useFileUploader(options: UseFileUploaderOptions = {}) {
 
           updateEntry(entry.id, { status: "done", progress: 100, message: "Uploaded", mediaId });
           uploadedMediaIds.push(mediaId);
+
+          // The GIF generator runs from the local File, so the clip costs no download — this is the
+          // one moment in the media's life when the source bytes are already on this machine.
+          if (entry.contentType.startsWith("video/") && canGeneratePreviewClip()) {
+            updateEntry(entry.id, { gifStatus: "generating" });
+
+            gifJobs.push(
+              (async () => {
+                try {
+                  const clip = await generatePreviewClip(entry.file);
+                  if (!clip) {
+                    updateEntry(entry.id, { gifStatus: "unavailable" });
+                    return;
+                  }
+
+                  await storePreviewClip(mediaId, clip, authFetch);
+                  updateEntry(entry.id, { gifStatus: "ready" });
+                } catch {
+                  // A clip is an optimisation, never a reason to fail an upload that succeeded.
+                  // Without one, hovering the tile streams the full file as it always did.
+                  updateEntry(entry.id, { gifStatus: "unavailable" });
+                }
+              })()
+            );
+          }
         } catch (err) {
           updateEntry(entry.id, {
             status: "error",
@@ -373,6 +409,10 @@ export function useFileUploader(options: UseFileUploaderOptions = {}) {
       );
 
       await Promise.all(workers);
+
+      // Let the clips finish before reporting the batch complete. allSettled, not all: a rejected
+      // clip job has already been recorded on its own row and must not fail the whole batch.
+      await Promise.allSettled(gifJobs);
     } catch (err) {
       for (const entry of queued) {
         updateEntry(entry.id, {

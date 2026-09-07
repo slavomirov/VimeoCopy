@@ -170,6 +170,15 @@ public class StorageBandwidthMaintenanceService : BackgroundService
             return media.Contains(ownerId) || pending.Contains(ownerId);
         }
 
+        // Same deal for a hover-preview clip, gif_<mediaId>. Without this the sweep would delete
+        // every generated clip on its first nightly run — the object is derived, so nothing else
+        // would notice until users found hover silently falling back to streaming the full file.
+        if (key.StartsWith("gif_", StringComparison.OrdinalIgnoreCase))
+        {
+            var ownerId = key[4..];
+            return media.Contains(ownerId) || pending.Contains(ownerId);
+        }
+
         return false;
     }
 
@@ -182,7 +191,7 @@ public class StorageBandwidthMaintenanceService : BackgroundService
             SET u.UsedMemory = ISNULL(s.Total, 0)
             FROM AspNetUsers u
             LEFT JOIN (
-                SELECT UserId, SUM(FileSize) + SUM(ISNULL(ThumbnailSize, 0)) AS Total
+                SELECT UserId, SUM(FileSize) + SUM(ISNULL(ThumbnailSize, 0)) + SUM(ISNULL(GifSize, 0)) AS Total
                 FROM Media
                 GROUP BY UserId
             ) s ON s.UserId = u.Id

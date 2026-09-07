@@ -3,8 +3,14 @@ import { useEffect, useRef, useState } from "react";
 /**
  * Hover preview — YouTube-style inline playback.
  *
- * Hover a tile and the clip plays straight through from the start, muted, with a thin
- * progress bar along the bottom. Move away and it snaps back to the thumbnail.
+ * Hover a tile and the GIF generator's clip plays straight through from the start, muted, with a
+ * thin progress bar along the bottom. Move away and it snaps back to the thumbnail.
+ *
+ * The clip is the ONLY thing this will ever play. It holds four moments sampled from across the
+ * video in a couple of hundred kilobytes, and a tile without one simply doesn't animate. There is
+ * deliberately no fallback to streaming the original file: doing that pulled megabytes off storage
+ * to show three seconds, which is exactly the cost the clip exists to remove. If a video should
+ * animate on hover and doesn't, the fix is to generate its clip — not to play the source.
  *
  * Playback is driven by calling play() directly, NOT by waiting on `loadedmetadata`.
  * That distinction matters: an earlier version carried preload="none", so the browser
@@ -12,10 +18,8 @@ import { useEffect, useRef, useState } from "react";
  * that handler never ran — hovering just span a loader forever. play() is what forces
  * the load in the first place.
  *
- * Cost control: the <video> is only mounted after a hover delay, so brushing across a
- * grid of 24 tiles starts no downloads. It streams the *preview* presign, which the API
- * treats as unmetered, so browsing never eats the owner's bandwidth allowance. Under
- * `prefers-reduced-motion` it never starts at all.
+ * Cost control: the <video> is only mounted after a hover delay, so brushing across a grid of 24
+ * tiles starts no downloads. Under `prefers-reduced-motion` it never starts at all.
  */
 
 /** Hover grace period, so passing over a tile doesn't trigger a load. */
@@ -24,12 +28,13 @@ const HOVER_DELAY_MS = 380;
 const WATCHDOG_MS = 6000;
 
 export function HoverPreview({
-  src,
+  clipSrc,
   poster,
   alt,
   className = "",
 }: {
-  src: string;
+  /** The GIF generator's clip. Null or absent means this tile has no hover preview. */
+  clipSrc?: string | null;
   poster?: string;
   alt: string;
   className?: string;
@@ -47,7 +52,9 @@ export function HoverPreview({
     window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
   function start() {
-    if (reducedMotion || failed) return;
+    // No clip, nothing to arm. This is the ordinary state for anything uploaded before the
+    // generator existed, so it is a silent no-op rather than an error.
+    if (!clipSrc || reducedMotion || failed) return;
     if (enterTimer.current) window.clearTimeout(enterTimer.current);
     enterTimer.current = window.setTimeout(() => setArmed(true), HOVER_DELAY_MS);
   }
@@ -114,12 +121,12 @@ export function HoverPreview({
           loading="lazy"
           data-dimmed={playing ? "true" : "false"}
         />
-      ) : (
-        // No thumbnail: fall back to a frame from the file itself. The #t=0.1 fragment
-        // tells the browser to seek there, which is what makes it paint a frame at all
-        // instead of showing an empty black box.
+      ) : clipSrc ? (
+        // No thumbnail: take the still frame from the clip, which is already the cheapest thing
+        // available. The #t=0.1 fragment tells the browser to seek there, which is what makes it
+        // paint a frame at all instead of showing an empty black box.
         <video
-          src={`${src}#t=0.1`}
+          src={`${clipSrc}#t=0.1`}
           className="hp-poster"
           muted
           playsInline
@@ -127,12 +134,12 @@ export function HoverPreview({
           aria-label={alt}
           data-dimmed={playing ? "true" : "false"}
         />
-      )}
+      ) : null /* no thumbnail and no clip — the tile stays on its background colour */}
 
       {armed && !failed && (
         <video
           ref={videoRef}
-          src={src}
+          src={clipSrc ?? undefined}
           className="hp-video"
           muted
           playsInline

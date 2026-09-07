@@ -5,6 +5,8 @@ import { useAuth } from "../Auth/useAuth";
 import { API_BASE_URL } from "../config";
 import toast from "react-hot-toast";
 import { ThumbnailPicker } from "./ThumbnailPicker";
+import { canGeneratePreviewClip } from "../utils/gifGenerator";
+import { deletePreviewClip, generateAndStorePreviewClip } from "../utils/gifUpload";
 import { EnhancedPlayer } from "./EnhancedPlayer";
 import "../App.css";
 
@@ -17,6 +19,8 @@ interface Media {
   status: string;
   isPublic: boolean;
   hasThumbnail: boolean;
+  /** True once the GIF generator has stored a hover-preview clip for this video. */
+  hasGif: boolean;
   showOnMediaPage: boolean;
   description: string | null;
 }
@@ -57,6 +61,8 @@ export function ProfilePage() {
   const [user, setUser] = useState<UserData | null>(null);
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
+  /** Media id currently having its hover-preview clip generated, if any. */
+  const [gifBusyId, setGifBusyId] = useState<string | null>(null);
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [shareLinkExpiry, setShareLinkExpiry] = useState<string | null>(null);
   const [shareToken, setShareToken] = useState<string | null>(null);
@@ -260,6 +266,61 @@ export function ProfilePage() {
     }
   }
 
+  /**
+   * Builds (or rebuilds) the hover-preview clip for a video already in storage.
+   *
+   * New uploads get their clip automatically from the local file. This is the backfill path for
+   * everything uploaded before the GIF generator existed, and it works by decoding the stored file
+   * in this browser — so it downloads the video, and it only works if storage serves it with CORS
+   * headers. That is why it is a deliberate click and not something the dashboard does on its own.
+   */
+  async function handleGenerateGif(mediaId: string) {
+    const source = urls[mediaId];
+    if (!source) {
+      toast.error("Still loading that video — try again in a moment.");
+      return;
+    }
+
+    setGifBusyId(mediaId);
+    try {
+      const stored = await generateAndStorePreviewClip(mediaId, source, authFetch);
+
+      if (!stored) {
+        toast.error("Couldn't build a hover preview from this video in your browser.");
+        return;
+      }
+
+      toast.success("Hover preview ready.");
+      setUser((prev) =>
+        prev
+          ? { ...prev, media: prev.media.map((m) => (m.id === mediaId ? { ...m, hasGif: true } : m)) }
+          : prev
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to build the hover preview");
+    } finally {
+      setGifBusyId(null);
+    }
+  }
+
+  /** Drops a clip and its storage cost; hovering the tile goes back to streaming the full file. */
+  async function handleRemoveGif(mediaId: string) {
+    setGifBusyId(mediaId);
+    try {
+      await deletePreviewClip(mediaId, authFetch);
+      toast.success("Hover preview removed.");
+      setUser((prev) =>
+        prev
+          ? { ...prev, media: prev.media.map((m) => (m.id === mediaId ? { ...m, hasGif: false } : m)) }
+          : prev
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to remove the hover preview");
+    } finally {
+      setGifBusyId(null);
+    }
+  }
+
   // Handle uploading a custom thumbnail for an existing media
   async function handleThumbnailCapture(blob: Blob) {
     if (!thumbPickerMediaId) return;
@@ -402,6 +463,9 @@ export function ProfilePage() {
                 onShare={() => handleShareMedia(m.id)}
                 onEmbed={() => setEmbedMedia(m)}
                 onChangeThumbnail={() => setThumbPickerMediaId(m.id)}
+                onGenerateGif={() => handleGenerateGif(m.id)}
+                onRemoveGif={() => handleRemoveGif(m.id)}
+                gifBusy={gifBusyId === m.id}
                 onExpand={() => urls[m.id] && setViewerMedia({ media: m, url: urls[m.id] })}
                 shareLoading={shareLoading}
                 isEditingDesc={editingDesc === m.id}
@@ -608,6 +672,9 @@ function MediaItem({
   onShare,
   onEmbed,
   onChangeThumbnail,
+  onGenerateGif,
+  onRemoveGif,
+  gifBusy,
   onExpand,
   shareLoading,
   isEditingDesc,
@@ -627,6 +694,9 @@ function MediaItem({
   onShare: () => void;
   onEmbed: () => void;
   onChangeThumbnail: () => void;
+  onGenerateGif: () => void;
+  onRemoveGif: () => void;
+  gifBusy: boolean;
   onExpand: () => void;
   shareLoading: boolean;
   isEditingDesc: boolean;
@@ -816,6 +886,27 @@ function MediaItem({
               <circle cx="12" cy="13" r="4" />
             </svg>
             Thumbnail
+          </button>
+        )}
+        {/* The hover preview only means anything for video, and only where this browser can record
+            one — Safari on older versions has no usable MediaRecorder, and offering a button that
+            can only fail is worse than not offering it. */}
+        {media.contentType.startsWith("video/") && canGeneratePreviewClip() && (
+          <button
+            onClick={media.hasGif ? onRemoveGif : onGenerateGif}
+            className="btn-outline"
+            disabled={gifBusy}
+            title={
+              media.hasGif
+                ? "Remove the clip that plays when someone hovers this video"
+                : "Build the short clip that plays when someone hovers this video"
+            }
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: "4px", verticalAlign: "middle" }}>
+              <rect x="2" y="4" width="20" height="16" rx="2" />
+              <polygon points="10,9 15,12 10,15" fill="currentColor" stroke="none" />
+            </svg>
+            {gifBusy ? "Working…" : media.hasGif ? "Remove GIF" : "Generate GIF"}
           </button>
         )}
         <button onClick={onDelete} className="btn-danger" disabled={deleting}>

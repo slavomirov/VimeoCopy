@@ -26,6 +26,8 @@ public class MediaDTO
     public string Status { get; set; }
     public bool IsPublic { get; set; }
     public bool HasThumbnail { get; set; }
+    /// <summary>True once the GIF generator has stored a hover-preview clip for this media.</summary>
+    public bool HasGif { get; set; }
     public bool ShowOnMediaPage { get; set; }
     public string? Description { get; set; }
     public string? FileName { get; set; }
@@ -48,6 +50,13 @@ public class PublicMediaDTO
     // grid must not charge the owner's bandwidth; the metered URL is fetched only on play.
     public string? PreviewUrl { get; set; }
     public string? ThumbnailUrl { get; set; }
+
+    /// <summary>
+    /// The GIF-generator clip for hover playback — a few hundred KB instead of the whole file, which
+    /// is the entire reason it exists. Null means no clip was generated, and the grid falls back to
+    /// hovering PreviewUrl.
+    /// </summary>
+    public string? GifUrl { get; set; }
 
     // Owner info — public identity only. Never the email address: this endpoint is anonymous, and
     // returning it here handed every visitor a scrapeable list of every creator's address.

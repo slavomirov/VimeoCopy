@@ -2,6 +2,7 @@
 using Amazon.S3.Model;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using VimeoCopyApi.Data;
@@ -80,5 +81,33 @@ public class MediaController : ControllerBase
     {
         await _mediaService.ConfirmThumbnailAsync(mediaId);
         return Ok(new { message = "Thumbnail updated successfully." });
+    }
+
+    /// <summary>
+    /// GIF generator: returns a pre-signed PUT URL for this media's hover-preview clip. The clip is a
+    /// short muted video the browser records from the source file, so the client declares which
+    /// container it produced and the URL is signed for exactly that type.
+    /// </summary>
+    // Same policy the upload controller uses: this mints a presigned PUT, and the global 240/min
+    // limiter is far too loose to be the only thing standing in front of one.
+    [EnableRateLimiting("presign")]
+    [HttpPost("{mediaId}/gif/upload-url")]
+    public async Task<IActionResult> GetGifUploadUrl(string mediaId, [FromBody] GifUploadRequestDTO dto)
+        => Ok(await _mediaService.GetGifUploadUrlAsync(mediaId, dto.ContentType));
+
+    /// <summary>
+    /// Confirms the hover-preview clip reached storage, charges it to the owner's quota and records
+    /// the key. Returns the presigned clip URL so the caller can show it without another round trip.
+    /// </summary>
+    [HttpPost("{mediaId}/gif/confirm")]
+    public async Task<IActionResult> ConfirmGif(string mediaId, [FromBody] GifUploadRequestDTO dto)
+        => Ok(await _mediaService.ConfirmGifAsync(mediaId, dto.ContentType));
+
+    /// <summary>Removes this media's hover-preview clip and refunds its bytes.</summary>
+    [HttpDelete("{mediaId}/gif")]
+    public async Task<IActionResult> DeleteGif(string mediaId)
+    {
+        await _mediaService.DeleteGifAsync(mediaId);
+        return Ok(new { message = "Preview clip removed." });
     }
 }

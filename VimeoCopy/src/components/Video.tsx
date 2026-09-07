@@ -23,6 +23,8 @@ interface PublicMedia {
   /** Presigned by the server with the list, so the grid needs no per-tile request. */
   previewUrl: string | null;
   thumbnailUrl: string | null;
+  /** GIF-generator clip, presigned with the page. Null when this media has no clip. */
+  gifUrl: string | null;
   ownerDisplayName: string;
   ownerHandle: string | null;
   projectId: string | null;
@@ -526,8 +528,13 @@ function GalleryMediaItem({
           </>
         ) : (
           <>
-            {/* Hover samples four moments from across the clip. */}
-            <HoverPreview src={url} poster={thumbnailUrl} alt={media.fileName || "Media"} />
+            {/* The generated clip samples four moments from across the video. A video without one
+                shows its thumbnail and does not animate — the original file is never hovered. */}
+            <HoverPreview
+              clipSrc={media.gifUrl}
+              poster={thumbnailUrl}
+              alt={media.fileName || "Media"}
+            />
             <div className="media-play-overlay">
               <div className="media-play-btn">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="white" style={{ marginLeft: "2px" }}>
