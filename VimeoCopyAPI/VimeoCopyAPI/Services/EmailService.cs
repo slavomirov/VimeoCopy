@@ -146,14 +146,31 @@ namespace VimeoCopyAPI.Services
             }
         }
 
+        /// <summary>
+        /// Where contact-form messages go when nothing overrides it.
+        ///
+        /// This lives in code on purpose. appsettings.json is gitignored (see .gitignore), so a
+        /// config-only recipient does not travel with the repository — the form worked on the machine
+        /// where the key was added and failed everywhere else, which is exactly how it broke. A code
+        /// default travels; `ContactUs:Recipient` (or the ContactUs__Recipient environment variable)
+        /// still wins when set, so deployments can point it elsewhere without a rebuild.
+        /// </summary>
+        private const string DefaultContactRecipient = "spartaknikolov@gmail.com";
+
         public async Task SendContactMessageAsync(string senderName, string senderEmail, string subject, string message)
         {
-            // The destination is configuration, not input. Taking it from the request would turn this
-            // endpoint into an open relay for anyone who found it.
-            var recipient = _config["ContactUs:Recipient"];
-            if (string.IsNullOrWhiteSpace(recipient))
+            // The destination is configuration or the built-in default — never the request. Taking it
+            // from input would turn this endpoint into an open relay for anyone who found it.
+            var configured = _config["ContactUs:Recipient"];
+            var recipient = string.IsNullOrWhiteSpace(configured) ? DefaultContactRecipient : configured;
+
+            // A provider that isn't configured makes SendEmailAsync log and return, which would have
+            // this method report success for a message that was never sent. A contact form that
+            // silently swallows mail is worse than one that admits it is broken.
+            if (!_emailProvider.Equals("Resend", StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrWhiteSpace(_config["Email:Resend:ApiKey"]))
             {
-                _logger.LogError("ContactUs:Recipient is not configured — contact message dropped.");
+                _logger.LogError("Email provider is not configured — contact message dropped.");
                 throw new InvalidOperationException("The contact form isn't configured yet.");
             }
 
