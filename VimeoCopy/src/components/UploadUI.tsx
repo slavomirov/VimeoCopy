@@ -16,11 +16,13 @@ export function FileRow({
   onRemove,
   onTogglePublic,
   onPickThumbnail,
+  onRename,
 }: {
   entry: FileEntry;
   onRemove: () => void;
   onTogglePublic: () => void;
   onPickThumbnail?: () => void;
+  onRename?: (name: string) => void;
 }) {
   const isActive = entry.status === "uploading" || entry.status === "completing";
   const isDone = entry.status === "done";
@@ -68,16 +70,47 @@ export function FileRow({
       <span style={{ fontSize: "var(--font-size-lg)", flexShrink: 0 }}>{fileIcon}</span>
 
       <div style={{ flex: 1, minWidth: 0, position: "relative" }}>
-        <p style={{
-          fontWeight: 500,
-          fontSize: "var(--font-size-sm)",
-          marginBottom: "2px",
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-        }}>
-          {entry.file.name}
-        </p>
+        {/* Editable while queued: this is the name the media is stored and listed under, and the
+            moment to fix "VID_20260907_113244.mp4" is before it is published, not afterwards on the
+            dashboard. Once the upload starts it becomes plain text — the name travels with the
+            completion call, so an edit mid-flight would show one thing and store another. */}
+        {isQueued && onRename ? (
+          <input
+            type="text"
+            value={entry.displayName ?? entry.file.name}
+            onChange={(e) => onRename(e.target.value)}
+            maxLength={200}
+            aria-label="Title for this upload"
+            title="Name this upload"
+            placeholder={entry.file.name}
+            style={{
+              width: "100%",
+              fontWeight: 500,
+              fontSize: "var(--font-size-sm)",
+              marginBottom: "2px",
+              padding: "2px 6px",
+              color: "inherit",
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--border-color)",
+              borderRadius: "var(--radius-sm)",
+              fontFamily: "inherit",
+            }}
+          />
+        ) : (
+          <p
+            title={entry.displayName ?? entry.file.name}
+            style={{
+              fontWeight: 500,
+              fontSize: "var(--font-size-sm)",
+              marginBottom: "2px",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {entry.displayName?.trim() || entry.file.name}
+          </p>
+        )}
         <p className="text-muted" style={{ fontSize: "var(--font-size-xs)", marginBottom: 0 }}>
           {(entry.file.size / 1024 / 1024).toFixed(2)} MB
           {isActive && ` · ${entry.progress}%`}
@@ -333,6 +366,7 @@ export function UploadPanel({
                 entry={entry}
                 onRemove={() => uploader.removeFile(entry.id)}
                 onTogglePublic={() => uploader.toggleFilePublic(entry.id)}
+                onRename={(name) => uploader.setDisplayName(entry.id, name)}
                 onPickThumbnail={
                   entry.file.type.startsWith("video/") && entry.status === "queued"
                     ? () => setPickerFileId(entry.id)

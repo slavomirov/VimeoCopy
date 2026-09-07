@@ -273,8 +273,8 @@ function MainLayout() {
                 className="nav-item nav-item-secondary"
                 title={
                   myHandle
-                    ? `Public profile — how visitors see you (/u/${myHandle})`
-                    : "Public profile — claim a handle to publish yours"
+                    ? `Open your public profile — /u/${myHandle}`
+                    : "You need a handle before you have a public page — this opens the editor to claim one"
                 }
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -282,7 +282,11 @@ function MainLayout() {
                   <path d="M3.6 9h16.8M3.6 15h16.8" />
                   <path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18z" />
                 </svg>
-                <span className="nav-label">Public profile</span>
+                {/* The label changes with the destination. With a handle this goes straight to the
+                    live public page — that is the whole point of the shortcut. Without one there is
+                    no such URL to open, so it says what it will actually do rather than promising
+                    the public page and delivering the editor. */}
+                <span className="nav-label">{myHandle ? "Public profile" : "Set up profile"}</span>
               </Link>
             )}
 

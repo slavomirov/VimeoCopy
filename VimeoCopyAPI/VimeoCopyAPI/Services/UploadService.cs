@@ -168,7 +168,11 @@ public class UploadService : IUploadService
             UploadedAt = DateTime.UtcNow,
             UserId = userId,
             IsPublic = input.IsPublic,
-            FileName = input.FileName,
+            // The client can now name an upload rather than sending the raw file name, so this is
+            // free text and gets treated as such: trimmed, capped to the column width, and null
+            // rather than empty. Media.FileName is nvarchar(500), so an over-long value would
+            // otherwise fail at the database after the bytes were already stored and charged.
+            FileName = NormalizeFileName(input.FileName),
             ThumbnailUrl = input.HasThumbnail ? $"thumb_{input.MediaId}" : null
         };
 
@@ -197,6 +201,23 @@ public class UploadService : IUploadService
             Description = mediaRecord.Description,
             FileName = mediaRecord.FileName,
         };
+    }
+
+    /// <summary>Max length of Media.FileName, mirroring the column.</summary>
+    private const int MaxFileNameLength = 500;
+
+    /// <summary>
+    /// Trims a client-supplied title, drops control characters, and caps it to the column width.
+    /// Returns null for anything that reduces to nothing, so the row holds null instead of "".
+    /// </summary>
+    private static string? NormalizeFileName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return null;
+
+        var cleaned = new string(name.Where(c => !char.IsControl(c)).ToArray()).Trim();
+        if (cleaned.Length == 0) return null;
+
+        return cleaned.Length <= MaxFileNameLength ? cleaned : cleaned[..MaxFileNameLength];
     }
 
     private async Task LinkToProjectAsync(Guid projectId, string userId, Media media)

@@ -24,6 +24,13 @@ export interface FileEntry {
   /** Optional project this file should be linked to on completion. */
   projectId?: string;
   /**
+   * The name the media is stored and shown under. Seeded from the file name and editable while the
+   * entry is still queued. Kept separate from `file.name` because a File is immutable and the
+   * original name stays useful — it is what the browser reports and what the user recognises in the
+   * row while the upload is in flight.
+   */
+  displayName?: string;
+  /**
    * Progress of the hover-preview clip (the "GIF generator"). Videos only, and it runs after the
    * file itself is already stored — the clip is an enhancement, so its state is tracked separately
    * rather than being allowed to hold the upload's own status open.
@@ -166,6 +173,7 @@ export function useFileUploader(options: UseFileUploaderOptions = {}) {
             message: "",
             isPublic: globalPublic,
             projectId,
+            displayName: f.name,
           });
         } else {
           invalid.push(f.name);
@@ -203,6 +211,16 @@ export function useFileUploader(options: UseFileUploaderOptions = {}) {
   function toggleFilePublic(id: string) {
     setFiles((prev) =>
       prev.map((f) => (f.id === id ? { ...f, isPublic: !f.isPublic } : f))
+    );
+  }
+
+  /**
+   * Rename a queued file. Refused once the upload has started: the name is sent with the completion
+   * call, so allowing an edit mid-flight would let the row show one name and the server store another.
+   */
+  function setDisplayName(id: string, name: string) {
+    setFiles((prev) =>
+      prev.map((f) => (f.id === id && f.status === "queued" ? { ...f, displayName: name } : f))
     );
   }
 
@@ -338,7 +356,9 @@ export function useFileUploader(options: UseFileUploaderOptions = {}) {
             contentType: entry.contentType,
             isPublic: entry.isPublic,
             hasThumbnail,
-            fileName: entry.file.name,
+            // The user's name if they set one, otherwise the file's. Trimmed, and an empty edit
+            // falls back rather than storing a blank title.
+            fileName: entry.displayName?.trim() || entry.file.name,
           };
 
           const linkProjectId = entry.projectId ?? options.projectId;
@@ -451,6 +471,7 @@ export function useFileUploader(options: UseFileUploaderOptions = {}) {
     removeFile,
     toggleFilePublic,
     setCustomThumbnail,
+    setDisplayName,
     handleUploadAll,
     queuedCount,
     doneCount,
