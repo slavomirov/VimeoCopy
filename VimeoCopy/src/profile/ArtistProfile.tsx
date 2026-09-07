@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { API_BASE_URL } from "../config";
 import { EnhancedPlayer } from "../components/EnhancedPlayer";
+import { HoverPreview } from "../components/HoverPreview";
 import { useAuth } from "../Auth/useAuth";
 import {
   parseTheme,
@@ -56,6 +57,8 @@ export function ArtistProfile() {
   const [status, setStatus] = useState<"loading" | "ok" | "notfound">("loading");
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  /** GIF-generator clips, keyed by work id. Arrives on the same /preview response as the thumbnail. */
+  const [gifs, setGifs] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Work | null>(null);
   const [playerUrl, setPlayerUrl] = useState<string | null>(null);
   const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
@@ -175,6 +178,7 @@ export function ArtistProfile() {
           if (cancelled) return;
           setUrls((p) => ({ ...p, [w.id]: data.url }));
           if (data.thumbnailUrl) setThumbs((p) => ({ ...p, [w.id]: data.thumbnailUrl }));
+          if (data.gifUrl) setGifs((p) => ({ ...p, [w.id]: data.gifUrl }));
         } catch { /* skip */ }
       }
     })();
@@ -375,6 +379,7 @@ export function ArtistProfile() {
               work={w}
               url={urls[w.id]}
               thumb={thumbs[w.id]}
+              gif={gifs[w.id]}
               onOpen={() => openWork(w)}
             />
           ))}
@@ -406,8 +411,8 @@ export function ArtistProfile() {
 }
 
 function WorkTile({
-  work, url, thumb, onOpen,
-}: { work: Work; url?: string; thumb?: string; onOpen: () => void }) {
+  work, url, thumb, gif, onOpen,
+}: { work: Work; url?: string; thumb?: string; gif?: string; onOpen: () => void }) {
   const isImage = work.contentType.startsWith("image/");
   const isVideo = work.contentType.startsWith("video/");
   const isAudio = work.contentType.startsWith("audio/");
@@ -421,7 +426,19 @@ function WorkTile({
           <img src={thumb || url} alt={work.fileName || "Work"} loading="lazy" />
         ) : isVideo ? (
           <>
-            {thumb ? <img src={thumb} alt={work.fileName || "Work"} loading="lazy" /> : <video src={url} />}
+            {/* Needs a poster or a clip to give the tile its height — see .hp-flow in
+                artist-profile.css. With neither, fall back to a frame off the file itself, which is
+                what this tile did for every video before hover previews existed. */}
+            {thumb || gif ? (
+              <HoverPreview
+                className="hp-flow"
+                clipSrc={gif}
+                poster={thumb}
+                alt={work.fileName || "Work"}
+              />
+            ) : (
+              <video src={url} />
+            )}
             <div className="ap-play">
               <div className="ap-play-btn">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff" style={{ marginLeft: 2 }}>

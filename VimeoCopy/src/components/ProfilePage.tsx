@@ -5,6 +5,7 @@ import { useAuth } from "../Auth/useAuth";
 import { API_BASE_URL } from "../config";
 import toast from "react-hot-toast";
 import { ThumbnailPicker } from "./ThumbnailPicker";
+import { HoverPreview } from "./HoverPreview";
 import { canGeneratePreviewClip } from "../utils/gifGenerator";
 import { deletePreviewClip, generateAndStorePreviewClip } from "../utils/gifUpload";
 import { EnhancedPlayer } from "./EnhancedPlayer";
@@ -63,6 +64,8 @@ export function ProfilePage() {
   const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
   /** Media id currently having its hover-preview clip generated, if any. */
   const [gifBusyId, setGifBusyId] = useState<string | null>(null);
+  /** Presigned clip URLs, so the owner can see the result of Generate GIF on this page. */
+  const [gifUrls, setGifUrls] = useState<Record<string, string>>({});
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [shareLinkExpiry, setShareLinkExpiry] = useState<string | null>(null);
   const [shareToken, setShareToken] = useState<string | null>(null);
@@ -291,6 +294,7 @@ export function ProfilePage() {
       }
 
       toast.success("Hover preview ready.");
+      setGifUrls((prev) => ({ ...prev, [mediaId]: stored.gifUrl }));
       setUser((prev) =>
         prev
           ? { ...prev, media: prev.media.map((m) => (m.id === mediaId ? { ...m, hasGif: true } : m)) }
@@ -309,6 +313,11 @@ export function ProfilePage() {
     try {
       await deletePreviewClip(mediaId, authFetch);
       toast.success("Hover preview removed.");
+      setGifUrls((prev) => {
+        const next = { ...prev };
+        delete next[mediaId];
+        return next;
+      });
       setUser((prev) =>
         prev
           ? { ...prev, media: prev.media.map((m) => (m.id === mediaId ? { ...m, hasGif: false } : m)) }
@@ -375,6 +384,7 @@ export function ProfilePage() {
 
       const newUrls: Record<string, string> = {};
       const newThumbs: Record<string, string> = {};
+      const newGifs: Record<string, string> = {};
 
       for (const m of user.media) {
         const res = await authFetch(`${API_BASE_URL}/api/media/${m.id}/url`);
@@ -383,10 +393,14 @@ export function ProfilePage() {
         if (data.thumbnailUrl) {
           newThumbs[m.id] = data.thumbnailUrl;
         }
+        if (data.gifUrl) {
+          newGifs[m.id] = data.gifUrl;
+        }
       }
 
       setUrls(newUrls);
       setThumbnailUrls(newThumbs);
+      setGifUrls(newGifs);
     }
 
     loadUrls();
@@ -456,6 +470,7 @@ export function ProfilePage() {
                 media={m}
                 url={urls[m.id]}
                 thumbnailUrl={thumbnailUrls[m.id]}
+                gifUrl={gifUrls[m.id]}
                 onDelete={() => handleDeleteMedia(m.id)}
                 deleting={deletingId === m.id}
                 onToggleVisibility={() => handleToggleVisibility(m.id)}
@@ -665,6 +680,7 @@ function MediaItem({
   media,
   url,
   thumbnailUrl,
+  gifUrl,
   onDelete,
   deleting,
   onToggleVisibility,
@@ -687,6 +703,7 @@ function MediaItem({
   media: Media;
   url?: string;
   thumbnailUrl?: string;
+  gifUrl?: string;
   onDelete: () => void;
   deleting?: boolean;
   onToggleVisibility: () => void;
@@ -740,12 +757,14 @@ function MediaItem({
         )}
         {isVideo && (
           <>
-            {thumbnailUrl ? (
-              <img src={thumbnailUrl} alt={media.fileName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            {thumbnailUrl || gifUrl ? (
+              <HoverPreview clipSrc={gifUrl} poster={thumbnailUrl} alt={media.fileName} />
             ) : (
               <video src={url} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
             )}
-            {/* Play button overlay */}
+            {/* Play button overlay. pointerEvents MUST be none: it covers the whole tile, so with
+                hit-testing on it swallows the pointerenter that arms the hover preview — the same
+                bug .media-play-overlay had in App.css. The click handler is on the parent. */}
             <div style={{
               position: "absolute",
               inset: 0,
@@ -754,6 +773,7 @@ function MediaItem({
               justifyContent: "center",
               background: "var(--overlay-light)",
               transition: "background 0.2s",
+              pointerEvents: "none",
             }}>
               <div style={{
                 width: "52px",
