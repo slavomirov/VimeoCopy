@@ -462,16 +462,6 @@ h1, h2, .ferry-wordmark, .stat-number, .hero h1 {
   box-shadow: 0 0 12px rgba(var(--primary-rgb), 0.6);
 }
 
-/* A wave crest that can cap any section. */
-.wave-cap {
-  display: block;
-  width: 100%;
-  height: 54px;
-  color: var(--primary);
-}
-
-.wave-cap path { fill: var(--sea-swell); }
-
 /* ═══════════════════════════════════════════════
    8 · RESOLUTION BADGE — the product promise, stated
    ═══════════════════════════════════════════════ */

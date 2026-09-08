@@ -210,27 +210,16 @@
 }
 
 /* ── Stats Section ─────────────────────────── */
+/*
+ * No background and no scan-line overlay. Both belonged to the old neon treatment: the gradient was
+ * already switched off further down, and the overlay was a full-bleed rectangle of 2%-black stripes
+ * that nobody could see until the sea behind it became visible — at which point it read as a dark
+ * panel dropped over the water for the height of this section.
+ */
 .stats-section {
   padding: var(--space-16) var(--space-4);
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 25%, var(--bg-surface) 50%, var(--primary) 75%, var(--secondary) 100%);
-  background-size: 400% 400%;
-  animation: gradientShift 10s ease infinite;
   border-top: 1px solid var(--border-glow);
   position: relative;
-}
-
-.stats-section::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0, 0, 0, 0.02) 2px,
-    rgba(0, 0, 0, 0.02) 4px
-  );
-  pointer-events: none;
 }
 
 .stats-grid {
@@ -287,29 +276,12 @@
   overflow: hidden;
 }
 
-.cta-section::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  right: -10%;
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, rgba(var(--primary-rgb), 0.06) 0%, transparent 70%);
-  border-radius: 50%;
-  pointer-events: none;
-}
-
-.cta-section::after {
-  content: '';
-  position: absolute;
-  bottom: -30%;
-  left: -5%;
-  width: 300px;
-  height: 300px;
-  background: radial-gradient(circle, rgba(74, 222, 128, 0.04) 0%, transparent 70%);
-  border-radius: 50%;
-  pointer-events: none;
-}
+/*
+ * The two decorative blobs that used to sit here are gone. Both were positioned past the section's
+ * edges (top: -50%, bottom: -30%) and the section clips its overflow, so each one was cut off
+ * mid-gradient — the same "cut-off panel" the hero had, in the stretch of page where the swells are
+ * strongest. The sea is the atmosphere here; it doesn't need help from a clipped circle.
+ */
 
 .cta-content {
   max-width: 700px;
@@ -374,9 +346,14 @@
 }
 
 /* ── Footer CTA ────────────────────────────── */
+/*
+ * Transparent, like every other section: this was the last opaque block on the page, and being the
+ * last one it sat exactly where the swells are deepest — so scrolling the final stretch swapped the
+ * water for a flat dark panel around the closing button.
+ */
 .footer-cta {
   padding: var(--space-12) var(--space-4);
-  background: var(--bg-deep);
+  background: transparent;
   text-align: center;
   border-top: 1px solid var(--border-color);
 }
@@ -532,12 +509,17 @@
 
 .landing-page { background: transparent; }
 
+/*
+ * Fully transparent — the sea is the hero's background.
+ *
+ * It used to paint a bg-deep → bg-base fill with two glows over it. All three were centred at or
+ * past the hero's own edges, and `overflow: hidden` clipped them mid-gradient, so the section
+ * ended in a hard horizontal line with a visibly lighter block above it: the "cut-off square".
+ * Invisible while the swells were faint, unmissable once they weren't. Every other section here is
+ * already transparent, so the hero matches them and the water runs unbroken behind the whole page.
+ */
 .hero {
-  background:
-    radial-gradient(120% 90% at 50% 120%, rgba(var(--primary-rgb), 0.16) 0%, transparent 60%),
-    radial-gradient(80% 60% at 50% -10%, rgba(var(--primary-rgb), 0.10) 0%, transparent 65%),
-    linear-gradient(180deg, var(--bg-deep) 0%, var(--bg-base) 100%);
-  background-size: auto;
+  background: none;
   animation: none;
   padding: clamp(var(--space-12), 9vw, var(--space-16)) var(--space-4) var(--space-16);
   border-bottom: none;
@@ -556,9 +538,10 @@
   pointer-events: none;
 }
 
-/* Drop the CRT scan lines — wrong texture for water. */
+/* No overlay at all. The CRT scan lines were the wrong texture for water, and the glow that
+   replaced them sat at the hero's bottom edge, where the clip turned it into another hard line. */
 .hero::after {
-  background: radial-gradient(60% 40% at 50% 100%, rgba(var(--primary-rgb), 0.08), transparent 70%);
+  content: none;
 }
 
 .landing-mark {
@@ -672,8 +655,6 @@
 .route-section,
 .stats-section,
 .cta-section { background: transparent; }
-
-.wave-cap-flip { transform: scaleY(-1); }
 
 /* ── Promise ──────────────────────────────── */
 .promise-section { padding: var(--space-16) var(--space-4); }

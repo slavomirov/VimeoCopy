@@ -13,19 +13,13 @@ import {
 } from "./brand/FerryMarks";
 import "./LandingPage.css";
 
-/** A crest that caps a section — the same swell used in the backdrop, held still. */
-function WaveCap({ flip = false }: { flip?: boolean }) {
-  return (
-    <svg
-      className={`wave-cap ${flip ? "wave-cap-flip" : ""}`}
-      viewBox="0 0 1440 54"
-      preserveAspectRatio="none"
-      aria-hidden="true"
-    >
-      <path d="M0,28 c180,-30 360,30 720,0 c360,-30 540,30 720,0 V54 H0 Z" />
-    </svg>
-  );
-}
+/*
+ * There used to be a WaveCap component here: a static crest that capped a couple of sections,
+ * drawn with the same fill as the backdrop swells. It was near-invisible while that fill was faint,
+ * but once the real swells were made visible it read as a wave stuck to the page — scrolling past
+ * the moving water while going nowhere itself. One sea is enough, so the caps are gone and the
+ * backdrop is the only water on the page.
+ */
 
 export function LandingPage() {
   return (
@@ -78,8 +72,6 @@ export function LandingPage() {
 
         </div>
       </section>
-
-      <WaveCap />
 
       {/* ═══════════ THE PROMISE ═══════════ */}
       <section className="promise-section">
@@ -191,8 +183,6 @@ export function LandingPage() {
           </div>
         </div>
       </section>
-
-      <WaveCap flip />
 
       {/* ═══════════ THE ROUTE ═══════════ */}
       <section className="route-section">
