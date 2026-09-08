@@ -1,7 +1,59 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useUpload } from "./UploadProvider";
-import { WakeLoader, ProwMark } from "../brand/FerryMarks";
+import { WakeLoader, ProwMark, FerryBoat } from "../brand/FerryMarks";
+import type { FileEntry } from "../hooks/useFileUploader";
+
+/**
+ * Four crests over the lane's width, so translating the wave by exactly one crest loops seamlessly.
+ * Same construction as the backdrop swell, at dock scale.
+ */
+const LANE_SWELL =
+  "M0,13 c15,-7 45,7 60,0 c15,-7 45,7 60,0 c15,-7 45,7 60,0 c15,-7 45,7 60,0 V26 H0 Z";
+
+/**
+ * One file's crossing, as water rather than a bar.
+ *
+ * A progress bar says "68%" and nothing else; this says the same thing in the app's own language —
+ * the boat is 68% of the way across, the water behind it is the distance already covered, and the
+ * boat keeps bobbing while the transfer is alive. `left` is transitioned rather than animated, so
+ * every progress event glides the boat along instead of teleporting it.
+ */
+function DockLane({ entry }: { entry: FileEntry }) {
+  const done = entry.status === "done";
+  const failed = entry.status === "error";
+  // A finished file has made port, whatever the last progress event said.
+  const pct = done ? 100 : Math.max(0, Math.min(100, entry.progress));
+
+  return (
+    <div
+      className="dock-lane"
+      data-state={failed ? "error" : done ? "done" : entry.status}
+      role="progressbar"
+      aria-valuenow={Math.round(pct)}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-label={`${entry.file.name} upload progress`}
+    >
+      <svg className="dock-swell dock-swell-back" viewBox="0 0 240 26" preserveAspectRatio="none" aria-hidden="true">
+        <path d={LANE_SWELL} />
+      </svg>
+      <svg className="dock-swell dock-swell-front" viewBox="0 0 240 26" preserveAspectRatio="none" aria-hidden="true">
+        <path d={LANE_SWELL} />
+      </svg>
+      {/* Water already crossed. */}
+      <span className="dock-wake" style={{ width: `${pct}%` }} aria-hidden="true" />
+      <span
+        className="dock-boat"
+        // Inset by half a boat at each end so it is never clipped by the lane — see .dock-boat.
+        style={{ left: `calc(var(--dock-boat) / 2 + (100% - var(--dock-boat)) * ${pct / 100})` }}
+        aria-hidden="true"
+      >
+        <FerryBoat size={22} />
+      </span>
+    </div>
+  );
+}
 
 /**
  * The Dock — persistent upload widget. Mounted in the app shell so it stays visible
@@ -86,16 +138,7 @@ export function UploadDock() {
                   {f.status === "error" ? "Missed it" : f.status === "done" ? "Aboard" : `${f.progress}%`}
                 </span>
               </div>
-              <div style={{ height: 4, background: "var(--bg-deep)", borderRadius: 2, overflow: "hidden" }}>
-                <div style={{
-                  height: "100%",
-                  width: `${f.progress}%`,
-                  background: f.status === "error"
-                    ? "var(--danger)"
-                    : "linear-gradient(90deg, var(--primary), var(--secondary))",
-                  transition: "width 0.3s ease",
-                }} />
-              </div>
+              <DockLane entry={f} />
             </div>
           ))}
 

@@ -586,6 +586,9 @@
   gap: var(--space-3);
   max-width: 620px;
   margin: var(--space-16) auto 0;
+  /* One place to set the vessel's size: the travel keyframe has to stop exactly one boat-width
+     short of the far port, so the two can't be allowed to drift apart. */
+  --boat: 40px;
 }
 
 .hero-port {
@@ -622,21 +625,32 @@
     rgba(var(--primary-rgb), 0.4) 0 7px, transparent 7px 15px);
 }
 
+/*
+ * A vessel rather than the logo. At 26px the ProwMark on this line read as an arrow flying between
+ * the two ports — the mark is a play triangle by design, which is right for a logo and wrong for
+ * something meant to be sailing. FerryBoat has a hull, and at 40px the hull is what you see first.
+ */
 .hero-ferry {
   position: absolute;
   top: 50%;
   left: 0;
-  translate: 0 -60%;
-  color: var(--secondary);
-  filter: drop-shadow(0 0 10px rgba(var(--primary-rgb), 0.8));
+  width: var(--boat);
+  height: var(--boat);
+  translate: 0 -58%;
+  color: var(--gray-700);
+  filter: drop-shadow(0 0 12px rgba(var(--primary-rgb), 0.55));
   animation: ferry-cross 13s var(--ease-swell) infinite;
+  line-height: 0;
 }
+
+/* It rides while it travels: the crossing moves the boat, the bob keeps it afloat. */
+.hero-ferry .ferry-mark { animation: ferry-bob 3.4s ease-in-out infinite; }
 
 @keyframes ferry-cross {
   0%       { left: 0;    opacity: 0; }
   6%       { opacity: 1; }
   92%      { opacity: 1; }
-  100%     { left: calc(100% - 26px); opacity: 0; }
+  100%     { left: calc(100% - var(--boat)); opacity: 0; }
 }
 
 /* ── Shared section furniture ─────────────── */

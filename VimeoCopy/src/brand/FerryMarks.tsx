@@ -47,6 +47,37 @@ export function ProwMark({ size = 32, minimal = false, className = "", title }: 
   );
 }
 
+/**
+ * A vessel, not a badge.
+ *
+ * ProwMark is the logo, and it reads as a play button before it reads as a boat — which is the
+ * right order for a media host, but the wrong shape for the places where something is meant to be
+ * *sailing*: the hero's crossing and the dock's lanes. Scaling the logo up there just makes a
+ * bigger arrow. This is a hull with a raked bow and a sail, and the sail is still the brand's play
+ * triangle, so it stays in the family while unmistakably being a boat.
+ */
+export function FerryBoat({ size = 32, className = "", title }: MarkProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 48 48"
+      className={`ferry-mark ferry-boat ${className}`}
+      role={title ? "img" : "presentation"}
+      aria-label={title}
+      aria-hidden={title ? undefined : true}
+    >
+      {/* mast, then the sail — the work, under way */}
+      <line className="fm-vessel" x1="21" y1="8" x2="21" y2="26" />
+      <path className="fm-work" d="M24 10 L24 24 L35 17 Z" />
+      {/* hull */}
+      <path className="fm-hull" d="M5 26 H43 L36 36 H12 Z" />
+      {/* wake */}
+      <line className="fm-vessel fm-wake" x1="11" y1="41" x2="31" y2="41" />
+    </svg>
+  );
+}
+
 /** Mark + wordmark, locked up. Syne-adjacent tracking is applied in CSS. */
 export function FerryLogo({
   size = 30,

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import {
   ProwMark,
+  FerryBoat,
   IconLoad,
   IconDeck,
   IconCompass,
@@ -62,7 +63,7 @@ export function LandingPage() {
               <span className="port-label">Your drive</span>
             </span>
             <span className="hero-route">
-              <span className="hero-ferry"><ProwMark size={26} /></span>
+              <span className="hero-ferry"><FerryBoat size={40} /></span>
             </span>
             <span className="hero-port hero-port-right">
               <span className="port-dot" />

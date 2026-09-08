@@ -40,6 +40,11 @@
   fill: var(--primary);
 }
 
+/* The hull is solid ink, not an outline: at 20px a stroked hull closes up into a blob. */
+.fm-hull {
+  fill: currentColor;
+}
+
 /* The mark bobs — barely. Two pixels over six seconds reads as "afloat",
    not as an animation someone added. */
 .ferry-logo .ferry-mark,
@@ -584,6 +589,10 @@ h1, h2, .ferry-wordmark, .stat-number, .hero h1 {
   .ferry-logo .ferry-mark,
   .landing-mark .ferry-mark,
   .crossing-boat .ferry-mark,
+  .dock-swell,
+  .dock-boat .ferry-mark,
+  .hero-ferry,
+  .hero-ferry .ferry-mark,
   .sidebar-header::after,
   .sea-empty svg,
   .res-badge .dot,
@@ -782,6 +791,99 @@ h1, h2, .ferry-wordmark, .stat-number, .hero h1 {
 @keyframes ferry-shimmer {
   to { transform: translateX(100%); }
 }
+
+/* ═══════════════════════════════════════════════
+   15b · DOCK LANES — an upload is a boat crossing water
+
+   Each file in The Dock gets a strip of sea instead of a progress bar. The boat's
+   position IS the percentage, the brighter water behind it is the part already
+   crossed, and the swells keep moving while anything is in flight.
+   ═══════════════════════════════════════════════ */
+
+.dock-lane {
+  position: relative;
+  /* Tall enough for a crest to read as a curve rather than a wobble. */
+  height: 30px;
+  /* The boat's own width, shared with the inline `left` so it can never sail past the lane. */
+  --dock-boat: 22px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--bg-deep) 70%, transparent) 0%,
+    var(--bg-deep) 100%);
+  isolation: isolate;
+}
+
+/* Two crest layers at different speeds — the same depth trick as the backdrop. */
+.dock-swell {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 200%;
+  height: 100%;
+  display: block;
+}
+
+/* Two fills rather than one with layer opacity: at this size the crest has to carry the shape by
+   itself, and stacking two faint layers just greys the strip out. */
+.dock-swell-back path  { fill: rgba(var(--primary-rgb), 0.20); }
+.dock-swell-front path { fill: rgba(var(--primary-rgb), 0.38); }
+
+.dock-swell-back  { height: 90%; animation: ferry-swell 9s linear infinite reverse; }
+.dock-swell-front { height: 68%; animation: ferry-swell 5.5s linear infinite; }
+
+/* The distance already covered, brightening up to the boat. */
+.dock-wake {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg,
+    rgba(var(--primary-rgb), 0.05) 0%,
+    rgba(var(--primary-rgb), 0.30) 100%);
+  transition: width 0.4s var(--ease-swell);
+}
+
+/*
+ * `left` comes from the component as
+ *   calc(var(--dock-boat) / 2 + (100% - var(--dock-boat)) * fraction)
+ * so the travel is inset by half a boat at each end: at 0% it waits fully inside the near shore
+ * and at 100% it sits fully inside the far one, instead of being sliced in half by the lane's
+ * `overflow: hidden` at both extremes.
+ */
+.dock-boat {
+  position: absolute;
+  top: 50%;
+  /* Centred on its own position, so the boat sits ON the percentage rather than after it. */
+  translate: -50% -58%;
+  color: var(--gray-700);
+  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.45));
+  transition: left 0.4s var(--ease-swell);
+  line-height: 0;
+}
+
+.dock-boat .ferry-mark { animation: ferry-bob 2.6s ease-in-out infinite; }
+
+/* Still at the dock: calm water, no wake, and the boat waits at the near shore. */
+.dock-lane[data-state="queued"] .dock-swell { animation-duration: 22s; opacity: 0.4; }
+.dock-lane[data-state="queued"] .dock-boat { color: var(--gray-400); filter: none; }
+.dock-lane[data-state="queued"] .dock-boat .ferry-mark { animation-duration: 5s; }
+
+/* Made port. */
+.dock-lane[data-state="done"] .dock-swell path { fill: rgba(52, 211, 153, 0.20); }
+.dock-lane[data-state="done"] .dock-wake {
+  background: linear-gradient(90deg, rgba(52, 211, 153, 0.06) 0%, rgba(52, 211, 153, 0.26) 100%);
+}
+
+/* Missed the crossing: the water goes cold and the boat lists. */
+.dock-lane[data-state="error"] .dock-swell path { fill: rgba(var(--danger-rgb), 0.18); }
+.dock-lane[data-state="error"] .dock-wake {
+  background: linear-gradient(90deg, rgba(var(--danger-rgb), 0.05) 0%, rgba(var(--danger-rgb), 0.22) 100%);
+}
+.dock-lane[data-state="error"] .dock-boat {
+  color: var(--danger);
+  rotate: -8deg;
+}
+.dock-lane[data-state="error"] .dock-boat .ferry-mark,
+.dock-lane[data-state="error"] .dock-swell { animation: none; }
 
 /* ═══════════════════════════════════════════════
    16 · UX BASELINE
