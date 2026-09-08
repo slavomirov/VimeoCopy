@@ -22,9 +22,23 @@ interface ThumbnailPickerProps {
   onCapture: (blob: Blob) => void;
   /** Called when the user cancels */
   onCancel: () => void;
+  /**
+   * Labels for the picker's own two actions. Worth overriding when the picker sits inside a larger
+   * form that has a Cancel of its own: two buttons reading "Cancel" next to each other, meaning
+   * different things, is a trap.
+   */
+  cancelLabel?: string;
+  confirmLabel?: string;
 }
 
-export function ThumbnailPicker({ videoFile, videoUrl, onCapture, onCancel }: ThumbnailPickerProps) {
+export function ThumbnailPicker({
+  videoFile,
+  videoUrl,
+  onCapture,
+  onCancel,
+  cancelLabel = "Cancel",
+  confirmLabel = "Use This Thumbnail",
+}: ThumbnailPickerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [src, setSrc] = useState<string>("");
   const [duration, setDuration] = useState(0);
@@ -278,14 +292,14 @@ export function ThumbnailPicker({ videoFile, videoUrl, onCapture, onCancel }: Th
       {/* Action buttons */}
       <div style={{ display: "flex", gap: "var(--space-3)", justifyContent: "flex-end" }}>
         <button onClick={onCancel} className="btn-secondary">
-          Cancel
+          {cancelLabel}
         </button>
         <button
           onClick={handleConfirm}
           disabled={!capturedBlob}
           className="btn-primary"
         >
-          Use This Thumbnail
+          {confirmLabel}
         </button>
       </div>
     </div>

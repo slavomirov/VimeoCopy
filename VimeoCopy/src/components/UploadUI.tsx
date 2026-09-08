@@ -3,26 +3,33 @@
  * Uses the `useFileUploader` hook for all state & logic.
  */
 import { useState } from "react";
-import { createPortal } from "react-dom";
 import type { FileEntry } from "../hooks/useFileUploader";
 import { useUpload } from "./UploadProvider";
-import { ThumbnailPicker } from "./ThumbnailPicker";
+import { CustomizeUploadModal } from "./CustomizeUploadModal";
 import "../App.css";
+
+/**
+ * Hover text for the Customize button. "Customize" alone doesn't say what it covers, so the title
+ * lists the actual fields — and drops the thumbnail from the list for files that have no frames to
+ * pick from.
+ */
+function customizeHint(entry: FileEntry) {
+  const fields = ["name", "description", "public/private", "gallery listing", "downloads"];
+  if (entry.file.type.startsWith("video/")) fields.push("thumbnail");
+  return `Customize — edit ${fields.join(", ")}`;
+}
 
 /* ── FileRow ────────────────────────────────── */
 
 export function FileRow({
   entry,
   onRemove,
-  onTogglePublic,
-  onPickThumbnail,
-  onRename,
+  onCustomize,
 }: {
   entry: FileEntry;
   onRemove: () => void;
-  onTogglePublic: () => void;
-  onPickThumbnail?: () => void;
-  onRename?: (name: string) => void;
+  /** Opens the Customize modal. Absent once the upload is under way — nothing is editable then. */
+  onCustomize?: () => void;
 }) {
   const isActive = entry.status === "uploading" || entry.status === "completing";
   const isDone = entry.status === "done";
@@ -70,49 +77,30 @@ export function FileRow({
       <span style={{ fontSize: "var(--font-size-lg)", flexShrink: 0 }}>{fileIcon}</span>
 
       <div style={{ flex: 1, minWidth: 0, position: "relative" }}>
-        {/* Editable while queued: this is the name the media is stored and listed under, and the
-            moment to fix "VID_20260907_113244.mp4" is before it is published, not afterwards on the
-            dashboard. Once the upload starts it becomes plain text — the name travels with the
-            completion call, so an edit mid-flight would show one thing and store another. */}
-        {isQueued && onRename ? (
-          <input
-            type="text"
-            value={entry.displayName ?? entry.file.name}
-            onChange={(e) => onRename(e.target.value)}
-            maxLength={200}
-            aria-label="Title for this upload"
-            title="Name this upload"
-            placeholder={entry.file.name}
-            style={{
-              width: "100%",
-              fontWeight: 500,
-              fontSize: "var(--font-size-sm)",
-              marginBottom: "2px",
-              padding: "2px 6px",
-              color: "inherit",
-              background: "var(--bg-elevated)",
-              border: "1px solid var(--border-color)",
-              borderRadius: "var(--radius-sm)",
-              fontFamily: "inherit",
-            }}
-          />
-        ) : (
-          <p
-            title={entry.displayName ?? entry.file.name}
-            style={{
-              fontWeight: 500,
-              fontSize: "var(--font-size-sm)",
-              marginBottom: "2px",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
-            {entry.displayName?.trim() || entry.file.name}
-          </p>
-        )}
+        {/* The title is edited in the Customize modal now, not inline. It is the same field either
+            way — this row just shows what will be stored. */}
+        <p
+          title={entry.displayName ?? entry.file.name}
+          style={{
+            fontWeight: 500,
+            fontSize: "var(--font-size-sm)",
+            marginBottom: "2px",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {entry.displayName?.trim() || entry.file.name}
+        </p>
         <p className="text-muted" style={{ fontSize: "var(--font-size-xs)", marginBottom: 0 }}>
           {(entry.file.size / 1024 / 1024).toFixed(2)} MB
+          {/* The settings that used to be buttons still read at a glance, they are just no longer
+              the place you change them. Only what is actually set is mentioned. */}
+          {isQueued && (entry.isPublic ? " · Public" : " · Private")}
+          {isQueued && entry.isPublic && entry.showOnMediaPage === false && " · unlisted"}
+          {isQueued && entry.downloadable && " · downloadable"}
+          {isQueued && entry.customThumbnail && " · custom thumbnail"}
+          {isQueued && entry.description?.trim() && " · described"}
           {isActive && ` · ${entry.progress}%`}
           {isDone && " · Uploaded ✓"}
           {/* The clip is generated after the file is already stored, so it reports separately —
@@ -126,46 +114,32 @@ export function FileRow({
         </p>
       </div>
 
-      {isQueued && (
+      {/* One button for every field, in place of the old Public and Thumb pair. The hover text
+          names what is behind it — "Customize" on its own says nothing about what you can change. */}
+      {isQueued && onCustomize && (
         <button
-          onClick={onTogglePublic}
-          title={entry.isPublic ? "Public — click to make private" : "Private — click to make public"}
+          onClick={(e) => { e.stopPropagation(); onCustomize(); }}
+          title={customizeHint(entry)}
           style={{
             flexShrink: 0,
-            background: "none",
             border: "none",
             cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
             fontSize: "var(--font-size-xs)",
-            padding: "2px 8px",
+            padding: "4px 10px",
             borderRadius: "var(--radius-sm)",
             fontWeight: 600,
-            backgroundColor: entry.isPublic ? "rgba(var(--primary-rgb), 0.15)" : "rgba(var(--danger-rgb), 0.15)",
-            color: entry.isPublic ? "var(--success)" : "var(--danger)",
+            backgroundColor: "rgba(var(--primary-rgb), 0.15)",
+            color: "var(--primary)",
           }}
         >
-          {entry.isPublic ? "Public" : "Private"}
-        </button>
-      )}
-
-      {/* Pick thumbnail button for queued videos */}
-      {isQueued && entry.file.type.startsWith("video/") && onPickThumbnail && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onPickThumbnail(); }}
-          title={entry.customThumbnail ? "Custom thumbnail set ✓ — click to change" : "Pick a thumbnail frame"}
-          style={{
-            flexShrink: 0,
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontSize: "var(--font-size-xs)",
-            padding: "2px 8px",
-            borderRadius: "var(--radius-sm)",
-            fontWeight: 600,
-            backgroundColor: entry.customThumbnail ? "rgba(var(--primary-rgb), 0.15)" : "rgba(99, 102, 241, 0.15)",
-            color: entry.customThumbnail ? "var(--success)" : "var(--primary)",
-          }}
-        >
-          {entry.customThumbnail ? "✓ Thumb" : "🎞 Thumb"}
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3" />
+            <path d="M1 14h6M9 8h6M17 16h6" />
+          </svg>
+          Customize
         </button>
       )}
 
@@ -228,10 +202,13 @@ export function UploadPanel({
 }) {
   const uploader = useUpload();
   const [dragActive, setDragActive] = useState(false);
-  const [pickerFileId, setPickerFileId] = useState<string | null>(null);
+  const [customizingFileId, setCustomizingFileId] = useState<string | null>(null);
 
-  // The file entry currently being picked for thumbnail
-  const pickerEntry = pickerFileId ? uploader.files.find((f) => f.id === pickerFileId) : null;
+  // The entry whose Customize modal is open, if any. Looked up rather than held, so it can't go
+  // stale against the uploader's state — a file removed mid-edit closes the modal by itself.
+  const customizingEntry = customizingFileId
+    ? uploader.files.find((f) => f.id === customizingFileId && f.status === "queued")
+    : null;
 
   function handleDrag(e: React.DragEvent) {
     e.preventDefault();
@@ -365,12 +342,8 @@ export function UploadPanel({
                 key={entry.id}
                 entry={entry}
                 onRemove={() => uploader.removeFile(entry.id)}
-                onTogglePublic={() => uploader.toggleFilePublic(entry.id)}
-                onRename={(name) => uploader.setDisplayName(entry.id, name)}
-                onPickThumbnail={
-                  entry.file.type.startsWith("video/") && entry.status === "queued"
-                    ? () => setPickerFileId(entry.id)
-                    : undefined
+                onCustomize={
+                  entry.status === "queued" ? () => setCustomizingFileId(entry.id) : undefined
                 }
               />
             ))}
@@ -394,51 +367,13 @@ export function UploadPanel({
         </button>
       </div>
 
-      {/* Thumbnail picker modal */}
-      {pickerEntry && createPortal(
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "var(--overlay-medium)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
-            padding: "var(--space-4)",
-          }}
-          onClick={() => setPickerFileId(null)}
-        >
-          <div
-            className="card modal-card"
-            style={{ maxWidth: "700px", width: "100%", maxHeight: "90vh", overflowY: "auto" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h2 className="card-title" style={{ marginBottom: 0 }}>Pick Thumbnail</h2>
-              <button
-                onClick={() => setPickerFileId(null)}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--gray-400)", padding: "4px", display: "flex" }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            </div>
-            <div className="card-body">
-              <ThumbnailPicker
-                videoFile={pickerEntry.file}
-                onCapture={(blob) => {
-                  uploader.setCustomThumbnail(pickerEntry.id, blob);
-                  setPickerFileId(null);
-                }}
-                onCancel={() => setPickerFileId(null)}
-              />
-            </div>
-          </div>
-        </div>,
-        document.body
+      {/* Customize modal — title, description, visibility, listing, downloads and thumbnail */}
+      {customizingEntry && (
+        <CustomizeUploadModal
+          entry={customizingEntry}
+          onSave={(patch) => uploader.setEntryDetails(customizingEntry.id, patch)}
+          onClose={() => setCustomizingFileId(null)}
+        />
       )}
     </div>
   );

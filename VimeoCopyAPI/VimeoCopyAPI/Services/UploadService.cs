@@ -17,6 +17,7 @@ public class UploadService : IUploadService
     private readonly AppDbContext _dbContext;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IUserService _userService;
+    private readonly IMediaService _mediaService;
 
     /// <summary>
     /// The single source of truth for what may be uploaded. The client fetches this list from
@@ -43,13 +44,15 @@ public class UploadService : IUploadService
         IConfiguration config,
         AppDbContext dbContext,
         IHttpContextAccessor httpContextAccessor,
-        IUserService userService)
+        IUserService userService,
+        IMediaService mediaService)
     {
         _s3 = s3;
         _config = config;
         _dbContext = dbContext;
         _httpContextAccessor = httpContextAccessor;
         _userService = userService;
+        _mediaService = mediaService;
     }
 
     private string CurrentUserId =>
@@ -173,6 +176,14 @@ public class UploadService : IUploadService
             // rather than empty. Media.FileName is nvarchar(500), so an over-long value would
             // otherwise fail at the database after the bytes were already stored and charged.
             FileName = NormalizeFileName(input.FileName),
+            // Same treatment as the title: free text, trimmed, capped to the column.
+            Description = NormalizeDescription(input.Description),
+            ShowOnMediaPage = input.ShowOnMediaPage,
+            // Clamped, not rejected: the bytes are already stored and charged, so failing the whole
+            // upload over an optional flag would be a poor trade. The plan is the authority — the
+            // same rule MediaService.SetDownloadableAsync enforces — and the dashboard's own toggle
+            // is where the owner turns downloads on after upgrading.
+            Downloadable = input.Downloadable && await _mediaService.PlanAllowsDownloadsAsync(userId),
             ThumbnailUrl = input.HasThumbnail ? $"thumb_{input.MediaId}" : null
         };
 
@@ -200,11 +211,17 @@ public class UploadService : IUploadService
             ShowOnMediaPage = mediaRecord.ShowOnMediaPage,
             Description = mediaRecord.Description,
             FileName = mediaRecord.FileName,
+            // Reports what was actually stored, which is not always what was asked for: a plan
+            // without downloads clamps the flag above.
+            Downloadable = mediaRecord.Downloadable,
         };
     }
 
     /// <summary>Max length of Media.FileName, mirroring the column.</summary>
     private const int MaxFileNameLength = 500;
+
+    /// <summary>Max length of Media.Description, mirroring the column.</summary>
+    private const int MaxDescriptionLength = 2000;
 
     /// <summary>
     /// Trims a client-supplied title, drops control characters, and caps it to the column width.
@@ -218,6 +235,20 @@ public class UploadService : IUploadService
         if (cleaned.Length == 0) return null;
 
         return cleaned.Length <= MaxFileNameLength ? cleaned : cleaned[..MaxFileNameLength];
+    }
+
+    /// <summary>
+    /// Same as <see cref="NormalizeFileName"/> for the description, but newlines survive — a
+    /// description is a paragraph, not a title.
+    /// </summary>
+    private static string? NormalizeDescription(string? description)
+    {
+        if (string.IsNullOrWhiteSpace(description)) return null;
+
+        var cleaned = new string(description.Where(c => !char.IsControl(c) || c is '\n' or '\r' or '\t').ToArray()).Trim();
+        if (cleaned.Length == 0) return null;
+
+        return cleaned.Length <= MaxDescriptionLength ? cleaned : cleaned[..MaxDescriptionLength];
     }
 
     private async Task LinkToProjectAsync(Guid projectId, string userId, Media media)

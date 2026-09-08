@@ -30,6 +30,15 @@ export interface FileEntry {
    * row while the upload is in flight.
    */
   displayName?: string;
+  /** Description stored with the media. Set in the Customize modal while the entry is queued. */
+  description?: string;
+  /** Whether the media is listed on the public Media Gallery. Mirrors the column default. */
+  showOnMediaPage?: boolean;
+  /**
+   * Whether the owner offers the original file as a download. Off unless asked for, and the server
+   * clamps it to what the plan allows — the flag can be set here optimistically without lying.
+   */
+  downloadable?: boolean;
   /**
    * Progress of the hover-preview clip (the "GIF generator"). Videos only, and it runs after the
    * file itself is already stored — the clip is an enhancement, so its state is tracked separately
@@ -37,6 +46,14 @@ export interface FileEntry {
    */
   gifStatus?: "generating" | "ready" | "unavailable";
 }
+
+/** The fields a queued upload can be customized with before it is sent. */
+export type EntryDetails = Partial<
+  Pick<
+    FileEntry,
+    "displayName" | "description" | "isPublic" | "showOnMediaPage" | "downloadable" | "customThumbnail"
+  >
+>;
 
 export interface UseFileUploaderOptions {
   /** Optional project ID — media will be auto-linked on the backend */
@@ -174,6 +191,9 @@ export function useFileUploader(options: UseFileUploaderOptions = {}) {
             isPublic: globalPublic,
             projectId,
             displayName: f.name,
+            description: "",
+            showOnMediaPage: true,
+            downloadable: false,
           });
         } else {
           invalid.push(f.name);
@@ -208,25 +228,17 @@ export function useFileUploader(options: UseFileUploaderOptions = {}) {
     setFiles((prev) => prev.filter((f) => f.id !== id));
   }
 
-  function toggleFilePublic(id: string) {
-    setFiles((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, isPublic: !f.isPublic } : f))
-    );
-  }
-
   /**
-   * Rename a queued file. Refused once the upload has started: the name is sent with the completion
-   * call, so allowing an edit mid-flight would let the row show one name and the server store another.
+   * Everything the Customize modal can change about one queued upload, applied in a single patch.
+   *
+   * Refused once the upload has started, and that is the whole reason it is one function rather
+   * than a setter per field: every one of these values travels with the completion call (or, for
+   * the thumbnail, is uploaded alongside the file), so an edit mid-flight would leave the row
+   * showing one thing and the server storing another.
    */
-  function setDisplayName(id: string, name: string) {
+  function setEntryDetails(id: string, patch: EntryDetails) {
     setFiles((prev) =>
-      prev.map((f) => (f.id === id && f.status === "queued" ? { ...f, displayName: name } : f))
-    );
-  }
-
-  function setCustomThumbnail(id: string, blob: Blob | undefined) {
-    setFiles((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, customThumbnail: blob } : f))
+      prev.map((f) => (f.id === id && f.status === "queued" ? { ...f, ...patch } : f))
     );
   }
 
@@ -359,6 +371,12 @@ export function useFileUploader(options: UseFileUploaderOptions = {}) {
             // The user's name if they set one, otherwise the file's. Trimmed, and an empty edit
             // falls back rather than storing a blank title.
             fileName: entry.displayName?.trim() || entry.file.name,
+            // The rest of what the Customize modal collected. Defaults match the columns', so a
+            // file the user never opened the modal for behaves exactly as it did before.
+            description: entry.description?.trim() || null,
+            showOnMediaPage: entry.showOnMediaPage ?? true,
+            // Asked for, not granted: the server clamps this to what the owner's plan allows.
+            downloadable: entry.downloadable ?? false,
           };
 
           const linkProjectId = entry.projectId ?? options.projectId;
@@ -469,9 +487,7 @@ export function useFileUploader(options: UseFileUploaderOptions = {}) {
     inputRef,
     addFiles,
     removeFile,
-    toggleFilePublic,
-    setCustomThumbnail,
-    setDisplayName,
+    setEntryDetails,
     handleUploadAll,
     queuedCount,
     doneCount,
