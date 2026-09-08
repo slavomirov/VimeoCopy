@@ -121,7 +121,9 @@
   --tile-from: #7DD3FC;
   --tile-to: #38BDF8;
   --sea-shaft: rgba(56, 189, 248, 0.07);
-  --sea-swell: rgba(56, 189, 248, 0.055);
+  /* Swell fill. The three swell layers overlap, so the band where they meet reads at roughly
+     three times this value; at the old 0.055 the waves were one faint smudge on most screens. */
+  --sea-swell: rgba(56, 189, 248, 0.16);
   --foam: #7DD3FC;
   --hull: #0C2C46;
   color-scheme: dark;
@@ -201,7 +203,9 @@
   --tile-from: #0369A1;
   --tile-to: #075985;
   --sea-shaft: rgba(3, 105, 161, 0.05);
-  --sea-swell: rgba(3, 105, 161, 0.06);
+  /* A shade under the dark theme: the same alpha of a dark blue on a pale ground carries further
+     than a light blue does on a near-black one. */
+  --sea-swell: rgba(3, 105, 161, 0.13);
   --foam: #0284C7;
   --hull: #D3E3EF;
   color-scheme: light;
