@@ -2056,13 +2056,20 @@
 
 .media-visibility-toggle input[type="checkbox"] {
   appearance: none;
+  -webkit-appearance: none;
+  /* Fixed size even in a tight flex row — a shrunk box puts the tick off-centre. */
+  flex: 0 0 auto;
   width: 16px;
   height: 16px;
+  margin: 0;
+  /* Explicit, not inherited: under border-box, padding is a floor on the box, so any stray padding
+     stretches the square and takes the tick off-centre with it. */
+  padding: 0;
   border: 2px solid var(--border-color);
   border-radius: 4px;
   background: var(--bg-elevated);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
   position: relative;
 }
 
@@ -2071,16 +2078,23 @@
   border-color: var(--primary);
 }
 
+/*
+ * The tick is a centred mask, not a rotated box.
+ *
+ * It used to be a 5×9 pseudo-element with two borders turned 45°, hand-placed at left:3px/top:0.
+ * Rotation happens about the box's own centre while the visible ink sits in its bottom-right
+ * corner, so the mark rendered high and to the left of the 12×12 area inside the border — and
+ * `box-sizing: border-box` from the reset shrinks that area, which the hard-coded offsets did not
+ * account for. `inset: 0` plus `background-position: center` centres the glyph geometrically at any
+ * box size, and painting it as a mask keeps the tick themeable.
+ */
 .media-visibility-toggle input[type="checkbox"]:checked::after {
   content: '';
   position: absolute;
-  left: 3px;
-  top: 0px;
-  width: 5px;
-  height: 9px;
-  border: solid var(--btn-primary-text);
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
+  inset: 0;
+  background-color: var(--btn-primary-text);
+  -webkit-mask: var(--checkbox-tick) center / 10px 10px no-repeat;
+  mask: var(--checkbox-tick) center / 10px 10px no-repeat;
 }
 
 /* ── Description Input (Profile Page) ──────── */

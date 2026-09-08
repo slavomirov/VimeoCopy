@@ -45,6 +45,13 @@
   /* Ferry motion — one easing curve for the whole app: a hull settling in water */
   --ease-swell: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-buoy: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /*
+   * Checkbox tick, as a mask shape — a shared token because it is the same glyph in both themes:
+   * whatever wears the mask supplies the colour. The path is drawn centred in its own viewBox, so
+   * `background-position: center` lands it dead centre at any box size.
+   */
+  --checkbox-tick: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' d='M3.4 8.4 6.4 11.4 12.6 4.8'/%3E%3C/svg%3E");
 }
 
 /* ═══════════════════════════════════════════════════
@@ -271,7 +278,13 @@ a:hover {
 }
 
 /* ── Form Inputs ───────────────────────────── */
-input, textarea, select {
+/*
+ * Text-entry fields only. Checkboxes and radios are excluded because none of this suits them, and
+ * the padding actively broke them: with `box-sizing: border-box` from the reset, padding plus
+ * borders act as a FLOOR on the box, so 12px/16px of padding inflated every 16px checkbox into a
+ * 36×28 rectangle and left its tick sitting near the top-left corner.
+ */
+input:not([type="checkbox"]):not([type="radio"]), textarea, select {
   width: 100%;
   padding: var(--space-3) var(--space-4);
   font-family: inherit;
