@@ -39,6 +39,11 @@ export function ArtistProfileEditor() {
 
   // form state
   const [handle, setHandle] = useState("");
+  /**
+   * The handle as last saved. A handle can be renamed but not removed — it is the profile's only
+   * address — so this is what an emptied field is checked against, and the server refuses the same.
+   */
+  const [savedHandle, setSavedHandle] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
@@ -70,6 +75,7 @@ export function ArtistProfileEditor() {
         if (profRes.ok) {
           const p = await profRes.json();
           setHandle(p.handle ?? "");
+          setSavedHandle(p.handle ?? "");
           setDisplayName(p.displayName ?? "");
           setBio(p.bio ?? "");
           setWebsiteUrl(p.websiteUrl ?? "");
@@ -200,6 +206,14 @@ export function ArtistProfileEditor() {
   }
 
   async function handleSave() {
+    // Emptying the field is a rename with nothing to rename to, not a way to give up the address:
+    // /u/{handle} is the profile's only URL, so losing it would unpublish the page and break every
+    // link to it. Caught here for a clear message; the server refuses it as well.
+    if (savedHandle && !handle.trim()) {
+      toast.error("Your handle can't be removed — pick a different one instead.");
+      return;
+    }
+
     if (handle && !/^[a-z0-9_-]{3,30}$/.test(handle.trim().toLowerCase())) {
       toast.error("Handle must be 3–30 chars: lowercase letters, numbers, '-' or '_'.");
       return;
@@ -235,8 +249,10 @@ export function ArtistProfileEditor() {
         }),
       });
       if (!res.ok) return; // authFetch already toasts the error
+      const newHandle = handle.trim().toLowerCase();
+      setSavedHandle(newHandle);
       toast.success("Profile saved");
-      if (handle.trim()) navigate(`/u/${handle.trim().toLowerCase()}`);
+      if (newHandle) navigate(`/u/${newHandle}`);
     } finally {
       setSaving(false);
     }
@@ -275,6 +291,12 @@ export function ArtistProfileEditor() {
                 <input className="ap-input" value={handle}
                   onChange={(e) => setHandle(e.target.value.toLowerCase())}
                   placeholder="jane-doe" maxLength={30} />
+                {savedHandle && (
+                  <p className="ap-hint" style={{ marginTop: 4 }}>
+                    You can change your handle, but not remove it — it's the only address your
+                    public page has.
+                  </p>
+                )}
               </div>
               <div className="ap-field">
                 <label>Display name</label>

@@ -81,10 +81,66 @@ namespace VimeoCopyAPI.Services
             if (!result.Succeeded)
                 throw new ValidationException(result.Errors.Select(x => x.Description).FirstOrDefault() ?? "Could not create the account.");
 
-            await _userManager.AddToRoleAsync(user, "User"); //default 
+            await _userManager.AddToRoleAsync(user, "User"); //default
             await AssignPlanToUserAsync(user.Id, "Free");
+            await AssignDefaultHandleAsync(user);
 
             return await LoginAsync(new() { Email = input.Email, Password = input.Password });
+        }
+
+        /// <summary>
+        /// Gives a new account a handle derived from its email address: jane.doe@example.com →
+        /// /u/jane-doe.
+        ///
+        /// A handle is the only address a public profile has, so an account without one has no
+        /// public page at all — and since a handle can no longer be removed, seeding one here is
+        /// what makes "every account is reachable" true from the moment it is created. The owner
+        /// can still rename it in the profile editor.
+        ///
+        /// Never throws: a handle that cannot be settled is worth a warning, not a failed sign-up.
+        /// </summary>
+        private async Task AssignDefaultHandleAsync(ApplicationUser user)
+        {
+            if (user.Handle is not null) return;
+
+            foreach (var candidate in HandleRules.CandidatesFor(HandleRules.SeedFromEmail(user.Email)))
+            {
+                if (await _dbContext.Users.AnyAsync(u => u.Handle == candidate)) continue;
+
+                user.Handle = candidate;
+                try
+                {
+                    var result = await _userManager.UpdateAsync(user);
+                    if (result.Succeeded) return;
+                }
+                catch (DbUpdateException)
+                {
+                    // The unique index is the real arbiter: two sign-ups can both see a name as
+                    // free, and the loser lands here. Try the next candidate rather than failing.
+                }
+
+                user.Handle = null;
+            }
+
+            _logger.LogWarning("Could not assign a default handle to user {UserId}.", user.Id);
+        }
+
+        /// <summary>
+        /// Gives every account that predates automatic handles one, so no existing profile is left
+        /// without a public address. A no-op once there is nothing left to fill in.
+        /// </summary>
+        public async Task<int> BackfillMissingHandlesAsync()
+        {
+            var users = await _dbContext.Users.Where(u => u.Handle == null).ToListAsync();
+
+            var filled = 0;
+            foreach (var user in users)
+            {
+                await AssignDefaultHandleAsync(user);
+                if (user.Handle is not null) filled++;
+            }
+
+            return filled;
         }
 
         public async Task<UserLoginResponseDTO?> LoginAsync(UserLoginRequestDTO input)
@@ -366,6 +422,7 @@ namespace VimeoCopyAPI.Services
                 }
 
                 await _userManager.AddToRoleAsync(user, "User");
+                await AssignDefaultHandleAsync(user);
             }
 
             // 4) Връзваме външния login към акаунта

@@ -81,17 +81,17 @@ public class ProfileController : ControllerBase
     }
 
     /// <summary>
-    /// Public artist profile, addressed by handle or — for an account that hasn't claimed one — by
-    /// user id. Must stay last so it doesn't shadow other routes.
+    /// Public artist profile, addressed only by handle. Must stay last so it doesn't shadow other
+    /// routes.
     /// </summary>
-    [HttpGet("{handleOrId}")]
-    public async Task<IActionResult> GetByHandle(string handleOrId)
+    [HttpGet("{handle}")]
+    public async Task<IActionResult> GetByHandle(string handle)
     {
         // Anonymous route, but a signed-in viewer still presents a bearer token — that is how the
         // owner is recognised well enough to be offered the in-place banner control.
         var viewerUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-        var profile = await _profileService.GetPublicProfileAsync(handleOrId, viewerUserId);
+        var profile = await _profileService.GetPublicProfileAsync(handle, viewerUserId);
         return profile is null ? NotFound(new { message = "Profile not found." }) : Ok(profile);
     }
 }

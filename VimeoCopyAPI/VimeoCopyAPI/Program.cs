@@ -211,6 +211,17 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
+// Accounts created before handles were automatic have none, and a handle is the only address a
+// public profile has — without this they would stay unreachable. Idempotent: nothing to do once
+// every account has one.
+using (var scope = app.Services.CreateScope())
+{
+    var userService = scope.ServiceProvider.GetRequiredService<IUserService>();
+    var filled = await userService.BackfillMissingHandlesAsync();
+    if (filled > 0)
+        app.Logger.LogInformation("Assigned a default handle to {Count} existing account(s).", filled);
+}
+
 // Must run before anything that reads the client's address — the rate limiter and the bandwidth
 // de-duplication both do.
 app.UseForwardedHeaders();

@@ -22,4 +22,7 @@ public interface IUserService
     Task IncreaseUsedBandwidthAsync(string userId, long bytes);
     Task<string> CanUserUploadAsync(string userId, long fileSize);
 
+    /// <summary>Backfills a default handle for accounts created before handles were automatic.</summary>
+    Task<int> BackfillMissingHandlesAsync();
+
 }

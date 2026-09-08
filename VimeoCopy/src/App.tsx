@@ -67,8 +67,8 @@ function MainLayout() {
   const isMobile = useCallback(() => window.innerWidth <= 768, []);
   const [sidebarOpen, setSidebarOpen] = useState(() => !isMobile());
   const [contactOpen, setContactOpen] = useState(false);
-  // Shared with the dashboard's "View public profile" button. `path` prefers the handle and falls
-  // back to the user id, so the shortcut always lands on the live public page.
+  // Shared with the dashboard's "View public profile" button. `path` is /u/{handle}, or null while
+  // no handle has been claimed — there is no other address for a public page.
   const { path: publicProfilePath } = useMyPublicProfile();
 
   // Clicking the brand always brings you back to the top of the home page
@@ -261,16 +261,19 @@ function MainLayout() {
           </div>
 
           <div className="sidebar-auth">
-            {/* Shortcut to how the outside world sees you.
-                Always the live page, never the editor. It used to be hidden without a handle, then
-                to divert to the editor — both wrong, because the profile exists either way and only
-                its ADDRESS was missing. The public endpoint now resolves a user id as well, so
-                /u/{id} works until a handle is claimed and /u/{handle} takes over after. */}
-            {isLoggedIn && publicProfilePath && (
+            {/* Shortcut to how the outside world sees you. Never hidden, or the feature goes
+                undiscovered — but /u/{handle} is the only public address there is, so with no
+                handle claimed there is no page to open and this points at the editor that claims
+                one instead. */}
+            {isLoggedIn && (
               <Link
-                to={publicProfilePath}
+                to={publicProfilePath ?? "/profile/customize"}
                 className="nav-item nav-item-secondary"
-                title={`Open your public profile — ${publicProfilePath}`}
+                title={
+                  publicProfilePath
+                    ? `Open your public profile — ${publicProfilePath}`
+                    : "Claim a handle to get your public profile URL"
+                }
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="9" />

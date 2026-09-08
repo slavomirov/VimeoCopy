@@ -18,16 +18,6 @@ public partial class ProfileService : IProfileService
     private readonly IUserService _userService;
     private readonly string? _bucket;
 
-    /// <summary>
-    /// Handles that collide with a literal segment under /api/profiles. A user holding one of these
-    /// would have their public profile shadowed by the same-named route: GET /api/profiles/me wins
-    /// over GET /api/profiles/{handle}, so /u/me would serve the *viewer's* own profile instead.
-    /// </summary>
-    private static readonly HashSet<string> ReservedHandles = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "me", "search",
-    };
-
     private static readonly string[] AllowedProfileImageTypes = ["image/jpeg", "image/png", "image/webp"];
     private const long MaxProfileImageBytes = 10 * 1024 * 1024;
 
@@ -39,28 +29,18 @@ public partial class ProfileService : IProfileService
         _bucket = config["AWS:BucketName"];
     }
 
-    public async Task<PublicProfileDTO?> GetPublicProfileAsync(string handleOrId, string? viewerUserId = null)
+    public async Task<PublicProfileDTO?> GetPublicProfileAsync(string handle, string? viewerUserId = null)
     {
-        var key = (handleOrId ?? string.Empty).Trim();
+        var key = (handle ?? string.Empty).Trim();
         if (key.Length == 0) return null;
 
-        // Handle first, then the user id.
-        //
-        // Claiming a handle is optional, and until someone does they had no reachable public page at
-        // all — the profile existed, nothing could address it. Accepting the id as well means every
-        // account has a public URL from the moment it is created, and a handle simply gives it a
-        // nicer one. Ids are GUIDs, so this is not an enumerable listing, and IsProfilePublic is
-        // still required either way.
+        // Handles are stored lower-cased, so the incoming segment is normalised before matching.
+        // A public page is addressed ONLY by handle: an account without one has no public URL until
+        // it claims a handle in the profile editor. IsProfilePublic is still required.
         var normalized = key.ToLowerInvariant();
         var user = await _db.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.Handle == normalized && u.IsProfilePublic);
-
-        // Compared case-sensitively and against the untouched value: an id is not a handle and
-        // lower-casing it would fail to match on a case-sensitive collation.
-        user ??= await _db.Users
-            .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Id == key && u.IsProfilePublic);
 
         if (user == null) return null;
 
@@ -105,9 +85,8 @@ public partial class ProfileService : IProfileService
 
         var dto = new PublicProfileDTO
         {
-            // Null when no handle has been claimed — the page is then addressed by id, and the
-            // frontend hides the "@handle" line rather than printing "@null".
-            Handle = user.Handle,
+            // Always set: the profile is looked up BY this handle.
+            Handle = user.Handle!,
             // Must never come back null: the client does displayName.charAt(0) for the avatar
             // fallback. Falls through handle to a neutral label, and never to the email address —
             // that was the F-07 leak and it cannot come back this way.
@@ -221,23 +200,28 @@ public partial class ProfileService : IProfileService
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId)
             ?? throw new NotFoundException("User not found.");
 
-        // A handle is the user's public identity: every /u/<handle> link, and their place in search,
-        // depends on it. Absence must therefore mean "unchanged", never "delete". Only an explicit
-        // empty string clears it — an omitted field used to silently destroy the profile URL.
+        // A handle is the user's public identity: /u/<handle> is the profile's only address, every
+        // link to it, and their place in search. Absence therefore means "unchanged", never
+        // "delete" — an omitted field used to silently destroy the profile URL.
         if (dto.Handle is not null)
         {
             var handle = dto.Handle.Trim().ToLowerInvariant();
 
+            // Emptying the field cannot take the address away. Once a handle exists it can be
+            // renamed but not removed: dropping it would unpublish the profile and break every
+            // link to it, and every account is given one at sign-up, so "no handle" is not a state
+            // anyone should be able to return to.
             if (handle.Length == 0)
             {
-                user.Handle = null;
+                if (user.Handle is not null)
+                    throw new ValidationException("Your handle can't be removed — pick a different one instead.");
             }
             else
             {
-                if (!HandleRegex().IsMatch(handle))
-                    throw new ValidationException("Handle must be 3–30 characters using only lowercase letters, numbers, '-' or '_'.");
+                if (!HandleRules.IsValid(handle))
+                    throw new ValidationException(HandleRules.ValidationMessage);
 
-                if (ReservedHandles.Contains(handle))
+                if (HandleRules.IsReserved(handle))
                     throw new ValidationException("That handle is reserved. Please choose another.");
 
                 var taken = await _db.Users.AnyAsync(u => u.Handle == handle && u.Id != userId);
@@ -535,9 +519,6 @@ public partial class ProfileService : IProfileService
 
         return JsonSerializer.Serialize(clean);
     }
-
-    [GeneratedRegex("^[a-z0-9_-]{3,30}$")]
-    private static partial Regex HandleRegex();
 
     [GeneratedRegex("^#[0-9a-fA-F]{3,8}$")]
     private static partial Regex HexColorRegex();

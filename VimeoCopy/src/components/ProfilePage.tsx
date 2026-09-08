@@ -77,8 +77,8 @@ export function ProfilePage() {
   /** Whether this account's plan includes downloads at all — decides toggle vs upsell. */
   const [downloadsAllowed, setDownloadsAllowed] = useState(false);
   const [downloadBusyId, setDownloadBusyId] = useState<string | null>(null);
-  /** Shared with the sidebar shortcut. Resolves to /u/{handle} or /u/{id}. */
-  const { handle: myHandle, path: publicProfilePath } = useMyPublicProfile();
+  /** Shared with the sidebar shortcut. /u/{handle}, or null until a handle is claimed. */
+  const { path: publicProfilePath } = useMyPublicProfile();
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [shareLinkExpiry, setShareLinkExpiry] = useState<string | null>(null);
   const [shareToken, setShareToken] = useState<string | null>(null);
@@ -522,26 +522,24 @@ export function ProfilePage() {
           <h1 style={{ marginBottom: 0 }}>Creator Dashboard</h1>
           <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
           {/* "See it as a visitor does" belongs next to the thing that edits it — this is where
-              someone thinking about their public profile actually is. With no handle there is no
-              public page to open, so say that rather than hiding the button and leaving the
-              feature undiscovered; the neighbouring Customize button is where a handle is claimed. */}
-          {publicProfilePath && (
-            <Link
-              to={publicProfilePath}
-              className="btn-outline"
-              title={
-                myHandle
-                  ? `Open your public profile at ${publicProfilePath}`
-                  : `Open your public profile at ${publicProfilePath} — claim a handle for a nicer link`
-              }
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: "6px", verticalAlign: "middle" }}>
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-              View public profile
-            </Link>
-          )}
+              someone thinking about their public profile actually is. /u/{handle} is the only
+              public address, so with no handle claimed this leads to the editor that claims one
+              rather than vanishing and leaving the feature undiscovered. */}
+          <Link
+            to={publicProfilePath ?? "/profile/customize"}
+            className="btn-outline"
+            title={
+              publicProfilePath
+                ? `Open your public profile at ${publicProfilePath}`
+                : "Claim a handle to get your public profile URL"
+            }
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: "6px", verticalAlign: "middle" }}>
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+            View public profile
+          </Link>
           <Link to="/settings" className="btn-secondary">Account settings</Link>
           <Link to="/profile/customize" className="btn-primary">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

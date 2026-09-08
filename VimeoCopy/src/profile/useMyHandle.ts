@@ -6,11 +6,10 @@ export interface MyPublicProfile {
   /** The claimed handle, or null if there isn't one yet. */
   handle: string | null;
   /**
-   * Route to the live public profile, or null when not signed in.
+   * Route to the live public profile, or null when there is no handle to address it with.
    *
-   * Prefers the handle for a readable URL and falls back to the user id, which the public profile
-   * endpoint also resolves. That fallback is the point: claiming a handle is optional, so without
-   * it there was no address for the page at all and the shortcut had nowhere to go but the editor.
+   * A handle is the ONLY public address: /u/{handle}. Callers that want a destination regardless
+   * should send a handle-less user to the profile editor to claim one.
    */
   path: string | null;
 }
@@ -27,7 +26,7 @@ export interface MyPublicProfile {
  * token makes that window impossible, and means nothing has to be cleared on the way out.
  */
 export function useMyPublicProfile(): MyPublicProfile {
-  const { accessToken, authFetch, claims } = useAuth();
+  const { accessToken, authFetch } = useAuth();
   const [handleFor, setHandleFor] = useState<{ token: string; handle: string | null } | null>(null);
 
   useEffect(() => {
@@ -36,12 +35,12 @@ export function useMyPublicProfile(): MyPublicProfile {
     let cancelled = false;
     (async () => {
       try {
-        const res = await authFetch(`${API_BASE_URL}/api/profile/me`, { silent: true });
+        const res = await authFetch(`${API_BASE_URL}/api/profiles/me`, { silent: true });
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled) setHandleFor({ token: accessToken, handle: data.handle ?? null });
       } catch {
-        /* fall back to the id path below; the page is still reachable */
+        /* no handle resolved: callers treat that the same as not having claimed one */
       }
     })();
 
@@ -50,10 +49,7 @@ export function useMyPublicProfile(): MyPublicProfile {
 
   const handle = handleFor && handleFor.token === accessToken ? handleFor.handle : null;
 
-  // `claims` is an untyped bag of JWT claims, so the subject is narrowed rather than asserted.
-  const userId = typeof claims.sub === "string" && claims.sub.length > 0 ? claims.sub : null;
-
-  const path = !accessToken ? null : handle ? `/u/${handle}` : userId ? `/u/${userId}` : null;
+  const path = accessToken && handle ? `/u/${handle}` : null;
 
   return { handle, path };
 }
