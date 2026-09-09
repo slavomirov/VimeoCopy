@@ -28,6 +28,7 @@ interface Overview {
   bandwidthUsedBytes: number;
   pendingReports: number;
   pendingDownloadRequests: number;
+  pendingRepublishRequests: number;
   planUsage: { planName: string; userCount: number }[];
 }
 
@@ -197,7 +198,7 @@ function OverviewTab({ api }: { api: Api }) {
 
   if (!data) return <div className="loading" style={{ margin: "var(--space-12) auto" }} />;
 
-  const attention = data.pendingReports + data.pendingDownloadRequests;
+  const attention = data.pendingReports + data.pendingDownloadRequests + data.pendingRepublishRequests;
 
   return (
     <>
@@ -205,7 +206,9 @@ function OverviewTab({ api }: { api: Api }) {
         <div className="card" style={{ padding: "var(--space-4)", marginBottom: "var(--space-4)", borderColor: "var(--primary)" }}>
           <strong>{attention} item{attention === 1 ? "" : "s"} waiting.</strong>{" "}
           <span className="text-muted">
-            {data.pendingReports} report{data.pendingReports === 1 ? "" : "s"} on the Moderation page,{" "}
+            {data.pendingReports} report{data.pendingReports === 1 ? "" : "s"} and{" "}
+            {data.pendingRepublishRequests} re-publish request
+            {data.pendingRepublishRequests === 1 ? "" : "s"} on the Moderation page,{" "}
             {data.pendingDownloadRequests} download request{data.pendingDownloadRequests === 1 ? "" : "s"} with their owners.
           </span>
         </div>
@@ -218,6 +221,8 @@ function OverviewTab({ api }: { api: Api }) {
         <Stat label="Stored" value={formatBytes(data.storedBytes)} hint="summed from the files themselves" />
         <Stat label="Bandwidth this cycle" value={formatBytes(data.bandwidthUsedBytes)} hint="across all accounts" />
         <Stat label="Open reports" value={data.pendingReports} hint="handled on the Moderation page" />
+        <Stat label="Re-publish appeals" value={data.pendingRepublishRequests}
+          hint={data.pendingRepublishRequests === 0 ? "nobody appealing" : "owners waiting on an answer"} />
       </div>
 
       <h2 style={{ marginTop: "var(--space-8)" }}>Accounts per plan</h2>
@@ -416,27 +421,29 @@ function UserCard({ user, api, onChange, currentUserId }: {
           {/* Roles + switches */}
           <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "center", flexWrap: "wrap" }}>
             <span style={{ minWidth: 90, fontSize: "var(--font-size-sm)", fontWeight: 600 }}>Roles</span>
-            {["Admin", "Moderator"].map((role) => {
-              const has = user.roles.some((r) => r.toLowerCase() === role.toLowerCase());
+            {/* Admin is the only staff role — there is no moderator tier. One checkbox, because a
+                list of one reads as a list of one rather than as a set with options missing. */}
+            {(() => {
+              const isUserAdmin = user.roles.some((r) => r.toLowerCase() === "admin");
               // Removing your own Admin role is refused server-side; disabling it here means the
               // operator finds that out before they click rather than after.
-              const locked = role === "Admin" && has && isSelf;
+              const locked = isUserAdmin && isSelf;
               return (
-                <label key={role} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "var(--font-size-sm)" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "var(--font-size-sm)" }}>
                   <input
-                    type="checkbox" checked={has} disabled={busy || locked}
+                    type="checkbox" checked={isUserAdmin} disabled={busy || locked}
                     title={locked ? "You can't remove your own administrator role" : undefined}
                     onChange={(e) => {
                       const next = e.target.checked
-                        ? [...user.roles, role]
-                        : user.roles.filter((r) => r.toLowerCase() !== role.toLowerCase());
+                        ? [...user.roles.filter((r) => r.toLowerCase() !== "admin"), "Admin"]
+                        : user.roles.filter((r) => r.toLowerCase() !== "admin");
                       run(() => api.put<AdminUser>(`users/${user.id}/roles`, { roles: next }), "Roles updated");
                     }}
                   />
-                  {role}
+                  Administrator
                 </label>
               );
-            })}
+            })()}
 
             <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "var(--font-size-sm)" }}>
               <input

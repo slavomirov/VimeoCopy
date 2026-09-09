@@ -323,6 +323,41 @@ namespace VimeoCopyAPI.Services
             _logger.LogInformation("Media-deleted email sent to the former owner of {FileName}.", fileName);
         }
 
+        public async Task SendRepublishDecisionAsync(
+            string ownerEmail, string ownerName, string fileName, bool approved, string? note)
+        {
+            var safeOwner = System.Net.WebUtility.HtmlEncode(ownerName);
+            var safeFile = System.Net.WebUtility.HtmlEncode(fileName);
+            var safeNote = string.IsNullOrWhiteSpace(note)
+                ? null
+                : System.Net.WebUtility.HtmlEncode(note).Replace("\n", "<br>");
+
+            var inner = approved
+                ? $@"
+                    <h1>Hello {safeOwner},</h1>
+                    <p><strong>{safeFile}</strong> is public again.</p>
+                    {(safeNote is null ? "" : $"<p>{safeNote}</p>")}
+                    <p>It's back in the gallery and on your profile, and it's yours to manage as
+                       normal from now on.</p>
+                "
+                : $@"
+                    <h1>Hello {safeOwner},</h1>
+                    <p>We've looked at your request for <strong>{safeFile}</strong> and it's staying
+                       private for now.</p>
+                    {(safeNote is null ? "" : $"<p><strong>Why:</strong> {safeNote}</p>")}
+                    <p>The file itself is untouched and still in your library — only its public
+                       listing is affected. If there's something we've missed,
+                       <strong><a href='{_frontendOrigin}/contact'>tell us</a></strong>.</p>
+                ";
+
+            var subject = approved
+                ? $"Your file is public again — {fileName}"
+                : $"About your request for {fileName}";
+
+            await SendEmailAsync(ownerEmail, subject, BuildEmailTemplate(inner));
+            _logger.LogInformation("Re-publish decision email sent (approved: {Approved}).", approved);
+        }
+
         private async Task SendEmailAsync(string recipientEmail, string subject, string htmlBody, string? replyTo = null)
         {
             if (_emailProvider.Equals("Resend", StringComparison.OrdinalIgnoreCase))

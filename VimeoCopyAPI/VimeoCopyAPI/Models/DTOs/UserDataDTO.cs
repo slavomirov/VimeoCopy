@@ -33,6 +33,15 @@ public class MediaDTO
 
     /// <summary>Whether this file is in the owner's showreel bundle.</summary>
     public bool InShowreel { get; set; }
+
+    /// <summary>
+    /// True when staff took this file down. The owner cannot publish it themselves while this is
+    /// set — the dashboard offers a re-publish appeal instead of a visibility toggle.
+    /// </summary>
+    public bool StaffHidden { get; set; }
+
+    /// <summary>Why staff hid it, so the owner can answer it rather than guess.</summary>
+    public string? StaffHiddenReason { get; set; }
     public bool ShowOnMediaPage { get; set; }
     public string? Description { get; set; }
     public string? FileName { get; set; }

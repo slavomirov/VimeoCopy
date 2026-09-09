@@ -35,7 +35,7 @@ public class AdminService : IAdminService
     /// <summary>Roles an administrator is allowed to hand out. Anything else is rejected rather
     /// than silently dropped, so a typo in the client can't quietly grant nothing.</summary>
     private static readonly HashSet<string> AssignableRoles =
-        new(StringComparer.OrdinalIgnoreCase) { "Admin", "Moderator", "User" };
+        new(StringComparer.OrdinalIgnoreCase) { "Admin", "User" };
 
     public AdminService(
         AppDbContext db,
@@ -84,6 +84,8 @@ public class AdminService : IAdminService
             PendingReports = await _db.MediaReports.CountAsync(r => r.Status == "Pending"),
             PendingDownloadRequests =
                 await _db.DownloadRequests.CountAsync(r => r.Status == DownloadRequestStatus.Pending),
+            PendingRepublishRequests =
+                await _db.RepublishRequests.CountAsync(r => r.Status == RepublishRequestStatus.Pending),
 
             PlanUsage = await _db.Plans
                 .OrderBy(p => p.Price)
@@ -458,6 +460,22 @@ public class AdminService : IAdminService
         var before = Describe(media.IsPublic, media.ShowOnMediaPage);
         media.IsPublic = dto.IsPublic;
         media.ShowOnMediaPage = dto.ShowOnMediaPage;
+
+        // The flag that separates "staff took this down" from "the owner made it private", and so
+        // decides whether the owner may simply publish it again or has to appeal. Set on the way
+        // down with the reason attached, cleared on the way back up — an owner whose file staff
+        // restored should not still be locked out of their own visibility toggle.
+        if (!dto.IsPublic)
+        {
+            media.StaffHidden = true;
+            media.StaffHiddenReason = Trim(dto.Reason, 500);
+        }
+        else
+        {
+            media.StaffHidden = false;
+            media.StaffHiddenReason = null;
+        }
+
         await _db.SaveChangesAsync();
 
         await LogAsync(actorId, AdminAction.MediaVisibility, "Media", media.Id.ToString(), media.FileName,

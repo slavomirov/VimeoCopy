@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace VimeoCopyAPI.Models;
 
-/// <summary>A user/visitor report flagging a piece of media for moderator review.</summary>
+/// <summary>A user/visitor report flagging a piece of media for staff review.</summary>
 public class MediaReport
 {
     public long Id { get; set; }

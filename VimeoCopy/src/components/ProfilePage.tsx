@@ -27,6 +27,12 @@ interface Media {
   downloadable: boolean;
   /** Whether this file is in the showreel bundle visitors can request from the public profile. */
   inShowreel: boolean;
+  /** True when staff took this file down — the owner cannot publish it again themselves. */
+  staffHidden: boolean;
+  /** Why staff hid it, so the appeal can answer it rather than guess. */
+  staffHiddenReason: string | null;
+  /** True while an appeal for this file is waiting on staff. Set client-side after submitting. */
+  republishPending?: boolean;
   showOnMediaPage: boolean;
   description: string | null;
 }
@@ -80,6 +86,10 @@ export function ProfilePage() {
   const [downloadsAllowed, setDownloadsAllowed] = useState(false);
   const [downloadBusyId, setDownloadBusyId] = useState<string | null>(null);
   const [showreelBusyId, setShowreelBusyId] = useState<string | null>(null);
+  /** The file whose takedown the owner is appealing, or null when the dialog is closed. */
+  const [republishFor, setRepublishFor] = useState<Media | null>(null);
+  const [republishReason, setRepublishReason] = useState("");
+  const [republishBusy, setRepublishBusy] = useState(false);
   /** Shared with the sidebar shortcut. /u/{handle}, or null until a handle is claimed. */
   const { path: publicProfilePath } = useMyPublicProfile();
   const [shareLink, setShareLink] = useState<string | null>(null);
@@ -101,8 +111,27 @@ export function ProfilePage() {
     async function load() {
       const userId = claims.sub;
       const res = await authFetch(`${API_BASE_URL}/getData/${userId}`);
-      const data = await res.json();
-      setUser(data);
+      const data: UserData = await res.json();
+
+      // Which takedowns this owner has already appealed. Without it, reloading the page turns
+      // "Re-publish requested" back into "Request re-publish" and invites a second submission of
+      // something the server would only deduplicate anyway.
+      let pending = new Set<string>();
+      try {
+        const mine = await authFetch(`${API_BASE_URL}/api/republish-requests/mine`, { silent: true });
+        if (mine.ok) {
+          const rows: { mediaId: string; status: string }[] = await mine.json();
+          pending = new Set(rows.filter((r) => r.status === "Pending").map((r) => r.mediaId));
+        }
+      } catch {
+        // A dashboard that renders is worth more than one that knows about appeals — the button
+        // simply offers to send again, and the server hands back the open request.
+      }
+
+      setUser({
+        ...data,
+        media: data.media.map((m) => (pending.has(m.id) ? { ...m, republishPending: true } : m)),
+      });
     }
     load();
   }, [authFetch, claims]);
@@ -335,6 +364,49 @@ export function ProfilePage() {
       toast.error(err instanceof Error ? err.message : "Failed to change the showreel");
     } finally {
       setShowreelBusyId(null);
+    }
+  }
+
+  /**
+   * Appeal a takedown.
+   *
+   * The reason is required, and the dialog says who reads it — an appeal goes to a person, and an
+   * owner who knows that writes something answerable instead of one word.
+   */
+  async function submitRepublish() {
+    const media = republishFor;
+    const reason = republishReason.trim();
+    if (!media || !reason) return;
+
+    setRepublishBusy(true);
+    try {
+      const res = await authFetch(`${API_BASE_URL}/api/republish-requests`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mediaId: media.id, reason }),
+        silent: true,
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message || "Couldn't send that request.");
+      }
+
+      toast.success("Sent — we'll take another look and email you.");
+      setUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              media: prev.media.map((m) => (m.id === media.id ? { ...m, republishPending: true } : m)),
+            }
+          : prev
+      );
+      setRepublishFor(null);
+      setRepublishReason("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't send that request.");
+    } finally {
+      setRepublishBusy(false);
     }
   }
 
@@ -641,6 +713,7 @@ export function ProfilePage() {
                 onDelete={() => handleDeleteMedia(m.id)}
                 deleting={deletingId === m.id}
                 onToggleVisibility={() => handleToggleVisibility(m.id)}
+                onRequestRepublish={() => setRepublishFor(m)}
                 onToggleShowOnMediaPage={() => handleToggleShowOnMediaPage(m.id, m.showOnMediaPage)}
                 onShare={() => handleShareMedia(m.id)}
                 onEmbed={() => setEmbedMedia(m)}
@@ -759,6 +832,63 @@ export function ProfilePage() {
         </div>
       )}
 
+      {/* Re-publish appeal */}
+      {republishFor && (
+        <div
+          className="confirm-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirm-republish-title"
+          onClick={() => { setRepublishFor(null); setRepublishReason(""); }}
+        >
+          <div className="card confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <h2 id="confirm-republish-title" className="card-title">Ask us to re-publish this?</h2>
+
+            {/* What we said, first. An appeal written without the takedown reason in front of you
+                is a guess, and a guess is what gets refused. */}
+            {republishFor.staffHiddenReason ? (
+              <p className="text-muted" style={{ marginBottom: "var(--space-3)" }}>
+                <strong>We made “{republishFor.fileName || "this file"}” private because:</strong>{" "}
+                {republishFor.staffHiddenReason}
+              </p>
+            ) : (
+              <p className="text-muted" style={{ marginBottom: "var(--space-3)" }}>
+                We made “{republishFor.fileName || "this file"}” private.
+              </p>
+            )}
+
+            <label style={{ display: "block", fontSize: "var(--font-size-sm)", fontWeight: 600, marginBottom: 4 }}>
+              Why should it go back up?
+            </label>
+            <textarea
+              value={republishReason}
+              autoFocus
+              rows={4}
+              maxLength={1000}
+              placeholder="A person reads this — tell them what they've missed."
+              onChange={(e) => setRepublishReason(e.target.value)}
+            />
+
+            <div className="confirm-actions" style={{ marginTop: "var(--space-4)" }}>
+              <button
+                className="btn-primary"
+                onClick={submitRepublish}
+                disabled={republishBusy || republishReason.trim().length === 0}
+              >
+                {republishBusy ? "Sending…" : "Send request"}
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={() => { setRepublishFor(null); setRepublishReason(""); }}
+                disabled={republishBusy}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete confirmation */}
       {pendingDeleteId && (
         <div
@@ -870,6 +1000,7 @@ function MediaItem({
   onDelete,
   deleting,
   onToggleVisibility,
+  onRequestRepublish,
   onToggleShowOnMediaPage,
   onShare,
   onEmbed,
@@ -898,6 +1029,7 @@ function MediaItem({
   onDelete: () => void;
   deleting?: boolean;
   onToggleVisibility: () => void;
+  onRequestRepublish: () => void;
   onToggleShowOnMediaPage: () => void;
   onShare: () => void;
   onEmbed: () => void;
@@ -1069,12 +1201,28 @@ function MediaItem({
       </div>
 
       <div className="media-actions">
-        <button
-          onClick={onToggleVisibility}
-          className={media.isPublic ? "btn-secondary" : "btn-primary"}
-        >
-          {media.isPublic ? "Make Private" : "Make Public"}
-        </button>
+        {/* A file staff took down is not the owner's to put back — the server refuses the toggle.
+            Showing the button anyway and letting it fail would be a worse way to learn that, so
+            the control becomes the appeal instead, and says who it is addressed to. */}
+        {media.staffHidden && !media.isPublic ? (
+          <button
+            onClick={onRequestRepublish}
+            className={media.republishPending ? "btn-secondary" : "btn-primary"}
+            disabled={media.republishPending}
+            title={media.republishPending
+              ? "We've got your request and will take another look."
+              : "Ask us to put this back up"}
+          >
+            {media.republishPending ? "Re-publish requested" : "Request re-publish"}
+          </button>
+        ) : (
+          <button
+            onClick={onToggleVisibility}
+            className={media.isPublic ? "btn-secondary" : "btn-primary"}
+          >
+            {media.isPublic ? "Make Private" : "Make Public"}
+          </button>
+        )}
         {!media.isPublic && (
           <button
             onClick={onShare}

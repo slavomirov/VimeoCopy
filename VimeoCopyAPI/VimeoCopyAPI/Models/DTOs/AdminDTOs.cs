@@ -21,6 +21,9 @@ public class AdminOverviewDTO
     public int PendingReports { get; set; }
     public int PendingDownloadRequests { get; set; }
 
+    /// <summary>Owners appealing a takedown and waiting on an answer.</summary>
+    public int PendingRepublishRequests { get; set; }
+
     /// <summary>How many accounts sit on each plan, so a tier with nobody on it is visible.</summary>
     public List<AdminPlanUsageDTO> PlanUsage { get; set; } = [];
 }

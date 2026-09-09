@@ -194,6 +194,13 @@ public class MediaService : IMediaService
     {
         var media = await GetOwnedMediaAsync(mediaId, userId);
 
+        // A file staff took down is not the owner's to put back. Without this the whole moderation
+        // flow is advisory: hide a file after a report and its owner un-hides it a second later.
+        // The appeal route is the way back — see RepublishService.
+        if (media.StaffHidden && !media.IsPublic)
+            throw new ForbiddenException(
+                "This file was made private by us. Ask for it to be re-published and we'll take another look.");
+
         media.IsPublic = !media.IsPublic;
         await _dbContext.SaveChangesAsync();
     }

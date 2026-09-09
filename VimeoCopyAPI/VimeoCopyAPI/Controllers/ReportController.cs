@@ -24,31 +24,26 @@ public class ReportController : ControllerBase
     {
         var reporterUserId = User.FindFirstValue(ClaimTypes.NameIdentifier); // null if anonymous
         await _reports.CreateAsync(dto, reporterUserId);
-        return Ok(new { message = "Thanks — our moderators will review this." });
+        return Ok(new { message = "Thanks — we'll review this." });
     }
 
-    [Authorize(Roles = "Admin,Moderator")]
+    [Authorize(Roles = "Admin")]
     [HttpGet]
     public async Task<IActionResult> Pending() => Ok(await _reports.GetPendingAsync());
 
     /// <summary>
-    /// Closes a report. Moderators may hide or dismiss; only administrators may delete, because
-    /// hiding is reversible and deleting destroys somebody's file along with every other report
-    /// against it. The role split is enforced here rather than in the service, so the service stays
-    /// callable from the admin surface where the caller is already known to be an administrator.
+    /// Closes a report: hide the media, delete it, or dismiss and leave it alone.
+    ///
+    /// Administrators only. There is no moderator tier — the role split that used to let a
+    /// moderator hide but not delete is gone with it, so every outcome here needs the same
+    /// authority and the check is the one attribute above.
     /// </summary>
-    [Authorize(Roles = "Admin,Moderator")]
+    [Authorize(Roles = "Admin")]
     [HttpPost("{id}/resolve")]
     public async Task<IActionResult> Resolve(long id, [FromBody] ResolveReportDTO dto)
     {
         var reviewerId = User.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? throw new UnauthorizedAccessException("Not authenticated.");
-
-        if (string.Equals(dto.Action, "delete", StringComparison.OrdinalIgnoreCase)
-            && !User.IsInRole("Admin"))
-        {
-            throw new ForbiddenException("Only an administrator can delete media. You can hide it instead.");
-        }
 
         await _reports.ResolveAsync(id, dto.Action, reviewerId, dto.Reason);
         return Ok(new { message = "Report resolved." });

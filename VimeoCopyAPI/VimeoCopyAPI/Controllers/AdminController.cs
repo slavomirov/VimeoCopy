@@ -10,9 +10,8 @@ namespace VimeoCopyAPI.Controllers;
 /// Administration: other people's accounts, other people's files, and the plans everyone sits on.
 ///
 /// The role gate is on the class, not on the actions, so a route added later is locked by default
-/// rather than by remembering to lock it. Moderator is deliberately NOT enough here — moderators
-/// hide reported media through <see cref="ReportController"/>; this controller hands out paid
-/// plans, deletes accounts and edits pricing, which is a different kind of authority.
+/// rather than by remembering to lock it. Admin is the only staff role on this platform — there is
+/// no moderator tier — so this and <see cref="ReportController"/> require the same thing.
 /// </summary>
 [ApiController]
 [Authorize(Roles = "Admin")]

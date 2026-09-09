@@ -25,6 +25,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
 
     public DbSet<AdminAuditLog> AdminAuditLogs { get; set; }
 
+    public DbSet<RepublishRequest> RepublishRequests { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -129,6 +131,14 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         // The log is read newest-first and never filtered by anything else.
         modelBuilder.Entity<AdminAuditLog>()
             .HasIndex(a => a.CreatedAt);
+
+        // The staff inbox: pending appeals, oldest first.
+        modelBuilder.Entity<RepublishRequest>()
+            .HasIndex(r => new { r.Status, r.CreatedAt });
+
+        // "Does this file already have a live appeal", checked on every submission.
+        modelBuilder.Entity<RepublishRequest>()
+            .HasIndex(r => new { r.MediaId, r.Status });
 
         modelBuilder.Entity<PasswordResetCode>()
             .HasOne(c => c.User)

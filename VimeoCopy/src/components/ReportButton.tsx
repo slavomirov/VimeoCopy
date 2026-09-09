@@ -32,7 +32,7 @@ export function ReportButton({ mediaId, className, style }: { mediaId: string; c
         body: JSON.stringify({ mediaId, reason, details }),
       });
       if (!res.ok) throw new Error();
-      toast.success("Thanks — our moderators will review this.");
+      toast.success("Thanks — we'll review this.");
       setOpen(false);
       setDetails("");
     } catch {

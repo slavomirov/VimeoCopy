@@ -56,23 +56,34 @@ public class ReportService : IReportService
 
     public async Task<IEnumerable<ReportDTO>> GetPendingAsync()
     {
-        return await _db.MediaReports.AsNoTracking()
-            .Where(r => r.Status == "Pending")
-            .OrderBy(r => r.CreatedAt)
-            .Join(_db.Media, r => r.MediaId, m => m.Id, (r, m) => new { r, m })
-            .Select(x => new ReportDTO
+        // The reporter join is a LEFT join: ReporterUserId is null for an anonymous report, and an
+        // inner join would silently drop exactly the reports nobody put their name to.
+        var rows =
+            from r in _db.MediaReports.AsNoTracking().Where(r => r.Status == "Pending")
+            join m in _db.Media.AsNoTracking() on r.MediaId equals m.Id
+            join rep in _db.Users.AsNoTracking() on r.ReporterUserId equals rep.Id into reps
+            from reporter in reps.DefaultIfEmpty()
+            orderby r.CreatedAt
+            select new ReportDTO
             {
-                Id = x.r.Id,
-                MediaId = x.r.MediaId,
-                FileName = x.m.FileName,
-                Reason = x.r.Reason,
-                Details = x.r.Details,
-                Status = x.r.Status,
-                CreatedAt = x.r.CreatedAt,
-                MediaIsPublic = x.m.IsPublic,
-                OwnerEmail = x.m.User.Email,
-            })
-            .ToListAsync();
+                Id = r.Id,
+                MediaId = r.MediaId,
+                FileName = m.FileName,
+                Reason = r.Reason,
+                Details = r.Details,
+                Status = r.Status,
+                CreatedAt = r.CreatedAt,
+                MediaIsPublic = m.IsPublic,
+                OwnerEmail = m.User.Email,
+                ReporterName = reporter != null ? (reporter.DisplayName ?? reporter.Handle) : null,
+                ReporterHandle = reporter != null ? reporter.Handle : null,
+                ReporterEmail = reporter != null ? reporter.Email : null,
+                ReporterTotalReports = reporter != null
+                    ? _db.MediaReports.Count(x => x.ReporterUserId == reporter.Id)
+                    : 0,
+            };
+
+        return await rows.ToListAsync();
     }
 
     public async Task ResolveAsync(long reportId, string action, string reviewerUserId, string? reason = null)
@@ -104,6 +115,12 @@ public class ReportService : IReportService
             {
                 media.IsPublic = false;
                 media.ShowOnMediaPage = false;
+                // Same flag the admin media tab sets: this is a staff takedown, so the owner's
+                // visibility toggle refuses until an appeal is approved.
+                media.StaffHidden = true;
+                media.StaffHiddenReason = reason?.Trim() is { Length: > 0 } r
+                    ? r[..Math.Min(r.Length, 500)]
+                    : "Removed after a report.";
             }
             report.Status = "Removed";
         }

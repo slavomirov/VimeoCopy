@@ -71,9 +71,8 @@ function MainLayout() {
   const { accessToken, logout, roles } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const isLoggedIn = !!accessToken;
-  const isStaff = roles.includes("Admin") || roles.includes("Moderator");
-  // Admin is strictly narrower than staff: a moderator hides reported media, an administrator
-  // hands out paid plans and deletes accounts. The two links are gated separately for that reason.
+  // One staff role. Moderation and administration are the same authority here, so the Moderation
+  // and Admin links are gated by the same flag rather than by two that can drift apart.
   const isAdmin = roles.includes("Admin");
   const location = useLocation();
 
@@ -256,7 +255,7 @@ function MainLayout() {
             </Link>
           )}
 
-          {isStaff && (
+          {isAdmin && (
             <Link to="/moderation" className="nav-item" title="Moderation">
               <IconBuoy />
               <span className="nav-label">Moderation</span>
@@ -400,7 +399,7 @@ function MainLayout() {
           />
           <Route
             path="/moderation"
-            element={isStaff ? <ModerationPage /> : <Navigate to="/" replace />}
+            element={isAdmin ? <ModerationPage /> : <Navigate to="/" replace />}
           />
           <Route
             path="/admin"

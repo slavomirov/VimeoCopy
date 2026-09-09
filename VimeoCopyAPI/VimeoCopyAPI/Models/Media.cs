@@ -64,6 +64,22 @@ public class Media
     public bool ShowOnMediaPage { get; set; } = true;
 
     /// <summary>
+    /// True when staff took this file down, as opposed to the owner making it private themselves.
+    ///
+    /// The distinction is the whole point: an owner may freely re-publish their own private file,
+    /// but a file hidden after a report must not be quietly put back by the person it was hidden
+    /// from. While this is set, the owner's visibility toggle refuses and points them at a
+    /// re-publish request instead — see <see cref="RepublishRequest"/>.
+    ///
+    /// Cleared when staff restore the file, or when a re-publish request is approved.
+    /// </summary>
+    public bool StaffHidden { get; set; }
+
+    /// <summary>Why staff hid it, in their words. Shown to the owner so the takedown is answerable.</summary>
+    [MaxLength(500)]
+    public string? StaffHiddenReason { get; set; }
+
+    /// <summary>
     /// True for an image uploaded purely as profile decoration (avatar or banner). It is the
     /// owner's private file: kept out of the media gallery, the owner's library, the project
     /// pickers and the public portfolio, and only ever surfaced through the profile's own

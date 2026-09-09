@@ -41,4 +41,11 @@ public interface IEmailService
     /// before: a mail promising a deletion that then failed is worse than no mail.
     /// </summary>
     Task SendMediaDeletedAsync(string ownerEmail, string ownerName, string fileName, string? reason);
+
+    /// <summary>
+    /// Answers an owner's appeal against a takedown. The note is staff-written free text, so it is
+    /// encoded rather than interpolated, like every other body here.
+    /// </summary>
+    Task SendRepublishDecisionAsync(
+        string ownerEmail, string ownerName, string fileName, bool approved, string? note);
 }

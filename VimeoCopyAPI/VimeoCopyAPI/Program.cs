@@ -181,6 +181,7 @@ builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<IDownloadRequestService, DownloadRequestService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IRepublishService, RepublishService>();
 
 
 builder.Services.AddOptions<StripeOptions>().Bind(builder.Configuration.GetSection("Stripe"));
@@ -208,13 +209,41 @@ using (var scope = app.Services.CreateScope())
 {
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
-    string[] roles = { "Admin", "Moderator", "User" };
+    // Two roles, deliberately. There is no Moderator tier: every content decision on this platform
+    // is an administrator's, so a role that grants a subset of that authority is one more thing to
+    // reason about with nobody in it.
+    string[] roles = { "Admin", "User" };
 
     foreach (var role in roles)
     {
         if (!await roleManager.RoleExistsAsync(role))
         {
             await roleManager.CreateAsync(new IdentityRole(role));
+        }
+    }
+
+    // Seeding only ever ADDS, so a database seeded before the moderator tier was dropped still
+    // carries the role. Nothing checks it any more, which makes it dead data that reads like a
+    // capability — so it goes, but only once it is genuinely unused. Stripping the role out from
+    // under somebody who still holds it is a permissions change, not a cleanup, and that decision
+    // belongs to whoever granted it.
+    var moderator = await roleManager.FindByNameAsync("Moderator");
+    if (moderator is not null)
+    {
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var holders = await userManager.GetUsersInRoleAsync("Moderator");
+
+        if (holders.Count == 0)
+        {
+            await roleManager.DeleteAsync(moderator);
+            app.Logger.LogInformation("Removed the unused Moderator role — Admin is the only staff role.");
+        }
+        else
+        {
+            app.Logger.LogWarning(
+                "The Moderator role is obsolete but {Count} account(s) still hold it. It grants nothing: " +
+                "clear it from those accounts on the admin page and it will be removed on the next start.",
+                holders.Count);
         }
     }
 }

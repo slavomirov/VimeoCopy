@@ -69,4 +69,6 @@ public static class AdminAction
     public const string MediaDownloadable = "media.downloadable";
     public const string DeleteMedia = "media.delete";
     public const string UpdatePlan = "plan.update";
+    public const string RepublishApprove = "media.republish.approve";
+    public const string RepublishDeny = "media.republish.deny";
 }
