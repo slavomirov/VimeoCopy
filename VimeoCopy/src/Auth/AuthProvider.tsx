@@ -15,6 +15,24 @@ interface TokenPayload {
 
 const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
 
+/**
+ * Where .NET actually puts roles in the token.
+ *
+ * `new Claim(ClaimTypes.Role, ...)` serialises to this URI, not to "role" — ClaimTypes.Role IS the
+ * URI. The API is unaffected because ASP.NET maps it back on the way in, so the mismatch is
+ * invisible server-side and total client-side: reading `decoded.role` returned undefined for every
+ * account, which left `roles` empty and every role-gated link hidden from the people who had the
+ * role. Both spellings are read here so the client keeps working whichever the token uses.
+ */
+const ROLE_CLAIM_URI = "http://schemas.microsoft.com/ws/2008/06/identity/claims/role";
+
+/** One role is emitted as a string, several as an array — JWT collapses single-element arrays. */
+function rolesFrom(decoded: TokenPayload): string[] {
+  const raw = decoded.role ?? decoded[ROLE_CLAIM_URI];
+  if (Array.isArray(raw)) return raw.filter((r): r is string => typeof r === "string");
+  return typeof raw === "string" ? [raw] : [];
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
@@ -34,13 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const processToken = useCallback((token: string) => {
     const decoded = jwtDecode<TokenPayload>(token);
 
-    const extractedRoles = Array.isArray(decoded.role)
-      ? decoded.role
-      : decoded.role
-        ? [decoded.role]
-        : [];
-
-    setRoles(extractedRoles);
+    setRoles(rolesFrom(decoded));
     setClaims(decoded);
     setEmail(decoded.email || null);
     sessionStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, token);
