@@ -25,6 +25,9 @@ import { UploadDock } from "./components/UploadDock";
 import { AudiencePage } from "./components/AudiencePage";
 import { useMyPublicProfile } from "./profile/useMyHandle";
 import { ModerationPage } from "./components/ModerationPage";
+import { RequestsPage } from "./components/RequestsPage";
+import { DownloadRequestsProvider } from "./components/DownloadRequestsProvider";
+import { useDownloadRequests } from "./components/useDownloadRequests";
 import { useTheme } from "./theme/useTheme";
 import {
   SeaBackdrop,
@@ -40,6 +43,7 @@ import {
   IconTicket,
   IconHelm,
   IconGangway,
+  IconBeacon,
 } from "./brand/FerryMarks";
 import "./App.css";
 import "./ferry.css";
@@ -48,10 +52,14 @@ function App() {
   return (
     <AuthProvider>
       <UploadProvider>
-        <Routes>
-          <Route path="/embed/:mediaId" element={<EmbedPlayer />} />
-          <Route path="/*" element={<MainLayout />} />
-        </Routes>
+        {/* Inside the router: the ask-dialog navigates a visitor to sign-in, and the badge is
+            part of the shell. */}
+        <DownloadRequestsProvider>
+          <Routes>
+            <Route path="/embed/:mediaId" element={<EmbedPlayer />} />
+            <Route path="/*" element={<MainLayout />} />
+          </Routes>
+        </DownloadRequestsProvider>
       </UploadProvider>
     </AuthProvider>
   );
@@ -70,6 +78,8 @@ function MainLayout() {
   // Shared with the dashboard's "View public profile" button. `path` is /u/{handle}, or null while
   // no handle has been claimed — there is no other address for a public page.
   const { path: publicProfilePath } = useMyPublicProfile();
+  // Drives the Requests badge — the in-app half of the notification.
+  const { summary: requestSummary } = useDownloadRequests();
 
   // Clicking the brand always brings you back to the top of the home page
   const handleBrandClick = useCallback(() => {
@@ -219,6 +229,28 @@ function MainLayout() {
             </Link>
           )}
 
+          {/* The badge is the notification: a download request is somebody waiting on a decision,
+              so it has to be visible from anywhere in the app, not only in an email. */}
+          {isLoggedIn && (
+            <Link
+              to="/requests"
+              className="nav-item"
+              title={
+                requestSummary.pendingIncoming > 0
+                  ? `Requests — ${requestSummary.pendingIncoming} waiting for your decision`
+                  : "Requests — download requests for your files"
+              }
+            >
+              <IconBeacon />
+              <span className="nav-label">Requests</span>
+              {requestSummary.pendingIncoming > 0 && (
+                <span className="nav-badge" aria-label={`${requestSummary.pendingIncoming} waiting`}>
+                  {requestSummary.pendingIncoming}
+                </span>
+              )}
+            </Link>
+          )}
+
           {isStaff && (
             <Link to="/moderation" className="nav-item" title="Moderation">
               <IconBuoy />
@@ -346,6 +378,10 @@ function MainLayout() {
           {/* Anonymous on purpose — someone locked out of their account still needs to reach us. */}
           <Route path="/contact" element={<ContactPage />} />
 
+          <Route
+            path="/requests"
+            element={isLoggedIn ? <RequestsPage /> : <ProfileAuthPage />}
+          />
           <Route
             path="/audience"
             element={isLoggedIn ? <AudiencePage /> : <Navigate to="/profile" replace />}

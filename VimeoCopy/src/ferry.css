@@ -793,6 +793,32 @@ h1, h2, .ferry-wordmark, .stat-number, .hero h1 {
 }
 
 /* ═══════════════════════════════════════════════
+   15a · NAV BADGE — work waiting on you
+
+   Sits on a sidebar item and counts what needs a decision. Absolute rather than in the flow, so a
+   collapsed sidebar (label hidden) still shows the count against the icon.
+   ═══════════════════════════════════════════════ */
+
+.nav-item { position: relative; }
+
+.nav-badge {
+  position: absolute;
+  top: 6px;
+  left: 26px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: var(--radius-full);
+  background: var(--primary);
+  color: var(--btn-primary-text);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 17px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--bg-surface), var(--glow-sm);
+}
+
+/* ═══════════════════════════════════════════════
    15b · DOCK LANES — an upload is a boat crossing water
 
    Each file in The Dock gets a strip of sea instead of a progress bar. The boat's

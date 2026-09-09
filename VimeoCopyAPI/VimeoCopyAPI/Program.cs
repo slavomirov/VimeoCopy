@@ -75,6 +75,12 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("contact", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(ClientKey(httpContext),
             _ => new FixedWindowRateLimiterOptions { PermitLimit = 3, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+
+    // A download request emails a creator, so the abuse shape is the contact form's: cheap to
+    // send, expensive to be on the receiving end of. The service also caps the day's total.
+    options.AddPolicy("download-request", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(ClientKey(httpContext),
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = 5, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 
 // AWS S3 storage config
@@ -173,6 +179,7 @@ builder.Services.AddScoped<IBandwidthService, BandwidthService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddScoped<IDownloadRequestService, DownloadRequestService>();
 
 
 builder.Services.AddOptions<StripeOptions>().Bind(builder.Configuration.GetSection("Stripe"));

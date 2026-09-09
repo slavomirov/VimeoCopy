@@ -21,6 +21,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<PasswordResetCode> PasswordResetCodes { get; set; }
     public DbSet<PendingUpload> PendingUploads { get; set; }
     public DbSet<ProcessedStripeEvent> ProcessedStripeEvents { get; set; }
+    public DbSet<DownloadRequest> DownloadRequests { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -108,6 +109,15 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
 
         modelBuilder.Entity<MediaReport>()
             .HasIndex(r => new { r.Status, r.CreatedAt });
+
+        // The owner's inbox: their pending requests, newest last. Also the shape the badge counts.
+        modelBuilder.Entity<DownloadRequest>()
+            .HasIndex(d => new { d.OwnerUserId, d.Status, d.CreatedAt });
+
+        // Two lookups share this one: "has this viewer already asked for this file" on create, and
+        // "may this viewer download this file" on every download.
+        modelBuilder.Entity<DownloadRequest>()
+            .HasIndex(d => new { d.MediaId, d.RequesterUserId, d.Status });
 
         modelBuilder.Entity<PasswordResetCode>()
             .HasOne(c => c.User)

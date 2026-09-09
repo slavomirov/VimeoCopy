@@ -107,6 +107,10 @@ public class MediaService : IMediaService
                 Description = m.Description,
                 HasThumbnail = !string.IsNullOrEmpty(m.ThumbnailUrl),
                 Downloadable = m.Downloadable && downloadOwners.Contains(m.UserId),
+                // Askable exactly when the owner could serve a download but hasn't opened this
+                // file up. Whether THIS viewer has already asked is their own state, fetched once
+                // per page from /api/download-requests/outgoing rather than joined onto every tile.
+                DownloadRequestable = !m.Downloadable && downloadOwners.Contains(m.UserId),
                 // Presigning here removes one HTTP round trip per tile.
                 PreviewUrl = PresignKey(m.Id.ToString()),
                 ThumbnailUrl = string.IsNullOrEmpty(m.ThumbnailUrl) ? null : PresignKey(m.ThumbnailUrl),
@@ -428,6 +432,25 @@ public class MediaService : IMediaService
         await _dbContext.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// Whether the caller of the current request has been granted this one file by its owner.
+    ///
+    /// The viewer comes from the bearer token rather than from a parameter, for the same reason
+    /// EnsureViewable reads it there: the download route is anonymous, so identity is whatever the
+    /// request actually proves — never something a caller can state about itself.
+    /// </summary>
+    private async Task<bool> HasApprovedDownloadRequestAsync(Guid mediaId)
+    {
+        var viewerId = _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(viewerId)) return false;
+
+        return await _dbContext.DownloadRequests
+            .AsNoTracking()
+            .AnyAsync(r => r.MediaId == mediaId
+                        && r.RequesterUserId == viewerId
+                        && r.Status == DownloadRequestStatus.Approved);
+    }
+
     /// <summary>Whether this user's current plan includes downloads.</summary>
     public async Task<bool> PlanAllowsDownloadsAsync(string userId)
         => await _dbContext.Users
@@ -449,10 +472,16 @@ public class MediaService : IMediaService
         var media = await GetMediaByIdAsync(mediaId) ?? throw new NotFoundException("Media not found.");
         EnsureViewable(media);
 
-        if (!media.Downloadable)
+        // The owner's plan gates every download, open or granted. Checked first so a lapsed plan
+        // can't be worked around with an approval that predates the lapse.
+        if (!await PlanAllowsDownloadsAsync(media.UserId))
             throw new ForbiddenException("This file isn't available for download.");
 
-        if (!await PlanAllowsDownloadsAsync(media.UserId))
+        // Two ways in: the owner offered the file to everyone, or the owner approved this one
+        // viewer's request for it. The second is what makes a private-by-default file shareable
+        // without flipping the public flag — and it is per-account, so the approved viewer cannot
+        // pass the ability on by sharing the link.
+        if (!media.Downloadable && !await HasApprovedDownloadRequestAsync(media.Id))
             throw new ForbiddenException("This file isn't available for download.");
 
         var allowed = await _bandwidthService.TrackPresignAsync(media, ResolveSource(media, null));

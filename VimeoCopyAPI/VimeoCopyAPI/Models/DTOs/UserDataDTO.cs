@@ -54,6 +54,14 @@ public class PublicMediaDTO
     /// </summary>
     public bool Downloadable { get; set; }
 
+    /// <summary>
+    /// Whether a viewer may ask the owner for the original — true when the owner's plan includes
+    /// downloads but they haven't offered this file to everyone. Also plan-resolved server-side, so
+    /// the client never has to reason about tiers; the two flags are mutually exclusive by
+    /// construction, and both false means the owner simply can't serve downloads.
+    /// </summary>
+    public bool DownloadRequestable { get; set; }
+
     // Presigned up front so the gallery doesn't need a round trip per tile. Unmetered — browsing a
     // grid must not charge the owner's bandwidth; the metered URL is fetched only on play.
     public string? PreviewUrl { get; set; }

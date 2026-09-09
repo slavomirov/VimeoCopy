@@ -5,6 +5,7 @@ import { API_BASE_URL } from "../config";
 import { EnhancedPlayer } from "./EnhancedPlayer";
 import { ReportButton } from "./ReportButton";
 import { HoverPreview } from "./HoverPreview";
+import { useDownloadRequests } from "./useDownloadRequests";
 import { IconBeacon } from "../brand/FerryMarks";
 import toast from "react-hot-toast";
 import "../App.css";
@@ -23,6 +24,8 @@ interface PublicMedia {
   hasThumbnail: boolean;
   /** Already accounts for the owner's plan, so this alone decides whether to offer a download. */
   downloadable: boolean;
+  /** True when the owner could serve a download but hasn't opened this file to everyone. */
+  downloadRequestable: boolean;
   /** Presigned by the server with the list, so the grid needs no per-tile request. */
   previewUrl: string | null;
   thumbnailUrl: string | null;
@@ -551,7 +554,61 @@ function DownloadButton({ media }: { media: PublicMedia }) {
   );
 }
 
-/* ── Gallery Media Item ────────────────────── */
+/* ── Request the original ──────────────────── */
+
+/**
+ * Whichever of the three download states this file is in for this viewer.
+ *
+ * A file is openly downloadable, or askable, or neither — the server resolves the owner's plan
+ * before it says which, so this component never reasons about tiers. Once asked, the viewer's own
+ * request status takes over: waiting, or granted (which turns into a real download button).
+ */
+function DownloadAffordance({ media }: { media: PublicMedia }) {
+  const { statusFor, openRequestDialog } = useDownloadRequests();
+  const status = statusFor(media.id);
+
+  // Open to everyone, or granted to this viewer: same button either way.
+  if (media.downloadable || status === "Approved") return <DownloadButton media={media} />;
+
+  if (!media.downloadRequestable) return null;
+
+  if (status === "Pending") {
+    return (
+      <span
+        className="media-download-btn"
+        title="The owner has been asked and hasn't answered yet"
+        style={{ cursor: "default" }}
+        aria-label="Download request waiting for the owner"
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3 2" />
+        </svg>
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className="media-download-btn"
+      // The card's own click opens the player, so this must not reach it.
+      onClick={(e) => { e.stopPropagation(); openRequestDialog({ id: media.id, fileName: media.fileName }); }}
+      title={status === "Denied"
+        ? "The owner declined last time — you can ask again"
+        : "Ask the owner for the original file"}
+      aria-label="Ask the owner for the original file"
+    >
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="7 10 12 15 17 10" />
+        <line x1="12" y1="15" x2="12" y2="3" />
+        <circle cx="18.5" cy="5.5" r="3.2" fill="currentColor" stroke="none" />
+      </svg>
+    </button>
+  );
+}
+
 /* ── Gallery Media Item ────────────────────── */
 
 function GalleryMediaItem({
@@ -634,7 +691,7 @@ function GalleryMediaItem({
           </>
         )}
 
-        {media.downloadable && <DownloadButton media={media} />}
+        <DownloadAffordance media={media} />
 
         {/* Type badge */}
         <span className="media-type-badge">

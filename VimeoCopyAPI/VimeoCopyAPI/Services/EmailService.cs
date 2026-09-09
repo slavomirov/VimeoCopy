@@ -196,6 +196,66 @@ namespace VimeoCopyAPI.Services
             _logger.LogInformation("Contact form message forwarded to the site owners.");
         }
 
+        public async Task SendDownloadRequestAsync(string ownerEmail, string ownerName, string requesterName, string fileName, string? message)
+        {
+            // Every value here came from a user: the requester picked their own display name and
+            // wrote the note, and the file name is whatever the owner typed at upload. All of it is
+            // encoded before it goes near the HTML, exactly as the contact form does.
+            var safeOwner = System.Net.WebUtility.HtmlEncode(ownerName);
+            var safeRequester = System.Net.WebUtility.HtmlEncode(requesterName);
+            var safeFile = System.Net.WebUtility.HtmlEncode(fileName);
+            var safeMessage = string.IsNullOrWhiteSpace(message)
+                ? null
+                : System.Net.WebUtility.HtmlEncode(message).Replace("\n", "<br>");
+
+            var body = BuildEmailTemplate($@"
+                <h1>Hello {safeOwner},</h1>
+                <p><strong>{safeRequester}</strong> is asking to download <strong>{safeFile}</strong>.</p>
+                {(safeMessage is null ? "" : $"<p><em>&ldquo;{safeMessage}&rdquo;</em></p>")}
+                <p>Nothing has been shared yet — the file stays yours until you say otherwise.</p>
+                <p><strong><a href='{_frontendOrigin}/requests'>Answer this request</a></strong></p>
+            ");
+
+            await SendEmailAsync(ownerEmail, $"Download request for {fileName}", body);
+            _logger.LogInformation("Download request email sent to the owner of {FileName}.", fileName);
+        }
+
+        public async Task SendDownloadRequestDecisionAsync(string requesterEmail, string requesterName, string fileName, bool approved, bool revoked = false)
+        {
+            var safeRequester = System.Net.WebUtility.HtmlEncode(requesterName);
+            var safeFile = System.Net.WebUtility.HtmlEncode(fileName);
+
+            var inner = approved
+                ? $@"
+                    <h1>Hello {safeRequester},</h1>
+                    <p>Your request for <strong>{safeFile}</strong> was approved.</p>
+                    <p>The download is now available to you on the file itself, or from your requests.</p>
+                    <p><strong><a href='{_frontendOrigin}/requests'>Go to your requests</a></strong></p>
+                "
+                : revoked
+                    ? $@"
+                    <h1>Hello {safeRequester},</h1>
+                    <p>The owner has withdrawn your access to the original of <strong>{safeFile}</strong>.</p>
+                    <p>You can still watch it wherever it's shared — only the original file stays with its owner.</p>
+                "
+                    : $@"
+                    <h1>Hello {safeRequester},</h1>
+                    <p>Your request for <strong>{safeFile}</strong> wasn't approved.</p>
+                    <p>You can still watch it wherever it's shared — only the original file stays with its owner.</p>
+                ";
+
+            var body = BuildEmailTemplate(inner);
+
+            var subject = approved
+                ? $"Your download request was approved — {fileName}"
+                : revoked
+                    ? $"Download access withdrawn — {fileName}"
+                    : $"Your download request for {fileName}";
+
+            await SendEmailAsync(requesterEmail, subject, body);
+            _logger.LogInformation("Download request decision email sent (approved: {Approved}).", approved);
+        }
+
         private async Task SendEmailAsync(string recipientEmail, string subject, string htmlBody, string? replyTo = null)
         {
             if (_emailProvider.Equals("Resend", StringComparison.OrdinalIgnoreCase))
