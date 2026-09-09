@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Security.Claims;
+using VimeoCopyAPI.Models;
 using VimeoCopyAPI.Models.DTOs;
 using VimeoCopyAPI.Services.Interfaces;
 
@@ -30,13 +31,26 @@ public class ReportController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> Pending() => Ok(await _reports.GetPendingAsync());
 
+    /// <summary>
+    /// Closes a report. Moderators may hide or dismiss; only administrators may delete, because
+    /// hiding is reversible and deleting destroys somebody's file along with every other report
+    /// against it. The role split is enforced here rather than in the service, so the service stays
+    /// callable from the admin surface where the caller is already known to be an administrator.
+    /// </summary>
     [Authorize(Roles = "Admin,Moderator")]
     [HttpPost("{id}/resolve")]
     public async Task<IActionResult> Resolve(long id, [FromBody] ResolveReportDTO dto)
     {
         var reviewerId = User.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? throw new UnauthorizedAccessException("Not authenticated.");
-        await _reports.ResolveAsync(id, dto.Action, reviewerId);
+
+        if (string.Equals(dto.Action, "delete", StringComparison.OrdinalIgnoreCase)
+            && !User.IsInRole("Admin"))
+        {
+            throw new ForbiddenException("Only an administrator can delete media. You can hide it instead.");
+        }
+
+        await _reports.ResolveAsync(id, dto.Action, reviewerId, dto.Reason);
         return Ok(new { message = "Report resolved." });
     }
 }

@@ -568,6 +568,125 @@ function UsersTab({ api, currentUserId }: { api: Api; currentUserId: string | nu
 
 /* ── Media ─────────────────────────────────────────────────── */
 
+/**
+ * One file, with the three things staff do to it.
+ *
+ * Hiding and deleting both send the owner an email, so both stop to collect a reason first —
+ * that reason is quoted to them verbatim, and "we made your file private" with no explanation is
+ * the message that turns into a support ticket. Making a file public again asks for nothing: the
+ * restore notice is good news and needs no justification.
+ *
+ * The reason prompt doubles as the are-you-sure. A destructive action that takes a deliberate
+ * sentence to complete is not one you fire by mis-clicking a row.
+ */
+function MediaRow({ media: m, api, act, patch }: {
+  media: AdminMedia;
+  api: Api;
+  act: (fn: () => Promise<void>) => void;
+  patch: (id: string, updated: AdminMedia | null) => void;
+}) {
+  const [prompt, setPrompt] = useState<null | "hide" | "delete">(null);
+  const [reason, setReason] = useState("");
+
+  const close = () => { setPrompt(null); setReason(""); };
+
+  return (
+    <div className="card" style={{ padding: "var(--space-3)", display: "flex", gap: "var(--space-3)", alignItems: "center", flexWrap: "wrap" }}>
+      <div style={{ width: 72, height: 48, borderRadius: "var(--radius-sm)", overflow: "hidden", background: "var(--bg-elevated)", flexShrink: 0 }}>
+        {m.thumbnailUrl && <img src={m.thumbnailUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+      </div>
+
+      <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+        <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", flexWrap: "wrap" }}>
+          <strong style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {m.fileName || "Untitled"}
+          </strong>
+          {!m.isPublic && <Pill tone="var(--danger)">private</Pill>}
+          {m.isPublic && !m.showOnMediaPage && <Pill>off gallery</Pill>}
+          {m.downloadable && <Pill tone="var(--success)">downloadable</Pill>}
+          {m.isProfileAsset && <Pill>profile asset</Pill>}
+          {m.pendingReports > 0 && <Pill tone="var(--danger)">{m.pendingReports} report(s)</Pill>}
+        </div>
+        <div style={{ fontSize: "var(--font-size-xs)", color: "var(--gray-500)", marginTop: 2 }}>
+          {m.ownerEmail ?? m.ownerId} · {formatBytes(m.fileSize)} · {m.contentType} · {formatDate(m.uploadedAt)}
+        </div>
+      </div>
+
+      {prompt ? (
+        <div style={{ flex: "1 1 100%", display: "flex", gap: "var(--space-2)", alignItems: "center", flexWrap: "wrap", paddingTop: "var(--space-2)", borderTop: "1px dashed var(--border-color)" }}>
+          <span style={{ fontSize: "var(--font-size-sm)", fontWeight: 600, color: prompt === "delete" ? "var(--danger)" : undefined }}>
+            {prompt === "delete" ? "Delete permanently" : "Make private"}
+          </span>
+          <input
+            type="text" value={reason} autoFocus
+            placeholder={`Reason — emailed to ${m.ownerEmail ?? "the owner"}`}
+            onChange={(e) => setReason(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") close(); }}
+            style={{ flex: "1 1 240px", minWidth: 160 }}
+          />
+          <button
+            type="button"
+            className={prompt === "delete" ? "btn-danger" : "btn-primary"}
+            onClick={() => {
+              const why = reason.trim() || undefined;
+              close();
+              act(async () => {
+                if (prompt === "delete") {
+                  await api.del(`media/${m.id}${why ? `?reason=${encodeURIComponent(why)}` : ""}`);
+                  patch(m.id, null);
+                  toast.success("File deleted — the owner has been emailed");
+                } else {
+                  // Hiding sets both flags: a file that is private but still flagged for the
+                  // gallery is a contradiction the owner would have to untangle later.
+                  patch(m.id, await api.post<AdminMedia>(`media/${m.id}/visibility`, {
+                    isPublic: false, showOnMediaPage: false, reason: why,
+                  }));
+                  toast.success("File hidden — the owner has been emailed");
+                }
+              });
+            }}
+          >
+            {prompt === "delete" ? "Delete and notify" : "Hide and notify"}
+          </button>
+          <button type="button" className="btn-secondary" onClick={close}>Cancel</button>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
+          {m.isPublic ? (
+            <button type="button" className="btn-secondary" onClick={() => setPrompt("hide")}>
+              Make private
+            </button>
+          ) : (
+            <button
+              type="button" className="btn-secondary"
+              onClick={() => act(async () => {
+                patch(m.id, await api.post<AdminMedia>(`media/${m.id}/visibility`, {
+                  isPublic: true, showOnMediaPage: true,
+                }));
+                toast.success("File is public again — the owner has been emailed");
+              })}
+            >
+              Make public
+            </button>
+          )}
+
+          <button
+            type="button" className="btn-secondary"
+            onClick={() => act(async () => {
+              patch(m.id, await api.post<AdminMedia>(`media/${m.id}/downloadable`, { value: !m.downloadable }));
+              toast.success(m.downloadable ? "Download withdrawn" : "Download offered");
+            })}
+          >
+            {m.downloadable ? "Stop download" : "Allow download"}
+          </button>
+
+          <button type="button" className="btn-danger" onClick={() => setPrompt("delete")}>Delete</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MediaTab({ api }: { api: Api }) {
   const [query, setQuery] = useState("");
   const [visibility, setVisibility] = useState("");
@@ -619,65 +738,7 @@ function MediaTab({ api }: { api: Api }) {
 
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
         {rows.map((m) => (
-          <div key={m.id} className="card" style={{ padding: "var(--space-3)", display: "flex", gap: "var(--space-3)", alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ width: 72, height: 48, borderRadius: "var(--radius-sm)", overflow: "hidden", background: "var(--bg-elevated)", flexShrink: 0 }}>
-              {m.thumbnailUrl && <img src={m.thumbnailUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
-            </div>
-
-            <div style={{ flex: "1 1 220px", minWidth: 0 }}>
-              <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", flexWrap: "wrap" }}>
-                <strong style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {m.fileName || "Untitled"}
-                </strong>
-                {!m.isPublic && <Pill tone="var(--danger)">private</Pill>}
-                {m.isPublic && !m.showOnMediaPage && <Pill>off gallery</Pill>}
-                {m.downloadable && <Pill tone="var(--success)">downloadable</Pill>}
-                {m.isProfileAsset && <Pill>profile asset</Pill>}
-                {m.pendingReports > 0 && <Pill tone="var(--danger)">{m.pendingReports} report(s)</Pill>}
-              </div>
-              <div style={{ fontSize: "var(--font-size-xs)", color: "var(--gray-500)", marginTop: 2 }}>
-                {m.ownerEmail ?? m.ownerId} · {formatBytes(m.fileSize)} · {m.contentType} · {formatDate(m.uploadedAt)}
-              </div>
-            </div>
-
-            <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
-              <button
-                type="button" className="btn-secondary"
-                onClick={() => act(async () => {
-                  // Hiding sets both flags: a file that is private but still flagged for the
-                  // gallery is a contradiction the owner would have to untangle later.
-                  const next = !m.isPublic;
-                  patch(m.id, await api.post<AdminMedia>(`media/${m.id}/visibility`, {
-                    isPublic: next, showOnMediaPage: next && m.showOnMediaPage,
-                  }));
-                  toast.success(next ? "File is public again" : "File hidden");
-                })}
-              >
-                {m.isPublic ? "Make private" : "Make public"}
-              </button>
-
-              <button
-                type="button" className="btn-secondary"
-                onClick={() => act(async () => {
-                  patch(m.id, await api.post<AdminMedia>(`media/${m.id}/downloadable`, { value: !m.downloadable }));
-                  toast.success(m.downloadable ? "Download withdrawn" : "Download offered");
-                })}
-              >
-                {m.downloadable ? "Stop download" : "Allow download"}
-              </button>
-
-              <ConfirmButton
-                confirmLabel="Click again to delete"
-                onConfirm={() => act(async () => {
-                  await api.del(`media/${m.id}`);
-                  patch(m.id, null);
-                  toast.success("File deleted");
-                })}
-              >
-                Delete
-              </ConfirmButton>
-            </div>
-          </div>
+          <MediaRow key={m.id} media={m} api={api} act={act} patch={patch} />
         ))}
       </div>
     </>

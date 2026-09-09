@@ -9,11 +9,21 @@ namespace VimeoCopyAPI.Services;
 public class ReportService : IReportService
 {
     private readonly AppDbContext _db;
+    private readonly IMediaService _media;
+    private readonly IEmailService _email;
+    private readonly ILogger<ReportService> _logger;
 
     private static readonly HashSet<string> AllowedReasons =
         new(StringComparer.OrdinalIgnoreCase) { "copyright", "explicit", "violence", "spam", "other" };
 
-    public ReportService(AppDbContext db) => _db = db;
+    public ReportService(
+        AppDbContext db, IMediaService media, IEmailService email, ILogger<ReportService> logger)
+    {
+        _db = db;
+        _media = media;
+        _email = email;
+        _logger = logger;
+    }
 
     public async Task CreateAsync(ReportCreateDTO dto, string? reporterUserId)
     {
@@ -65,21 +75,41 @@ public class ReportService : IReportService
             .ToListAsync();
     }
 
-    public async Task ResolveAsync(long reportId, string action, string reviewerUserId)
+    public async Task ResolveAsync(long reportId, string action, string reviewerUserId, string? reason = null)
     {
         var report = await _db.MediaReports.FirstOrDefaultAsync(r => r.Id == reportId)
             ?? throw new NotFoundException("Report not found.");
 
-        if (string.Equals(action, "remove", StringComparison.OrdinalIgnoreCase))
+        var isRemove = string.Equals(action, "remove", StringComparison.OrdinalIgnoreCase);
+        var isDelete = string.Equals(action, "delete", StringComparison.OrdinalIgnoreCase);
+
+        // Loaded with the owner attached, because both outcomes have to mail them and one of them
+        // destroys the row that holds the address.
+        var media = isRemove || isDelete
+            ? await _db.Media.Include(m => m.User).FirstOrDefaultAsync(m => m.Id == report.MediaId)
+            : null;
+
+        var ownerEmail = media?.User?.Email;
+        var ownerName = media?.User is null ? "there" : DisplayNameFor(media.User);
+        var fileLabel = media is null || string.IsNullOrWhiteSpace(media.FileName)
+            ? "an untitled file"
+            : media.FileName!;
+
+        var wasHidden = media is not null && !media.IsPublic;
+
+        if (isRemove)
         {
             // Hide the media rather than hard-deleting (reversible, preserves the owner's file).
-            var media = await _db.Media.FirstOrDefaultAsync(m => m.Id == report.MediaId);
             if (media != null)
             {
                 media.IsPublic = false;
                 media.ShowOnMediaPage = false;
             }
             report.Status = "Removed";
+        }
+        else if (isDelete)
+        {
+            report.Status = "Deleted";
         }
         else
         {
@@ -89,5 +119,33 @@ public class ReportService : IReportService
         report.ReviewedAt = DateTime.UtcNow;
         report.ReviewedByUserId = reviewerUserId;
         await _db.SaveChangesAsync();
+
+        // The destructive step runs after the report is closed, and it deletes this report's own row
+        // along with every other one against the file — which is why the status above is written and
+        // committed first, and why nothing below touches `report` again.
+        if (isDelete && media is not null)
+            await _media.DeleteMediaAsAdminAsync(media.Id.ToString());
+
+        if (string.IsNullOrWhiteSpace(ownerEmail)) return;
+
+        // A failed mail must not fail a moderation decision that is already committed — the caller
+        // would retry and hide or delete twice. Logged instead.
+        try
+        {
+            if (isDelete)
+                await _email.SendMediaDeletedAsync(ownerEmail, ownerName, fileLabel, reason);
+            else if (isRemove && !wasHidden)
+                await _email.SendMediaHiddenAsync(ownerEmail, ownerName, fileLabel, reason);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Could not email the owner about report {ReportId}.", reportId);
+        }
     }
+
+    /// <summary>UserName is the email address here, so greet people by something they'd recognise.</summary>
+    private static string DisplayNameFor(ApplicationUser user)
+        => !string.IsNullOrWhiteSpace(user.DisplayName) ? user.DisplayName!
+         : !string.IsNullOrWhiteSpace(user.Handle) ? user.Handle!
+         : "there";
 }

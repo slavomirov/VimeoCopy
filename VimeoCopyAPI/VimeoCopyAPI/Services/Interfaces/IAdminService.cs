@@ -65,14 +65,21 @@ public interface IAdminService
     /// </summary>
     Task<PagedResultDTO<AdminMediaDTO>> SearchMediaAsync(string? query, string? ownerId, string? visibility, int skip, int take);
 
-    /// <summary>Hides a file from the gallery and from direct access, or restores it.</summary>
+    /// <summary>
+    /// Hides a file from the gallery and from direct access, or restores it. Emails the owner on a
+    /// real transition in either direction — a takedown they are not told about looks like a bug in
+    /// the site, and a restore they are not told about leaves them checking.
+    /// </summary>
     Task<AdminMediaDTO> SetMediaVisibilityAsync(string actorId, string mediaId, AdminMediaVisibilityDTO dto);
 
     /// <summary>Forces the download flag off (or on) over the owner's head.</summary>
     Task<AdminMediaDTO> SetMediaDownloadableAsync(string actorId, string mediaId, AdminSetFlagDTO dto);
 
-    /// <summary>Removes a file for good — bucket objects included — and refunds the owner.</summary>
-    Task DeleteMediaAsync(string actorId, string mediaId);
+    /// <summary>
+    /// Removes a file for good — bucket objects included — refunds the owner, and tells them it
+    /// happened. The mail goes out only after the delete succeeds.
+    /// </summary>
+    Task DeleteMediaAsync(string actorId, string mediaId, string? reason);
 
     Task<IEnumerable<AdminPlanDTO>> GetPlansAsync();
 

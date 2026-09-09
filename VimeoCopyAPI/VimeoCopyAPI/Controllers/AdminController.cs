@@ -105,11 +105,15 @@ public class AdminController : ControllerBase
     public async Task<IActionResult> MediaDownloadable(string mediaId, [FromBody] AdminSetFlagDTO dto)
         => Ok(await _admin.SetMediaDownloadableAsync(ActorId, mediaId, dto));
 
-    /// <summary>Deletes the file and its bucket objects, and refunds the owner's quota.</summary>
+    /// <summary>
+    /// Deletes the file and its bucket objects, refunds the owner's quota, and emails them.
+    /// The reason travels as a query parameter because DELETE bodies are not reliably forwarded
+    /// by proxies and are ignored outright by some HTTP clients.
+    /// </summary>
     [HttpDelete("media/{mediaId}")]
-    public async Task<IActionResult> DeleteMedia(string mediaId)
+    public async Task<IActionResult> DeleteMedia(string mediaId, [FromQuery] string? reason)
     {
-        await _admin.DeleteMediaAsync(ActorId, mediaId);
+        await _admin.DeleteMediaAsync(ActorId, mediaId, reason);
         return Ok(new { message = "Media deleted." });
     }
 

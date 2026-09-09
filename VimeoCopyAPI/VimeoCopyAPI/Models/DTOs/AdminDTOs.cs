@@ -156,6 +156,13 @@ public class AdminMediaVisibilityDTO
 {
     public bool IsPublic { get; set; }
     public bool ShowOnMediaPage { get; set; }
+
+    /// <summary>
+    /// Why it was hidden. Goes to the owner in the notification email and into the audit log, so
+    /// it is worth writing: "we hid your file" with no reason is the message that generates a
+    /// support ticket. Ignored when the change makes a file public again.
+    /// </summary>
+    public string? Reason { get; set; }
 }
 
 public class AdminUpdatePlanDTO

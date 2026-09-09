@@ -256,6 +256,73 @@ namespace VimeoCopyAPI.Services
             _logger.LogInformation("Download request decision email sent (approved: {Approved}).", approved);
         }
 
+        public async Task SendMediaHiddenAsync(string ownerEmail, string ownerName, string fileName, string? reason)
+        {
+            var safeOwner = System.Net.WebUtility.HtmlEncode(ownerName);
+            var safeFile = System.Net.WebUtility.HtmlEncode(fileName);
+            var safeReason = string.IsNullOrWhiteSpace(reason)
+                ? null
+                : System.Net.WebUtility.HtmlEncode(reason).Replace("\n", "<br>");
+
+            // What the owner needs to know, in order: the file is not gone, it is not visible, and
+            // this was us rather than a fault of theirs to debug. A takedown with no explanation
+            // reads as a bug, and they open a support ticket about a working system.
+            var body = BuildEmailTemplate($@"
+                <h1>Hello {safeOwner},</h1>
+                <p>We've made <strong>{safeFile}</strong> private. It is no longer visible in the
+                   gallery or on your public profile.</p>
+                {(safeReason is null ? "" : $"<p><strong>Reason:</strong> {safeReason}</p>")}
+                <p>The file itself is untouched — it's still in your library, and it still counts
+                   towards your storage. Nothing was deleted.</p>
+                <p>If you think this is a mistake, <strong><a href='{_frontendOrigin}/contact'>get in
+                   touch</a></strong> and we'll take another look.</p>
+            ");
+
+            await SendEmailAsync(ownerEmail, $"Your file was made private — {fileName}", body);
+            _logger.LogInformation("Media-hidden email sent to the owner of {FileName}.", fileName);
+        }
+
+        public async Task SendMediaRestoredAsync(string ownerEmail, string ownerName, string fileName)
+        {
+            var safeOwner = System.Net.WebUtility.HtmlEncode(ownerName);
+            var safeFile = System.Net.WebUtility.HtmlEncode(fileName);
+
+            // The counterpart matters as much as the takedown: somebody told they were hidden and
+            // never told they were restored has to keep checking to find out.
+            var body = BuildEmailTemplate($@"
+                <h1>Hello {safeOwner},</h1>
+                <p><strong>{safeFile}</strong> is public again and back in the gallery.</p>
+                <p>Thanks for your patience.</p>
+            ");
+
+            await SendEmailAsync(ownerEmail, $"Your file is public again — {fileName}", body);
+            _logger.LogInformation("Media-restored email sent to the owner of {FileName}.", fileName);
+        }
+
+        public async Task SendMediaDeletedAsync(string ownerEmail, string ownerName, string fileName, string? reason)
+        {
+            var safeOwner = System.Net.WebUtility.HtmlEncode(ownerName);
+            var safeFile = System.Net.WebUtility.HtmlEncode(fileName);
+            var safeReason = string.IsNullOrWhiteSpace(reason)
+                ? null
+                : System.Net.WebUtility.HtmlEncode(reason).Replace("\n", "<br>");
+
+            // Said plainly, because it cannot be walked back. The one useful thing left to tell them
+            // is that the storage came back, so their quota reading is not a second mystery.
+            var body = BuildEmailTemplate($@"
+                <h1>Hello {safeOwner},</h1>
+                <p><strong>{safeFile}</strong> has been removed from Ferry.</p>
+                {(safeReason is null ? "" : $"<p><strong>Reason:</strong> {safeReason}</p>")}
+                <p>This one can't be undone — the file and its preview are gone from our storage.
+                   The space it used has been returned to your quota.</p>
+                <p>If you believe this was a mistake, <strong><a href='{_frontendOrigin}/contact'>get
+                   in touch</a></strong>.</p>
+            ");
+
+            await SendEmailAsync(ownerEmail, $"Your file was removed — {fileName}", body);
+            _logger.LogInformation("Media-deleted email sent to the former owner of {FileName}.", fileName);
+        }
+
         private async Task SendEmailAsync(string recipientEmail, string subject, string htmlBody, string? replyTo = null)
         {
             if (_emailProvider.Equals("Resend", StringComparison.OrdinalIgnoreCase))

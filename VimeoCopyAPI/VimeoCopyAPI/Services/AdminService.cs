@@ -27,6 +27,7 @@ public class AdminService : IAdminService
     private readonly IMediaService _mediaService;
     private readonly IAmazonS3 _s3;
     private readonly string? _bucket;
+    private readonly IEmailService _email;
     private readonly ILogger<AdminService> _logger;
 
     private const int MaxPageSize = 100;
@@ -43,6 +44,7 @@ public class AdminService : IAdminService
         IMediaService mediaService,
         IAmazonS3 s3,
         IConfiguration config,
+        IEmailService email,
         ILogger<AdminService> logger)
     {
         _db = db;
@@ -51,6 +53,7 @@ public class AdminService : IAdminService
         _mediaService = mediaService;
         _s3 = s3;
         _bucket = config["AWS:BucketName"];
+        _email = email;
         _logger = logger;
     }
 
@@ -450,13 +453,24 @@ public class AdminService : IAdminService
     {
         var media = await FindMediaAsync(mediaId);
 
+        var wasHidden = !media.IsPublic;
         var before = Describe(media.IsPublic, media.ShowOnMediaPage);
         media.IsPublic = dto.IsPublic;
         media.ShowOnMediaPage = dto.ShowOnMediaPage;
         await _db.SaveChangesAsync();
 
         await LogAsync(actorId, AdminAction.MediaVisibility, "Media", media.Id.ToString(), media.FileName,
-            before + " → " + Describe(dto.IsPublic, dto.ShowOnMediaPage) + " (owner: " + media.User?.Email + ")");
+            before + " → " + Describe(dto.IsPublic, dto.ShowOnMediaPage) + ReasonSuffix(dto.Reason)
+            + " (owner: " + media.User?.Email + ")");
+
+        // Only on a real transition. Saving the row twice with the same flags — which the UI can do
+        // by toggling ShowOnMediaPage alone — must not mail the owner a takedown notice again.
+        if (!wasHidden && !dto.IsPublic)
+            await NotifyOwnerAsync(media, e => e.SendMediaHiddenAsync(
+                media.User!.Email!, DisplayNameFor(media.User), FileLabel(media), dto.Reason));
+        else if (wasHidden && dto.IsPublic)
+            await NotifyOwnerAsync(media, e => e.SendMediaRestoredAsync(
+                media.User!.Email!, DisplayNameFor(media.User), FileLabel(media)));
 
         return ToDto(media, await PendingReportsAsync(media.Id));
     }
@@ -474,19 +488,30 @@ public class AdminService : IAdminService
         return ToDto(media, await PendingReportsAsync(media.Id));
     }
 
-    public async Task DeleteMediaAsync(string actorId, string mediaId)
+    public async Task DeleteMediaAsync(string actorId, string mediaId, string? reason)
     {
         var media = await FindMediaAsync(mediaId);
         var label = media.FileName;
-        var owner = media.User?.Email;
         var size = media.FileSize;
+
+        // Everything the notification needs is read now. After the delete the row is gone, and with
+        // it the address to send to and the name to greet.
+        var ownerEmail = media.User?.Email;
+        var ownerName = media.User is null ? "there" : DisplayNameFor(media.User);
+        var fileLabel = FileLabel(media);
 
         // Logged first, for the same reason as deleting an account: afterwards the file name and
         // the owner are gone and there is nothing left to write down.
         await LogAsync(actorId, AdminAction.DeleteMedia, "Media", media.Id.ToString(), label,
-            Bytes(size) + " deleted permanently (owner: " + owner + ")");
+            Bytes(size) + " deleted permanently" + ReasonSuffix(reason) + " (owner: " + ownerEmail + ")");
 
         await _mediaService.DeleteMediaAsAdminAsync(mediaId);
+
+        // Only once the delete has actually succeeded. Mailing "your file is gone" before the fact
+        // and then failing leaves the owner looking for something that is still there.
+        if (!string.IsNullOrWhiteSpace(ownerEmail))
+            await TryMailAsync(() => _email.SendMediaDeletedAsync(ownerEmail, ownerName, fileLabel, reason),
+                "deletion", mediaId);
     }
 
     // ── Plans ──────────────────────────────────────────────
@@ -676,6 +701,43 @@ public class AdminService : IAdminService
 
     private static string Describe(bool isPublic, bool onGallery)
         => isPublic ? (onGallery ? "public" : "public, off gallery") : "private";
+
+    /// <summary>How to greet the owner. UserName is their email address here, so it is never used.</summary>
+    private static string DisplayNameFor(ApplicationUser user)
+        => !string.IsNullOrWhiteSpace(user.DisplayName) ? user.DisplayName!
+         : !string.IsNullOrWhiteSpace(user.Handle) ? user.Handle!
+         : "there";
+
+    /// <summary>What to call the file in a mail. Untitled uploads still need naming in a sentence.</summary>
+    private static string FileLabel(Media media)
+        => string.IsNullOrWhiteSpace(media.FileName) ? "an untitled file" : media.FileName!;
+
+    /// <summary>Mails the owner about a change already made to their file, if we can reach them.</summary>
+    private async Task NotifyOwnerAsync(Media media, Func<IEmailService, Task> send)
+    {
+        if (string.IsNullOrWhiteSpace(media.User?.Email)) return;
+        await TryMailAsync(() => send(_email), "visibility change", media.Id.ToString());
+    }
+
+    /// <summary>
+    /// Sends, and swallows a failure.
+    ///
+    /// The moderation decision is already committed by the time this runs, so throwing would report
+    /// failure for an action that succeeded — and the caller would very likely retry it, hiding the
+    /// file twice and mailing twice. A mail provider being down is a logged problem, not a reason to
+    /// leave harmful media up.
+    /// </summary>
+    private async Task TryMailAsync(Func<Task> send, string what, string mediaId)
+    {
+        try
+        {
+            await send();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Could not email the owner about the {What} of media {MediaId}.", what, mediaId);
+        }
+    }
 
     private static AdminUserDTO ToDto(ApplicationUser u, List<string> roles, int mediaCount) => new()
     {

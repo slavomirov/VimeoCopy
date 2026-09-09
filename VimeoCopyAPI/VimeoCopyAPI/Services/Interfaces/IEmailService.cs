@@ -26,4 +26,19 @@ public interface IEmailService
     /// from a request being declined in the first place — the same status, but not the same news.
     /// </summary>
     Task SendDownloadRequestDecisionAsync(string requesterEmail, string requesterName, string fileName, bool approved, bool revoked = false);
+
+    /// <summary>
+    /// Tells an owner that staff made one of their files private. The reason is staff-written free
+    /// text, so it is encoded rather than interpolated, like every other body here.
+    /// </summary>
+    Task SendMediaHiddenAsync(string ownerEmail, string ownerName, string fileName, string? reason);
+
+    /// <summary>The other half of the pair — a file that was hidden is visible again.</summary>
+    Task SendMediaRestoredAsync(string ownerEmail, string ownerName, string fileName);
+
+    /// <summary>
+    /// Tells a former owner their file is gone for good. Sent after the delete has succeeded, never
+    /// before: a mail promising a deletion that then failed is worse than no mail.
+    /// </summary>
+    Task SendMediaDeletedAsync(string ownerEmail, string ownerName, string fileName, string? reason);
 }
