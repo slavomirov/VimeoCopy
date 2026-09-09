@@ -30,6 +30,9 @@ public class MediaDTO
     public bool HasGif { get; set; }
     /// <summary>Whether the owner offers this file for download.</summary>
     public bool Downloadable { get; set; }
+
+    /// <summary>Whether this file is in the owner's showreel bundle.</summary>
+    public bool InShowreel { get; set; }
     public bool ShowOnMediaPage { get; set; }
     public string? Description { get; set; }
     public string? FileName { get; set; }

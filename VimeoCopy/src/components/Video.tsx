@@ -575,9 +575,8 @@ function DownloadAffordance({ media }: { media: PublicMedia }) {
   if (status === "Pending") {
     return (
       <span
-        className="media-download-btn"
+        className="media-download-btn is-waiting"
         title="The owner has been asked and hasn't answered yet"
-        style={{ cursor: "default" }}
         aria-label="Download request waiting for the owner"
       >
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -591,7 +590,7 @@ function DownloadAffordance({ media }: { media: PublicMedia }) {
   return (
     <button
       type="button"
-      className="media-download-btn"
+      className="media-download-btn is-request"
       // The card's own click opens the player, so this must not reach it.
       onClick={(e) => { e.stopPropagation(); openRequestDialog({ id: media.id, fileName: media.fileName }); }}
       title={status === "Denied"

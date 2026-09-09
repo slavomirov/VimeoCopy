@@ -16,16 +16,19 @@ public partial class ProfileService : IProfileService
     private readonly AppDbContext _db;
     private readonly IAmazonS3 _s3;
     private readonly IUserService _userService;
+    private readonly IMediaService _media;
     private readonly string? _bucket;
 
     private static readonly string[] AllowedProfileImageTypes = ["image/jpeg", "image/png", "image/webp"];
     private const long MaxProfileImageBytes = 10 * 1024 * 1024;
 
-    public ProfileService(AppDbContext db, IAmazonS3 s3, IUserService userService, IConfiguration config)
+    public ProfileService(
+        AppDbContext db, IAmazonS3 s3, IUserService userService, IMediaService media, IConfiguration config)
     {
         _db = db;
         _s3 = s3;
         _userService = userService;
+        _media = media;
         _bucket = config["AWS:BucketName"];
     }
 
@@ -83,8 +86,32 @@ public partial class ProfileService : IProfileService
             });
         }
 
+        // Downloads, resolved once for the whole page. The plan gate decides whether anything is
+        // offered at all, and the viewer's own request rows decide what each button says — pulled
+        // in one query rather than per tile, which is what made the gallery need a shared context.
+        var downloadsEnabled = await _media.PlanAllowsDownloadsAsync(user.Id);
+
+        var myRequests = viewerUserId is null
+            ? []
+            : await _db.DownloadRequests.AsNoTracking()
+                .Where(r => r.OwnerUserId == user.Id && r.RequesterUserId == viewerUserId)
+                .GroupBy(r => new { r.MediaId, r.Kind })
+                .Select(g => new { g.Key.MediaId, g.Key.Kind, Status = g.OrderByDescending(x => x.Id).First().Status })
+                .ToListAsync();
+
+        var perFileStatus = myRequests
+            .Where(r => r.Kind == DownloadRequestKind.Media && r.MediaId != null)
+            .ToDictionary(r => r.MediaId!.Value, r => r.Status);
+
+        var showreel = works.Where(m => m.InShowreel).ToList();
+
         var dto = new PublicProfileDTO
         {
+            DownloadsEnabled = downloadsEnabled,
+            ShowreelCount = downloadsEnabled ? showreel.Count : 0,
+            ShowreelBytes = downloadsEnabled ? showreel.Sum(m => m.FileSize) : 0,
+            ShowreelRequestStatus = myRequests
+                .FirstOrDefault(r => r.Kind == DownloadRequestKind.Showreel)?.Status,
             // Always set: the profile is looked up BY this handle.
             Handle = user.Handle!,
             // Must never come back null: the client does displayName.charAt(0) for the avatar
@@ -113,6 +140,12 @@ public partial class ProfileService : IProfileService
                     UploadedAt = m.UploadedAt,
                     ProjectId = project?.Id,
                     ProjectTitle = project?.Title,
+                    // Mutually exclusive by construction, exactly as on the gallery: open to
+                    // everyone, or askable, or neither because the plan can't serve downloads.
+                    Downloadable = downloadsEnabled && m.Downloadable,
+                    DownloadRequestable = downloadsEnabled && !m.Downloadable,
+                    RequestStatus = perFileStatus.GetValueOrDefault(m.Id),
+                    InShowreel = m.InShowreel,
                 };
             }).ToList(),
             Albums = albums,

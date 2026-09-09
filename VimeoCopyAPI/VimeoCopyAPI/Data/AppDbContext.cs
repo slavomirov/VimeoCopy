@@ -121,6 +121,11 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<DownloadRequest>()
             .HasIndex(d => new { d.MediaId, d.RequesterUserId, d.Status });
 
+        // The showreel equivalent: "may this viewer download this owner's bundle". Showreel rows
+        // carry no MediaId, so the index above can't serve them.
+        modelBuilder.Entity<DownloadRequest>()
+            .HasIndex(d => new { d.OwnerUserId, d.RequesterUserId, d.Kind, d.Status });
+
         // The log is read newest-first and never filtered by anything else.
         modelBuilder.Entity<AdminAuditLog>()
             .HasIndex(a => a.CreatedAt);

@@ -667,3 +667,122 @@
   align-self: center;
   font-size: var(--font-size-sm);
 }
+
+/* ── Riding the site's backdrop ──
+ *
+ * When the artist opts in, the profile stops painting a page colour and the app's own animated sea
+ * shows through. The wrapper must go fully transparent for that: `--bg-base` is already set to
+ * `transparent` by the theme, but `.artist-profile` also needs its own fill dropped, and the cards
+ * inside it need the blur that makes translucent surfaces read as glass rather than as washed-out
+ * paint. */
+.artist-profile.uses-site-bg {
+  background: transparent;
+}
+
+.artist-profile.uses-site-bg .ap-work,
+.artist-profile.uses-site-bg .ap-album,
+.artist-profile.uses-site-bg .card {
+  backdrop-filter: blur(10px) saturate(1.1);
+  -webkit-backdrop-filter: blur(10px) saturate(1.1);
+}
+
+/* ── Showreel ──
+ *
+ * The one offer on the page that is about the artist's whole body of work rather than a single
+ * piece, so it gets a band of its own above the grid instead of a button lost among the tiles. */
+.ap-showreel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  max-width: var(--ap-width, 1200px);
+  margin: var(--space-8) auto 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+}
+
+.ap-showreel-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ap-showreel-text strong { font-family: var(--ap-heading-font, var(--font-family)); font-size: 1.05rem; }
+.ap-showreel-text span { font-size: 0.8rem; color: var(--gray-500); }
+
+/* ── Per-work download ──
+ *
+ * A label, not an icon. The gallery's icon-only version left "download this now" and "ask the
+ * owner first" looking identical, which is exactly the confusion worth spending a word to avoid. */
+.ap-work-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+}
+
+.ap-work-dl {
+  margin-left: auto;
+  padding: 3px 10px;
+  border-radius: var(--radius-full, 9999px);
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--gray-600);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.ap-work-dl.is-ask:hover,
+.ap-work-dl.is-open:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.08);
+}
+
+.ap-work-dl.is-open { color: var(--primary); border-color: var(--primary); }
+.ap-work-dl.is-waiting { cursor: default; opacity: 0.65; }
+
+.ap-work-showreel {
+  padding: 2px 8px;
+  border-radius: var(--radius-full, 9999px);
+  background: rgba(var(--primary-rgb), 0.12);
+  color: var(--primary);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Editor checkbox with an explanation ──
+ *
+ * The global input rule deliberately skips checkboxes (padding inflates them into rectangles), so
+ * the layout is done here: the box holds its size, the label sits beside it, and the reason to
+ * tick it sits under the label rather than in a tooltip nobody opens. */
+.ap-check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.ap-check input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.ap-check span { display: flex; flex-direction: column; gap: 2px; font-size: 0.9rem; }
+
+.ap-check em {
+  font-style: normal;
+  font-size: 0.78rem;
+  color: var(--gray-500);
+}

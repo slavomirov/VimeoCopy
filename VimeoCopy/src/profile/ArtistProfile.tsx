@@ -15,6 +15,8 @@ import { useBannerDrag } from "./useBannerDrag";
 import "../App.css";
 import "./artist-profile.css";
 
+type RequestStatus = "Pending" | "Approved" | "Denied";
+
 interface Work {
   id: string;
   fileName: string | null;
@@ -24,6 +26,13 @@ interface Work {
   uploadedAt: string;
   projectId: string | null;
   projectTitle: string | null;
+  /** Open to everyone. */
+  downloadable: boolean;
+  /** Askable — the artist could serve it but hasn't opened this one up. */
+  downloadRequestable: boolean;
+  /** This viewer's standing on this file, or null if they've never asked. */
+  requestStatus: RequestStatus | null;
+  inShowreel: boolean;
 }
 
 interface Album {
@@ -47,14 +56,28 @@ interface PublicProfile {
   bannerOffsetY: number;
   isOwner: boolean;
   themeJson: string | null;
+  downloadsEnabled: boolean;
+  showreelCount: number;
+  showreelBytes: number;
+  showreelRequestStatus: RequestStatus | null;
   works: Work[];
   albums: Album[];
+}
+
+function formatBytes(value: number) {
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let size = value;
+  let i = 0;
+  while (size >= 1024 && i < units.length - 1) { size /= 1024; i++; }
+  return `${size.toFixed(size >= 10 || Number.isInteger(size) ? 0 : 1)} ${units[i]}`;
 }
 
 export function ArtistProfile() {
   const { handle } = useParams<{ handle: string }>();
   const { accessToken, authFetch } = useAuth();
   const [profile, setProfile] = useState<PublicProfile | null>(null);
+  /** True while the showreel zip is being built and streamed, so the button can say so. */
+  const [zipping, setZipping] = useState(false);
   const [status, setStatus] = useState<"loading" | "ok" | "notfound">("loading");
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
@@ -231,6 +254,99 @@ export function ArtistProfile() {
     profile.isOwner === true && ownHandle !== null && ownHandle === profile.handle;
   const cssVars = themeToCssVars(theme);
 
+  /**
+   * Ask the artist for one file.
+   *
+   * The gallery routes this through a shared context because 24 tiles would otherwise each fetch
+   * their own state. Here the whole page arrived in one response with every work's status already
+   * on it, so the only thing needed after a successful ask is to patch the row in place.
+   */
+  async function requestWork(work: Work) {
+    if (!accessToken) { toast.error("Sign in to ask for a download."); return; }
+
+    const res = await authFetch(`${API_BASE_URL}/api/download-requests`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mediaId: work.id }),
+      silent: true,
+    });
+
+    const body = await res.json().catch(() => null);
+    if (!res.ok) { toast.error(body?.message ?? "Couldn't send that request."); return; }
+
+    setProfile((p) => p && {
+      ...p,
+      works: p.works.map((w) => (w.id === work.id ? { ...w, requestStatus: "Pending" } : w)),
+    });
+    toast.success("Asked — the artist has been emailed.");
+  }
+
+  /** Direct download of one open file. Same endpoint and same metering as the gallery's. */
+  async function downloadWork(work: Work) {
+    const res = await authFetch(`${API_BASE_URL}/api/media/${work.id}/download`, { silent: true });
+    const body = await res.json().catch(() => null);
+    if (!res.ok || !body?.url) {
+      toast.error(body?.message ?? "This file isn't available for download.");
+      return;
+    }
+    window.location.href = body.url;
+  }
+
+  async function requestShowreel() {
+    if (!accessToken) { toast.error("Sign in to ask for the showreel."); return; }
+
+    const res = await authFetch(`${API_BASE_URL}/api/download-requests/showreel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ handle: profile!.handle }),
+      silent: true,
+    });
+
+    const body = await res.json().catch(() => null);
+    if (!res.ok) { toast.error(body?.message ?? "Couldn't send that request."); return; }
+
+    setProfile((p) => p && { ...p, showreelRequestStatus: "Pending" });
+    toast.success("Asked — the artist has been emailed.");
+  }
+
+  /**
+   * Pull the zip.
+   *
+   * Fetched rather than navigated to, because the endpoint needs the bearer token and a plain
+   * link carries no headers. That means the archive lands in memory before it is saved, which is
+   * why the server caps a showreel's total size — this is not the path for a hundred gigabytes.
+   */
+  async function downloadShowreel() {
+    setZipping(true);
+    const toastId = toast.loading("Building the archive…");
+    try {
+      const res = await authFetch(
+        `${API_BASE_URL}/api/download-requests/showreel/${encodeURIComponent(profile!.handle)}/zip`,
+        { silent: true },
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message ?? "Couldn't build that archive.");
+      }
+
+      const blob = await res.blob();
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = `${profile!.handle}-showreel.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Revoked on the next tick — releasing it synchronously can cancel the save in some browsers.
+      setTimeout(() => URL.revokeObjectURL(href), 0);
+      toast.success("Downloaded", { id: toastId });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't build that archive.", { id: toastId });
+    } finally {
+      setZipping(false);
+    }
+  }
+
   const visibleWorks = selectedAlbum
     ? profile.works.filter((w) => w.projectId === selectedAlbum)
     : profile.works;
@@ -239,7 +355,10 @@ export function ArtistProfile() {
     : null;
 
   return (
-    <div className="artist-profile" style={cssVars}>
+    <div
+      className={`artist-profile${theme.useSiteBackground ? " uses-site-bg" : ""}`}
+      style={cssVars}
+    >
       {profile.bannerUrl && (
         <div
           className={`ap-banner ${repositioning ? "repositioning" : ""} ${bannerDrag.dragging ? "dragging" : ""}`}
@@ -367,6 +486,39 @@ export function ArtistProfile() {
         </>
       )}
 
+      {/* The showreel offer. Only shown when there is genuinely something to hand over: the
+          artist's plan can serve downloads and they have curated at least one file. */}
+      {profile.downloadsEnabled && profile.showreelCount > 0 && (
+        <div className="ap-showreel">
+          <div className="ap-showreel-text">
+            <strong>Showreel</strong>
+            <span>
+              {profile.showreelCount} file{profile.showreelCount === 1 ? "" : "s"}
+              {" · "}{formatBytes(profile.showreelBytes)}
+              {isOwner
+                ? " · this is what visitors receive"
+                : profile.showreelRequestStatus === "Approved"
+                  ? " · yours to download"
+                  : " · the artist decides who gets a copy"}
+            </span>
+          </div>
+
+          {isOwner || profile.showreelRequestStatus === "Approved" ? (
+            <button type="button" className="btn-primary" disabled={zipping} onClick={downloadShowreel}>
+              {zipping ? "Preparing…" : "Download as .zip"}
+            </button>
+          ) : profile.showreelRequestStatus === "Pending" ? (
+            <button type="button" className="btn-secondary" disabled>
+              Waiting for the artist
+            </button>
+          ) : (
+            <button type="button" className="btn-primary" onClick={requestShowreel}>
+              {profile.showreelRequestStatus === "Denied" ? "Ask again" : "Request the showreel"}
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="ap-section-head">
         <h2>{selectedAlbumTitle ?? "Works"}</h2>
         <div className="ap-section-actions">
@@ -391,6 +543,9 @@ export function ArtistProfile() {
               thumb={thumbs[w.id]}
               gif={gifs[w.id]}
               onOpen={() => openWork(w)}
+              isOwner={isOwner}
+              onRequest={() => requestWork(w)}
+              onDownload={() => downloadWork(w)}
             />
           ))}
         </div>
@@ -420,9 +575,57 @@ export function ArtistProfile() {
   );
 }
 
+/**
+ * The download affordance on a portfolio tile.
+ *
+ * Four states, and they must look like four different things — the gallery's version of this
+ * shipped as one indistinguishable circle for every state, which is precisely how a viewer ends up
+ * downloading a file when they meant to ask for it. Here the label says which one you are looking
+ * at, so there is nothing to misread.
+ */
+function WorkDownload({ work, onRequest, onDownload }: {
+  work: Work;
+  onRequest: () => void;
+  onDownload: () => void;
+}) {
+  // The card's own click opens the player, so none of these may reach it.
+  const stop = (fn: () => void) => (e: React.MouseEvent) => { e.stopPropagation(); fn(); };
+
+  if (work.downloadable || work.requestStatus === "Approved") {
+    return (
+      <button type="button" className="ap-work-dl is-open" onClick={stop(onDownload)}
+        title="Download the original file">
+        Download
+      </button>
+    );
+  }
+
+  if (!work.downloadRequestable) return null;
+
+  if (work.requestStatus === "Pending") {
+    return (
+      <span className="ap-work-dl is-waiting" title="The artist has been asked and hasn't answered yet">
+        Requested
+      </span>
+    );
+  }
+
+  return (
+    <button type="button" className="ap-work-dl is-ask" onClick={stop(onRequest)}
+      title={work.requestStatus === "Denied"
+        ? "The artist declined last time — you can ask again"
+        : "Ask the artist for the original file"}>
+      {work.requestStatus === "Denied" ? "Ask again" : "Request"}
+    </button>
+  );
+}
+
 function WorkTile({
-  work, url, thumb, gif, onOpen,
-}: { work: Work; url?: string; thumb?: string; gif?: string; onOpen: () => void }) {
+  work, url, thumb, gif, onOpen, isOwner, onRequest, onDownload,
+}: {
+  work: Work; url?: string; thumb?: string; gif?: string; onOpen: () => void;
+  isOwner: boolean; onRequest: () => void; onDownload: () => void;
+}) {
   const isImage = work.contentType.startsWith("image/");
   const isVideo = work.contentType.startsWith("video/");
   const isAudio = work.contentType.startsWith("audio/");
@@ -469,7 +672,11 @@ function WorkTile({
       <div className="ap-work-caption">
         <p className="ap-work-title">{work.fileName || "Untitled"}</p>
         {work.description && <p className="ap-work-desc">{work.description}</p>}
-        {work.projectTitle && <span className="ap-work-project">{work.projectTitle}</span>}
+        <div className="ap-work-foot">
+          {work.projectTitle && <span className="ap-work-project">{work.projectTitle}</span>}
+          {isOwner && work.inShowreel && <span className="ap-work-showreel">In showreel</span>}
+          {!isOwner && <WorkDownload work={work} onRequest={onRequest} onDownload={onDownload} />}
+        </div>
       </div>
     </div>
   );

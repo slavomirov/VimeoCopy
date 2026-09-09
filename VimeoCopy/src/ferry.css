@@ -1080,6 +1080,11 @@ textarea:focus-visible,
   z-index: 3;
   width: 30px;
   height: 30px;
+  /* The reset gives every <button> 12px/24px of padding, and with border-box that padding is a
+     FLOOR on the box, not a slice of it — exactly the trap documented on the checkbox rule in
+     index.css. 48px of horizontal padding inside a 30px box left the content area at zero and
+     crushed the icon out of existence, so the control rendered as a bare coloured tile. */
+  padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1091,6 +1096,37 @@ textarea:focus-visible,
   backdrop-filter: blur(4px);
   opacity: 0;
   transition: opacity 0.25s var(--ease-swell), background 0.2s ease, transform 0.2s ease;
+}
+
+/* A flex child with nothing to stop it will shrink to fit a squeezed line. Belt and braces. */
+.media-download-btn > svg { flex: 0 0 auto; }
+
+/* The three states are three different offers, so they must not look alike. Downloading now is
+   neutral; asking is the accent colour; waiting is dimmed and inert. Before this, every state was
+   the same dark circle and the only difference was inside an icon that wasn't rendering. */
+.media-download-btn.is-request {
+  background: rgba(var(--primary-rgb), 0.9);
+}
+
+.media-download-btn.is-request:hover {
+  background: var(--primary);
+}
+
+.media-download-btn.is-waiting {
+  background: rgba(0, 0, 0, 0.4);
+  color: rgba(255, 255, 255, 0.65);
+  cursor: default;
+}
+
+.media-download-btn.is-waiting:hover {
+  background: rgba(0, 0, 0, 0.4);
+  transform: none;
+}
+
+/* Asking and waiting are stateful, not decorative — they stay legible without a hover. */
+.media-download-btn.is-request,
+.media-download-btn.is-waiting {
+  opacity: 1;
 }
 
 /* Revealed on hover like the rest of the tile's affordances, but always present for keyboard use. */

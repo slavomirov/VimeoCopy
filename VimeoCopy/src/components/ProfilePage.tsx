@@ -25,6 +25,8 @@ interface Media {
   hasGif: boolean;
   /** Whether the owner offers this file for download. */
   downloadable: boolean;
+  /** Whether this file is in the showreel bundle visitors can request from the public profile. */
+  inShowreel: boolean;
   showOnMediaPage: boolean;
   description: string | null;
 }
@@ -77,6 +79,7 @@ export function ProfilePage() {
   /** Whether this account's plan includes downloads at all — decides toggle vs upsell. */
   const [downloadsAllowed, setDownloadsAllowed] = useState(false);
   const [downloadBusyId, setDownloadBusyId] = useState<string | null>(null);
+  const [showreelBusyId, setShowreelBusyId] = useState<string | null>(null);
   /** Shared with the sidebar shortcut. /u/{handle}, or null until a handle is claimed. */
   const { path: publicProfilePath } = useMyPublicProfile();
   const [shareLink, setShareLink] = useState<string | null>(null);
@@ -296,6 +299,44 @@ export function ProfilePage() {
     })();
     return () => { cancelled = true; };
   }, [authFetch]);
+
+  /**
+   * Put one file in the showreel, or take it out.
+   *
+   * Not plan-gated, unlike downloads: curating the set is useful on any plan, and it is only ever
+   * offered to visitors once the plan can actually serve it. The server refuses a private file,
+   * because a private work inside a bundle would leak to everyone the owner ever approves.
+   */
+  async function handleToggleShowreel(mediaId: string, current: boolean) {
+    setShowreelBusyId(mediaId);
+    try {
+      const res = await authFetch(`${API_BASE_URL}/api/media/${mediaId}/showreel`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inShowreel: !current }),
+        silent: true,
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message || "Couldn't change the showreel.");
+      }
+
+      toast.success(!current ? "Added to your showreel." : "Removed from your showreel.");
+      setUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              media: prev.media.map((m) => (m.id === mediaId ? { ...m, inShowreel: !current } : m)),
+            }
+          : prev
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to change the showreel");
+    } finally {
+      setShowreelBusyId(null);
+    }
+  }
 
   /** Offer one file for download, or stop offering it. The server re-checks the plan. */
   async function handleToggleDownloadable(mediaId: string, current: boolean) {
@@ -607,6 +648,8 @@ export function ProfilePage() {
                 downloadsAllowed={downloadsAllowed}
                 downloadBusy={downloadBusyId === m.id}
                 onToggleDownloadable={() => handleToggleDownloadable(m.id, m.downloadable)}
+                showreelBusy={showreelBusyId === m.id}
+                onToggleShowreel={() => handleToggleShowreel(m.id, m.inShowreel)}
                 onGenerateGif={() => handleGenerateGif(m.id)}
                 onRemoveGif={() => handleRemoveGif(m.id)}
                 gifBusy={gifBusyId === m.id}
@@ -834,6 +877,8 @@ function MediaItem({
   downloadsAllowed,
   downloadBusy,
   onToggleDownloadable,
+  showreelBusy,
+  onToggleShowreel,
   onGenerateGif,
   onRemoveGif,
   gifBusy,
@@ -860,6 +905,8 @@ function MediaItem({
   downloadsAllowed: boolean;
   downloadBusy: boolean;
   onToggleDownloadable: () => void;
+  showreelBusy: boolean;
+  onToggleShowreel: () => void;
   onGenerateGif: () => void;
   onRemoveGif: () => void;
   gifBusy: boolean;
@@ -1098,6 +1145,26 @@ function MediaItem({
             <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
           {downloadBusy ? "…" : media.downloadable ? "Downloads on" : "Downloads off"}
+        </button>
+        {/* Showreel membership. Deliberately NOT plan-gated — an artist can build the set on any
+            plan; it simply isn't offered to visitors until the plan can serve downloads. Only
+            public files may join, so the control explains itself rather than failing on click. */}
+        <button
+          onClick={media.isPublic ? onToggleShowreel : undefined}
+          className={media.inShowreel ? "btn-secondary" : "btn-outline"}
+          disabled={!media.isPublic || showreelBusy}
+          title={
+            !media.isPublic
+              ? "Make this file public before adding it to your showreel."
+              : media.inShowreel
+                ? "In the bundle visitors can request. Click to take it out."
+                : "Add this to the showreel bundle visitors can request."
+          }
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: "4px", verticalAlign: "middle" }}>
+            <path d="M21 8v13H3V8" /><rect x="1" y="3" width="22" height="5" /><line x1="10" y1="12" x2="14" y2="12" />
+          </svg>
+          {showreelBusy ? "…" : media.inShowreel ? "In showreel" : "Add to showreel"}
         </button>
         <button onClick={onDelete} className="btn-danger" disabled={deleting}>
           Delete

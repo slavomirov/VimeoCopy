@@ -29,6 +29,25 @@ public class PublicProfileDTO
     /// <summary>Raw theme-token JSON the client applies as CSS variables (null = default theme).</summary>
     public string? ThemeJson { get; set; }
 
+    // ── Downloads ──────────────────────────────────────────
+    /// <summary>
+    /// Whether this artist's plan lets them serve downloads at all. Resolved server-side, like the
+    /// gallery's flags, so the page never has to reason about tiers.
+    /// </summary>
+    public bool DownloadsEnabled { get; set; }
+
+    /// <summary>How many files the artist has put in their showreel. Zero means don't offer it.</summary>
+    public int ShowreelCount { get; set; }
+
+    /// <summary>Total size of the showreel, so a visitor knows what they are about to ask for.</summary>
+    public long ShowreelBytes { get; set; }
+
+    /// <summary>
+    /// This viewer's standing with the showreel: null (never asked), "Pending", "Approved" or
+    /// "Denied". Null for a signed-out visitor, who has to sign in before they can ask.
+    /// </summary>
+    public string? ShowreelRequestStatus { get; set; }
+
     public List<ProfileWorkDTO> Works { get; set; } = [];
 
     /// <summary>Projects (albums) that the artist's public works belong to.</summary>
@@ -60,6 +79,18 @@ public class ProfileWorkDTO
     public DateTime UploadedAt { get; set; }
     public Guid? ProjectId { get; set; }
     public string? ProjectTitle { get; set; }
+
+    /// <summary>Open to everyone — the artist flagged this one file as downloadable.</summary>
+    public bool Downloadable { get; set; }
+
+    /// <summary>Askable: the artist could serve it, but hasn't opened this one up.</summary>
+    public bool DownloadRequestable { get; set; }
+
+    /// <summary>This viewer's request status for this file, or null if they've never asked.</summary>
+    public string? RequestStatus { get; set; }
+
+    /// <summary>Whether it is part of the showreel. Shown to the owner as a curation cue.</summary>
+    public bool InShowreel { get; set; }
 }
 
 /// <summary>Lightweight card returned by artist search.</summary>

@@ -119,6 +119,109 @@ public class DownloadRequestService : IDownloadRequestService
         return await ToDtoAsync(request);
     }
 
+    public async Task<DownloadRequestDTO> CreateShowreelAsync(string requesterUserId, CreateShowreelRequestDTO dto)
+    {
+        var handle = dto.Handle?.Trim();
+        if (string.IsNullOrWhiteSpace(handle)) throw new ValidationException("No artist given.");
+
+        var owner = await _db.Users.AsNoTracking()
+            .Where(u => u.Handle == handle)
+            .Select(u => new { u.Id, u.IsProfilePublic })
+            .FirstOrDefaultAsync()
+            ?? throw new NotFoundException("No artist with that handle.");
+
+        // A hidden profile is not reachable, so it must not be reachable by asking either.
+        if (!owner.IsProfilePublic) throw new NotFoundException("No artist with that handle.");
+
+        if (owner.Id == requesterUserId)
+            throw new ValidationException("This is your own showreel — you can download it from your profile.");
+
+        if (!await _mediaService.PlanAllowsDownloadsAsync(owner.Id))
+            throw new ForbiddenException("This creator's plan doesn't offer file downloads.");
+
+        // Nothing curated means nothing to grant. Approving an empty showreel would hand over a zip
+        // with no files in it, which reads as a broken download rather than as an empty portfolio.
+        var count = await _db.Media.CountAsync(m => m.UserId == owner.Id && m.InShowreel && !m.IsProfileAsset);
+        if (count == 0)
+            throw new ValidationException("This artist hasn't put a showreel together yet.");
+
+        var existing = await _db.DownloadRequests
+            .OrderByDescending(r => r.Id)
+            .FirstOrDefaultAsync(r => r.OwnerUserId == owner.Id
+                                   && r.RequesterUserId == requesterUserId
+                                   && r.Kind == DownloadRequestKind.Showreel);
+
+        if (existing is not null && existing.Status != DownloadRequestStatus.Denied)
+            return await ToDtoAsync(existing);
+
+        // Same cooling-off period as a single file. Asking for everything is if anything the more
+        // annoying one to be asked twice.
+        if (existing is not null
+            && existing.DecidedAt is { } deniedAt
+            && deniedAt > DateTime.UtcNow - DenialCooldown)
+        {
+            var days = Math.Max(1, (int)Math.Ceiling((deniedAt + DenialCooldown - DateTime.UtcNow).TotalDays));
+            throw new ValidationException(
+                $"The artist declined this recently. You can ask again in {days} day{(days == 1 ? "" : "s")}.");
+        }
+
+        var since = DateTime.UtcNow.AddDays(-1);
+        var todayCount = await _db.DownloadRequests
+            .CountAsync(r => r.RequesterUserId == requesterUserId && r.CreatedAt >= since);
+        if (todayCount >= MaxRequestsPerDay)
+            throw new ValidationException("You've made a lot of download requests today. Try again tomorrow.");
+
+        var request = new DownloadRequest
+        {
+            MediaId = null,
+            Kind = DownloadRequestKind.Showreel,
+            RequesterUserId = requesterUserId,
+            OwnerUserId = owner.Id,
+            Status = DownloadRequestStatus.Pending,
+            Message = Trim(dto.Message),
+            CreatedAt = DateTime.UtcNow,
+        };
+
+        _db.DownloadRequests.Add(request);
+        await _db.SaveChangesAsync();
+
+        await NotifyOwnerAsync(request, media: null);
+
+        return await ToDtoAsync(request);
+    }
+
+    public Task<bool> HasApprovedShowreelAsync(string ownerUserId, string viewerUserId)
+        => _db.DownloadRequests.AsNoTracking().AnyAsync(r =>
+            r.OwnerUserId == ownerUserId
+            && r.RequesterUserId == viewerUserId
+            && r.Kind == DownloadRequestKind.Showreel
+            && r.Status == DownloadRequestStatus.Approved);
+
+    public async Task<(string OwnerUserId, string FileName)> ResolveShowreelOwnerAsync(
+        string handle, string viewerUserId)
+    {
+        var owner = await _db.Users.AsNoTracking()
+            .Where(u => u.Handle == handle)
+            .Select(u => new { u.Id, u.Handle, u.DisplayName })
+            .FirstOrDefaultAsync()
+            ?? throw new NotFoundException("No artist with that handle.");
+
+        // The owner always gets their own, grant or no grant. Everyone else needs a live approval,
+        // and the owner's plan still has to include downloads — a lapsed plan revokes the ability
+        // to serve the bundle even though the approval row is still sitting there saying yes.
+        if (owner.Id != viewerUserId)
+        {
+            if (!await HasApprovedShowreelAsync(owner.Id, viewerUserId))
+                throw new ForbiddenException("You don't have permission to download this showreel.");
+
+            if (!await _mediaService.PlanAllowsDownloadsAsync(owner.Id))
+                throw new ForbiddenException("This creator's plan no longer offers file downloads.");
+        }
+
+        var stem = owner.Handle ?? "showreel";
+        return (owner.Id, $"{stem}-showreel.zip");
+    }
+
     public async Task<IEnumerable<DownloadRequestDTO>> GetIncomingAsync(string ownerUserId)
         => await QueryAsync(r => r.OwnerUserId == ownerUserId);
 
@@ -179,36 +282,46 @@ public class DownloadRequestService : IDownloadRequestService
     private async Task<IEnumerable<DownloadRequestDTO>> QueryAsync(
         System.Linq.Expressions.Expression<Func<DownloadRequest, bool>> predicate)
     {
-        // Joins first, then sort, then cap — one SELECT with two joins, an ORDER BY and a TOP.
-        // Sorting before the joins would push the ordering into a subquery for no benefit.
-        // Pending first, because those are the rows with work in them; newest next.
-        return await _db.DownloadRequests.AsNoTracking()
-            .Where(predicate)
-            .Join(_db.Media.AsNoTracking(), r => r.MediaId, m => m.Id, (r, m) => new { r, m })
-            .Join(_db.Users.AsNoTracking(), x => x.r.RequesterUserId, u => u.Id, (x, requester) => new { x.r, x.m, requester })
-            .OrderBy(x => x.r.Status == DownloadRequestStatus.Pending ? 0 : 1)
-            .ThenByDescending(x => x.r.CreatedAt)
-            .Take(200)
-            .Join(_db.Users.AsNoTracking(), x => x.r.OwnerUserId, u => u.Id, (x, owner) => new DownloadRequestDTO
+        // The join onto Media is a LEFT join, and that is the whole reason this is query syntax
+        // rather than the fluent chain it used to be: a showreel row carries no MediaId, and an
+        // inner join silently drops every one of them — the request would be created, emailed, and
+        // then be invisible in both inboxes.
+        var rows =
+            from r in _db.DownloadRequests.AsNoTracking().Where(predicate)
+            join mj in _db.Media.AsNoTracking() on r.MediaId equals (Guid?)mj.Id into mg
+            from m in mg.DefaultIfEmpty()
+            join requester in _db.Users.AsNoTracking() on r.RequesterUserId equals requester.Id
+            join owner in _db.Users.AsNoTracking() on r.OwnerUserId equals owner.Id
+            // Pending first, because those are the rows with work in them; newest next.
+            orderby (r.Status == DownloadRequestStatus.Pending ? 0 : 1), r.CreatedAt descending
+            select new DownloadRequestDTO
             {
-                Id = x.r.Id,
-                MediaId = x.r.MediaId,
-                FileName = x.m.FileName,
-                ContentType = x.m.ContentType,
-                FileSize = x.m.FileSize,
-                HasThumbnail = x.m.ThumbnailUrl != null,
+                Id = r.Id,
+                MediaId = r.MediaId,
+                Kind = r.Kind,
+                // Counted live rather than stored on the row: the showreel is whatever the owner
+                // has curated at the moment it is downloaded, so a count frozen at request time
+                // would disagree with what the zip actually contains.
+                ShowreelCount = r.Kind == DownloadRequestKind.Showreel
+                    ? _db.Media.Count(sm => sm.UserId == r.OwnerUserId && sm.InShowreel && !sm.IsProfileAsset)
+                    : 0,
+                FileName = m != null ? m.FileName : null,
+                ContentType = m != null ? m.ContentType : null,
+                FileSize = m != null ? m.FileSize : 0,
+                HasThumbnail = m != null && m.ThumbnailUrl != null,
                 // Public identity only. These lists are shown to the other party, so the email
                 // address stays out of them — same rule as the public media DTO.
-                RequesterName = x.requester.DisplayName ?? x.requester.Handle ?? "A viewer",
-                RequesterHandle = x.requester.Handle,
+                RequesterName = requester.DisplayName ?? requester.Handle ?? "A viewer",
+                RequesterHandle = requester.Handle,
                 OwnerName = owner.DisplayName ?? owner.Handle ?? "The owner",
                 OwnerHandle = owner.Handle,
-                Status = x.r.Status,
-                Message = x.r.Message,
-                CreatedAt = x.r.CreatedAt,
-                DecidedAt = x.r.DecidedAt,
-            })
-            .ToListAsync();
+                Status = r.Status,
+                Message = r.Message,
+                CreatedAt = r.CreatedAt,
+                DecidedAt = r.DecidedAt,
+            };
+
+        return await rows.Take(200).ToListAsync();
     }
 
     private async Task<DownloadRequestDTO> ToDtoAsync(DownloadRequest request)
@@ -219,7 +332,7 @@ public class DownloadRequestService : IDownloadRequestService
     /// saved and visible on their Requests page, so a mail provider having a bad day must not turn
     /// a successful request into an error for the person who made it.
     /// </summary>
-    private async Task NotifyOwnerAsync(DownloadRequest request, Media media)
+    private async Task NotifyOwnerAsync(DownloadRequest request, Media? media)
     {
         try
         {
@@ -239,7 +352,11 @@ public class DownloadRequestService : IDownloadRequestService
                 owner.Email,
                 owner.DisplayName ?? owner.Handle ?? "there",
                 requester?.DisplayName ?? requester?.Handle ?? "A viewer",
-                media.FileName ?? "one of your files",
+                // A showreel request has no file behind it, so it is named by what it actually
+                // asks for. The owner reading this needs to know it is the whole set, not one item.
+                request.Kind == DownloadRequestKind.Showreel
+                    ? "your showreel (all of your selected files)"
+                    : media?.FileName ?? "one of your files",
                 request.Message);
         }
         catch (Exception ex)
@@ -268,7 +385,9 @@ public class DownloadRequestService : IDownloadRequestService
             await _emailService.SendDownloadRequestDecisionAsync(
                 requester.Email,
                 requester.DisplayName ?? requester.Handle ?? "there",
-                fileName ?? "the file you asked about",
+                request.Kind == DownloadRequestKind.Showreel
+                    ? "the showreel you asked for"
+                    : fileName ?? "the file you asked about",
                 approved,
                 revoked);
         }

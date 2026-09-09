@@ -418,6 +418,29 @@ export function ArtistProfileEditor() {
                   ))}
                 </div>
               </div>
+
+              {/* Backdrop. A checkbox rather than a seventh preset, because it is orthogonal to
+                  every other choice — any palette, font and corner style can ride the site's sea.
+                  The background swatch above stays enabled on purpose: it is what the translucent
+                  cards are tinted with, so it still does something, and unticking this brings the
+                  artist back to exactly the flat colour they had. */}
+              <div className="ap-field" style={{ marginTop: "var(--space-5)", marginBottom: 0 }}>
+                <label>Backdrop</label>
+                <label className="ap-check">
+                  <input
+                    type="checkbox"
+                    checked={theme.useSiteBackground === true}
+                    onChange={(e) => setThemeField("useSiteBackground", e.target.checked)}
+                  />
+                  <span>
+                    Use the site's animated sea
+                    <em>
+                      Drops your page colour and lets Ferry's own backdrop show through. Cards go
+                      translucent so it reads as glass rather than a hole in the page.
+                    </em>
+                  </span>
+                </label>
+              </div>
             </div>
           </div>
         </div>

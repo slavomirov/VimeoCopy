@@ -33,3 +33,9 @@ public class SetDownloadableDTO
 {
     public bool Downloadable { get; set; }
 }
+
+/// <summary>Owner's curation of the showreel bundle, one file at a time.</summary>
+public class SetInShowreelDTO
+{
+    public bool InShowreel { get; set; }
+}

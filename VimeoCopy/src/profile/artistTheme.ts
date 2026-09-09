@@ -33,6 +33,19 @@ export interface ArtistTheme {
   radius: RadiusStyle;
   /** "solid" = flat bg color · "banner" = stretch the banner image as the hero backdrop. */
   backgroundKind: "solid" | "banner";
+
+  /**
+   * Let the site's own animated sea show through instead of painting `bg`.
+   *
+   * Optional, and absent means false, so every theme saved before this existed keeps its solid
+   * background rather than silently becoming transparent.
+   *
+   * The profile still owns its accent, fonts, corners and text colours — only the backdrop is
+   * given up. Surfaces go translucent to match, because opaque cards floating on the sea read as
+   * holes punched in it; that translucency is why `surface` still matters here even though it is
+   * no longer painted flat.
+   */
+  useSiteBackground?: boolean;
 }
 
 /* ── Fonts ─────────────────────────────────────────────
@@ -196,6 +209,14 @@ const RADIUS_MAP: Record<RadiusStyle, { sm: string; md: string; lg: string; xl: 
 export function themeToCssVars(theme: ArtistTheme): CSSProperties {
   const r = RADIUS_MAP[theme.radius];
   const accentRgb = hexToRgbString(theme.accent);
+  const surfaceRgb = hexToRgbString(theme.surface);
+
+  // Riding the site's backdrop means not painting over it. The page background is handed back to
+  // the app (the wrapper drops its own fill via .uses-site-bg) and surfaces become a tinted glass
+  // of the theme's own surface colour, so cards still read as the artist's while the sea moves
+  // behind them. 0.72 is the point where text stays comfortably legible over the animation.
+  const surface = theme.useSiteBackground ? `rgba(${surfaceRgb}, 0.72)` : theme.surface;
+
   return {
     // accent
     "--primary": theme.accent,
@@ -205,11 +226,13 @@ export function themeToCssVars(theme: ArtistTheme): CSSProperties {
     "--border-glow": `rgba(${accentRgb}, 0.35)`,
     "--btn-primary-text": pickContrastText(theme.accent),
     // surfaces
-    "--bg-base": theme.bg,
-    "--bg-deep": theme.bg,
-    "--bg-surface": theme.surface,
-    "--bg-card": theme.surface,
-    "--bg-elevated": theme.surface,
+    "--bg-base": theme.useSiteBackground ? "transparent" : theme.bg,
+    "--bg-deep": theme.useSiteBackground ? "transparent" : theme.bg,
+    "--bg-surface": surface,
+    "--bg-card": surface,
+    "--bg-elevated": surface,
+    // Inputs stay opaque whatever the backdrop does — a text field you can see moving water
+    // through is the one surface where translucency actively costs legibility.
     "--bg-input": theme.surface,
     "--border-color": theme.border,
     // text

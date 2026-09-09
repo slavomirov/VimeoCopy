@@ -57,8 +57,24 @@ public interface IMediaService
     /// <summary>Owner-only: offer this file for download, or stop offering it. Plan-gated.</summary>
     public Task SetDownloadableAsync(string mediaId, string userId, bool downloadable);
 
+    /// <summary>Owner-only: add this file to the showreel bundle, or take it out.</summary>
+    public Task SetInShowreelAsync(string mediaId, string userId, bool inShowreel);
+
     /// <summary>Whether this user's plan includes file downloads.</summary>
     public Task<bool> PlanAllowsDownloadsAsync(string userId);
+
+    /// <summary>What is in an owner's showreel right now: file count and total bytes.</summary>
+    public Task<(int Count, long Bytes)> GetShowreelSizeAsync(string ownerUserId);
+
+    /// <summary>
+    /// Streams the owner's showreel into <paramref name="output"/> as a zip.
+    ///
+    /// Authorisation is the caller's — the controller checks for an approved showreel request, or
+    /// for the owner themselves. Bandwidth is charged to the OWNER, per file, exactly as playback
+    /// is: a bundle is the largest egress the platform serves and it cannot be the one path that
+    /// escapes metering.
+    /// </summary>
+    public Task WriteShowreelZipAsync(string ownerUserId, Stream output, CancellationToken ct = default);
 
     /// <summary>
     /// Metered presigned URL that saves the original file. Requires the file to be flagged

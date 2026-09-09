@@ -15,9 +15,13 @@ import "../App.css";
 
 interface DownloadRequestRow {
   id: number;
-  mediaId: string;
+  /** Null on a showreel row — that one asks for a set, not a file. */
+  mediaId: string | null;
+  kind: "Media" | "Showreel";
+  /** How many files are in the showreel right now. Showreel rows only. */
+  showreelCount: number;
   fileName: string | null;
-  contentType: string;
+  contentType: string | null;
   fileSize: number;
   hasThumbnail: boolean;
   requesterName: string;
@@ -36,6 +40,30 @@ function formatBytes(value: number) {
   let i = 0;
   while (size >= 1024 && i < units.length - 1) { size /= 1024; i++; }
   return `${size.toFixed(Number.isInteger(size) ? 0 : 1)} ${units[i]}`;
+}
+
+/**
+ * What this row is asking for, in one line.
+ *
+ * A showreel row has no file behind it, so every field the per-file layout reads is null. Naming it
+ * here keeps that branch in one place instead of scattering `row.kind ===` checks through the JSX.
+ */
+function describeTarget(row: DownloadRequestRow) {
+  if (row.kind === "Showreel") {
+    return `Showreel · ${row.showreelCount} file${row.showreelCount === 1 ? "" : "s"}`;
+  }
+  return row.fileName || "Untitled";
+}
+
+/**
+ * What the "busy" flag is keyed on.
+ *
+ * A media row is keyed by its file, a showreel row by the request itself — two showreel rows from
+ * different artists share no media id, so keying both on mediaId would leave showreel buttons
+ * either all spinning at once or none of them.
+ */
+function keyOf(row: DownloadRequestRow) {
+  return row.kind === "Showreel" ? `showreel:${row.id}` : row.mediaId ?? `row:${row.id}`;
 }
 
 function formatWhen(iso: string) {
@@ -118,6 +146,44 @@ export function RequestsPage() {
     }
   }
 
+  /**
+   * Pulls an approved showreel as a zip.
+   *
+   * Fetched rather than navigated to, because the endpoint needs the bearer token and a plain link
+   * carries no headers — which is also why the archive lands in memory before it is saved, and why
+   * the server caps a showreel's total size.
+   */
+  async function downloadShowreel(row: DownloadRequestRow) {
+    if (downloadingId || !row.ownerHandle) return;
+    setDownloadingId(keyOf(row));
+    const toastId = toast.loading("Building the archive…");
+    try {
+      const res = await authFetch(
+        `${API_BASE_URL}/api/download-requests/showreel/${encodeURIComponent(row.ownerHandle)}/zip`,
+        { silent: true },
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message || "Couldn't build that archive.");
+      }
+
+      const href = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = `${row.ownerHandle}-showreel.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Revoked on the next tick — releasing it synchronously cancels the save in some browsers.
+      setTimeout(() => URL.revokeObjectURL(href), 0);
+      toast.success("Downloaded", { id: toastId });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't build that archive.", { id: toastId });
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
   /** Same metered endpoint as everywhere else — the approval is what makes it answer. */
   async function download(mediaId: string) {
     if (downloadingId) return;
@@ -186,7 +252,7 @@ export function RequestsPage() {
                 >
                   <div style={{ flex: 1, minWidth: 220 }}>
                     <p style={{ fontWeight: 600, fontSize: "var(--font-size-sm)", marginBottom: 2 }}>
-                      {row.fileName || "Untitled"}
+                      {describeTarget(row)}
                     </p>
                     <p className="text-muted" style={{ fontSize: "var(--font-size-xs)", marginBottom: row.message ? 6 : 0 }}>
                       {row.requesterHandle ? (
@@ -194,8 +260,17 @@ export function RequestsPage() {
                       ) : (
                         row.requesterName
                       )}
-                      {" · "}{formatBytes(row.fileSize)}{" · "}{formatWhen(row.createdAt)}
+                      {/* A showreel has no single size worth quoting, and its contents change as
+                          the owner curates — so the row shows when it was asked and nothing else. */}
+                      {row.kind === "Media" && <>{" · "}{formatBytes(row.fileSize)}</>}
+                      {" · "}{formatWhen(row.createdAt)}
                     </p>
+                    {row.kind === "Showreel" && (
+                      <p className="text-muted" style={{ fontSize: "var(--font-size-xs)", marginBottom: row.message ? 6 : 0 }}>
+                        Approving lets them download everything in your showreel, as it stands at
+                        the moment they download it.
+                      </p>
+                    )}
                     {row.message && (
                       <p style={{ fontSize: "var(--font-size-xs)", marginBottom: 0, fontStyle: "italic" }}>
                         “{row.message}”
@@ -263,7 +338,7 @@ export function RequestsPage() {
                 >
                   <div style={{ flex: 1, minWidth: 220 }}>
                     <p style={{ fontWeight: 600, fontSize: "var(--font-size-sm)", marginBottom: 2 }}>
-                      {row.fileName || "Untitled"}
+                      {describeTarget(row)}
                     </p>
                     <p className="text-muted" style={{ fontSize: "var(--font-size-xs)", marginBottom: 0 }}>
                       {row.ownerHandle ? (
@@ -282,10 +357,14 @@ export function RequestsPage() {
                       <button
                         className="btn-primary"
                         style={{ fontSize: "var(--font-size-xs)", padding: "var(--space-1) var(--space-4)" }}
-                        onClick={() => download(row.mediaId)}
-                        disabled={downloadingId === row.mediaId}
+                        onClick={() => (row.kind === "Showreel"
+                          ? downloadShowreel(row)
+                          : row.mediaId && download(row.mediaId))}
+                        disabled={downloadingId === keyOf(row)}
                       >
-                        {downloadingId === row.mediaId ? "Starting…" : "Download"}
+                        {downloadingId === keyOf(row)
+                          ? (row.kind === "Showreel" ? "Preparing…" : "Starting…")
+                          : (row.kind === "Showreel" ? "Download .zip" : "Download")}
                       </button>
                     )}
                   </div>

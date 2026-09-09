@@ -11,6 +11,23 @@ public interface IDownloadRequestService
     /// </summary>
     Task<DownloadRequestDTO> CreateAsync(string requesterUserId, CreateDownloadRequestDTO dto);
 
+    /// <summary>
+    /// Asks an artist for their whole showreel. Same guards as a single file — plan, cooling-off,
+    /// daily cap — plus one of its own: an artist who has curated nothing has nothing to grant.
+    /// </summary>
+    Task<DownloadRequestDTO> CreateShowreelAsync(string requesterUserId, CreateShowreelRequestDTO dto);
+
+    /// <summary>Whether this viewer holds a live showreel grant from this owner.</summary>
+    Task<bool> HasApprovedShowreelAsync(string ownerUserId, string viewerUserId);
+
+    /// <summary>
+    /// Resolves a handle to the owner whose showreel this viewer may download, and the name to
+    /// save it under. Throws unless the viewer is the owner or holds an approved request — this is
+    /// the authorisation for the zip endpoint, kept next to the grant it reads rather than in the
+    /// controller, so nothing can stream a bundle without passing through it.
+    /// </summary>
+    Task<(string OwnerUserId, string FileName)> ResolveShowreelOwnerAsync(string handle, string viewerUserId);
+
     /// <summary>Requests for the caller's own media — the owner's inbox.</summary>
     Task<IEnumerable<DownloadRequestDTO>> GetIncomingAsync(string ownerUserId);
 

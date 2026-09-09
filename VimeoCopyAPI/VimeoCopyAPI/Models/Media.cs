@@ -79,6 +79,17 @@ public class Media
     /// </summary>
     public bool Downloadable { get; set; }
 
+    /// <summary>
+    /// Whether this file is part of the owner's showreel — the curated set a visitor can ask to
+    /// download in one go, as a portfolio or a CV.
+    ///
+    /// Separate from <see cref="Downloadable"/> on purpose. That flag says "anyone may take this
+    /// one file"; this one says "this belongs in the bundle I hand to a prospective client", and an
+    /// artist wants those to be different lists. A showreel is still gated behind an approved
+    /// request, so marking a file here gives nothing away by itself.
+    /// </summary>
+    public bool InShowreel { get; set; }
+
     /// <summary>Optional user-provided description for the media.</summary>
     [MaxLength(2000)]
     public string? Description { get; set; }

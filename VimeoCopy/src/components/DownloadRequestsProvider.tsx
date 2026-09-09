@@ -52,9 +52,13 @@ export function DownloadRequestsProvider({ children }: { children: ReactNode }) 
         ]);
 
         if (outgoingRes.ok) {
-          const rows: { mediaId: string; status: DownloadRequestStatus }[] = await outgoingRes.json();
+          const rows: { mediaId: string | null; status: DownloadRequestStatus }[] = await outgoingRes.json();
           if (!cancelled) {
-            setStatuses(Object.fromEntries(rows.map((r) => [r.mediaId, r.status])));
+            // Showreel rows carry no mediaId. Left in, they'd key the map under "null" and the
+            // first one would decide what every gallery tile with no request of its own displays.
+            setStatuses(Object.fromEntries(
+              rows.filter((r) => r.mediaId).map((r) => [r.mediaId as string, r.status]),
+            ));
           }
         }
         if (summaryRes.ok) {

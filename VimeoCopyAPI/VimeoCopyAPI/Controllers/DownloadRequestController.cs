@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Security.Claims;
@@ -19,10 +20,12 @@ namespace VimeoCopyAPI.Controllers;
 public class DownloadRequestController : ControllerBase
 {
     private readonly IDownloadRequestService _requests;
+    private readonly IMediaService _media;
 
-    public DownloadRequestController(IDownloadRequestService requests)
+    public DownloadRequestController(IDownloadRequestService requests, IMediaService media)
     {
         _requests = requests;
+        _media = media;
     }
 
     private string CurrentUserId =>
@@ -34,6 +37,44 @@ public class DownloadRequestController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateDownloadRequestDTO dto)
         => Ok(await _requests.CreateAsync(CurrentUserId, dto));
+
+    /// <summary>Asks an artist for their whole showreel, from their public profile.</summary>
+    [EnableRateLimiting("download-request")]
+    [HttpPost("showreel")]
+    public async Task<IActionResult> CreateShowreel([FromBody] CreateShowreelRequestDTO dto)
+        => Ok(await _requests.CreateShowreelAsync(CurrentUserId, dto));
+
+    /// <summary>
+    /// Streams an approved showreel as a zip.
+    ///
+    /// The archive is built and sent in one pass rather than assembled somewhere first — a bundle
+    /// can be gigabytes, and staging it on disk or in memory to hand back a link would cost that
+    /// twice. The owner may always take their own.
+    /// </summary>
+    [HttpGet("showreel/{handle}/zip")]
+    public async Task<IActionResult> DownloadShowreel(string handle, CancellationToken ct)
+    {
+        var owner = await _requests.ResolveShowreelOwnerAsync(handle, CurrentUserId);
+
+        // ZipArchive finishes the archive in Dispose, and that final central-directory write is
+        // SYNCHRONOUS — there is no async equivalent in the BCL. Kestrel forbids synchronous writes
+        // to the response body by default, so without this the archive streams correctly and then
+        // throws on the very last write, handing the caller a 500 and a truncated file.
+        //
+        // Scoped to this one request rather than switched on server-wide: every other endpoint
+        // should keep the protection, and the alternative — buffering the whole archive in memory
+        // or on disk before sending it — costs the bundle's full size for no benefit.
+        var bodyControl = HttpContext.Features.Get<IHttpBodyControlFeature>();
+        if (bodyControl is not null) bodyControl.AllowSynchronousIO = true;
+
+        // Content-Length is unknown until the last byte is written, so this is a chunked response.
+        // Setting the filename here is what makes the browser save it instead of trying to show it.
+        Response.ContentType = "application/zip";
+        Response.Headers.ContentDisposition = $"attachment; filename=\"{owner.FileName}\"";
+
+        await _media.WriteShowreelZipAsync(owner.OwnerUserId, Response.Body, ct);
+        return new EmptyResult();
+    }
 
     /// <summary>Requests for my media — the ones I have to answer.</summary>
     [HttpGet("incoming")]

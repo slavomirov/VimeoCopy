@@ -124,6 +124,23 @@ public class MediaController : ControllerBase
         return Ok(new { message = dto.Downloadable ? "Downloads enabled." : "Downloads disabled." });
     }
 
+    /// <summary>
+    /// Owner-only: put a file in the showreel, or take it out.
+    ///
+    /// Not plan-gated, unlike the downloadable flag. Curating a portfolio is harmless on a plan
+    /// that can't serve it — the set is simply not offered until the plan can — and clearing
+    /// somebody's curation when their plan lapses would lose work they'd have to redo on renewal.
+    /// </summary>
+    [HttpPatch("{mediaId}/showreel")]
+    public async Task<IActionResult> SetInShowreel(string mediaId, [FromBody] SetInShowreelDTO dto)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new UnauthorizedAccessException("User not authenticated.");
+
+        await _mediaService.SetInShowreelAsync(mediaId, userId, dto.InShowreel);
+        return Ok(new { message = dto.InShowreel ? "Added to your showreel." : "Removed from your showreel." });
+    }
+
     /// <summary>Whether the signed-in user's plan includes downloads, so the UI can explain itself.</summary>
     [HttpGet("downloads-allowed")]
     public async Task<IActionResult> DownloadsAllowed()

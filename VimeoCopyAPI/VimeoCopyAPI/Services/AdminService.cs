@@ -375,7 +375,8 @@ public class AdminService : IAdminService
         // one either blocks the delete or outlives it unless it goes first.
         await _db.ProjectMedias.Where(pm => mediaIds.Contains(pm.MediaId)).ExecuteDeleteAsync();
         await _db.DownloadRequests
-            .Where(r => r.OwnerUserId == userId || r.RequesterUserId == userId || mediaIds.Contains(r.MediaId))
+            .Where(r => r.OwnerUserId == userId || r.RequesterUserId == userId
+                     || (r.MediaId != null && mediaIds.Contains(r.MediaId.Value)))
             .ExecuteDeleteAsync();
         await _db.MediaReports
             .Where(r => mediaIds.Contains(r.MediaId) || r.ReporterUserId == userId)
