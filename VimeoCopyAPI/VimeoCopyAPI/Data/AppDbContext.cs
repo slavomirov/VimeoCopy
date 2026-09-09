@@ -23,6 +23,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ProcessedStripeEvent> ProcessedStripeEvents { get; set; }
     public DbSet<DownloadRequest> DownloadRequests { get; set; }
 
+    public DbSet<AdminAuditLog> AdminAuditLogs { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -118,6 +120,10 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         // "may this viewer download this file" on every download.
         modelBuilder.Entity<DownloadRequest>()
             .HasIndex(d => new { d.MediaId, d.RequesterUserId, d.Status });
+
+        // The log is read newest-first and never filtered by anything else.
+        modelBuilder.Entity<AdminAuditLog>()
+            .HasIndex(a => a.CreatedAt);
 
         modelBuilder.Entity<PasswordResetCode>()
             .HasOne(c => c.User)

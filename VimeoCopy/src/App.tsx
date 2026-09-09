@@ -25,6 +25,7 @@ import { UploadDock } from "./components/UploadDock";
 import { AudiencePage } from "./components/AudiencePage";
 import { useMyPublicProfile } from "./profile/useMyHandle";
 import { ModerationPage } from "./components/ModerationPage";
+import { AdminPage } from "./components/AdminPage";
 import { RequestsPage } from "./components/RequestsPage";
 import { DownloadRequestsProvider } from "./components/DownloadRequestsProvider";
 import { useDownloadRequests } from "./components/useDownloadRequests";
@@ -43,6 +44,7 @@ import {
   IconTicket,
   IconHelm,
   IconGangway,
+  IconAnchor,
   IconBeacon,
 } from "./brand/FerryMarks";
 import "./App.css";
@@ -70,6 +72,9 @@ function MainLayout() {
   const { theme, toggleTheme } = useTheme();
   const isLoggedIn = !!accessToken;
   const isStaff = roles.includes("Admin") || roles.includes("Moderator");
+  // Admin is strictly narrower than staff: a moderator hides reported media, an administrator
+  // hands out paid plans and deletes accounts. The two links are gated separately for that reason.
+  const isAdmin = roles.includes("Admin");
   const location = useLocation();
 
   const isMobile = useCallback(() => window.innerWidth <= 768, []);
@@ -258,6 +263,13 @@ function MainLayout() {
             </Link>
           )}
 
+          {isAdmin && (
+            <Link to="/admin" className="nav-item" title="Admin — accounts, files, plans">
+              <IconAnchor />
+              <span className="nav-label">Admin</span>
+            </Link>
+          )}
+
           <Link to="/buy" className="nav-item" title="Fares — plans and pricing">
             <IconTicket />
             <span className="nav-label">Fares</span>
@@ -389,6 +401,10 @@ function MainLayout() {
           <Route
             path="/moderation"
             element={isStaff ? <ModerationPage /> : <Navigate to="/" replace />}
+          />
+          <Route
+            path="/admin"
+            element={isAdmin ? <AdminPage /> : <Navigate to="/" replace />}
           />
           <Route path="/artists" element={<ArtistsPage />} />
           <Route path="/u/:handle" element={<ArtistProfile />} />

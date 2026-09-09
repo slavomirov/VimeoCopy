@@ -180,6 +180,7 @@ builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<IDownloadRequestService, DownloadRequestService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 
 
 builder.Services.AddOptions<StripeOptions>().Bind(builder.Configuration.GetSection("Stripe"));
@@ -214,6 +215,81 @@ using (var scope = app.Services.CreateScope())
         if (!await roleManager.RoleExistsAsync(role))
         {
             await roleManager.CreateAsync(new IdentityRole(role));
+        }
+    }
+}
+
+
+// The first administrator. Roles exist above, but nothing has ever been IN one, so a fresh
+// database has an admin page that literally nobody can open — and no way in through the UI,
+// because granting the Admin role is itself an admin action.
+//
+// Configuration rather than a hardcoded address, and the password is read from configuration too
+// so it can come from user-secrets or the environment instead of a file in the repository. An
+// account that already exists is only promoted; its password is never touched.
+using (var scope = app.Services.CreateScope())
+{
+    var adminEmail = app.Configuration["Admin:Email"];
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+    if (string.IsNullOrWhiteSpace(adminEmail))
+    {
+        // appsettings.json is gitignored, so a value set on one machine is absent on the next one.
+        // Said out loud rather than passed over: an admin page nobody can open looks like a broken
+        // page, and the fix is one config key that gives no hint it is missing.
+        if ((await userManager.GetUsersInRoleAsync("Admin")).Count == 0)
+        {
+            app.Logger.LogWarning(
+                "No account holds the Admin role and Admin:Email is not configured, so /admin is " +
+                "unreachable. Set Admin:Email (and Admin:Password for an account that does not " +
+                "exist yet) in appsettings.json, user-secrets, or the environment.");
+        }
+    }
+    else
+    {
+        var existing = await userManager.FindByEmailAsync(adminEmail);
+
+        if (existing is null)
+        {
+            var adminPassword = app.Configuration["Admin:Password"];
+            if (string.IsNullOrWhiteSpace(adminPassword))
+            {
+                app.Logger.LogWarning(
+                    "Admin:Email is set to {Email} but no such account exists and Admin:Password is empty — " +
+                    "nothing was created. Register the account normally, or set Admin:Password.", adminEmail);
+            }
+            else
+            {
+                existing = new ApplicationUser
+                {
+                    UserName = adminEmail,
+                    Email = adminEmail,
+                    EmailConfirmed = true,
+                    CreatedAt = DateTime.UtcNow,
+                };
+
+                var created = await userManager.CreateAsync(existing, adminPassword);
+                if (!created.Succeeded)
+                {
+                    app.Logger.LogError("Could not create the administrator account: {Errors}",
+                        string.Join(" ", created.Errors.Select(e => e.Description)));
+                    existing = null;
+                }
+                else
+                {
+                    // Same free plan and handle every other new account gets — an admin is still a
+                    // user of the product, and an account with no plan behaves oddly everywhere else.
+                    var userService = scope.ServiceProvider.GetRequiredService<IUserService>();
+                    await userService.AssignPlanToUserAsync(existing.Id, "Free");
+                    await userService.BackfillMissingHandlesAsync();
+                }
+            }
+        }
+
+        if (existing is not null && !await userManager.IsInRoleAsync(existing, "Admin"))
+        {
+            await userManager.AddToRoleAsync(existing, "Admin");
+            app.Logger.LogInformation("Granted the Admin role to {Email}.", adminEmail);
         }
     }
 }

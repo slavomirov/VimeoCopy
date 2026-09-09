@@ -17,6 +17,14 @@ public interface IMediaService
     /// <summary>Unmetered presigned URL for gallery previews (does not charge bandwidth).</summary>
     public Task<GetPresignedURLDTO> GetPreviewURLAsync(string mediaId);
     public Task DeleteMediaAsync(string mediaId);
+
+    /// <summary>
+    /// Deletes any file, regardless of who owns it. Admin-gated at the controller — the ownership
+    /// check is skipped here on purpose, which is why it is a separate method from
+    /// <see cref="DeleteMediaAsync"/> rather than a flag on it. Bucket cleanup and the owner's
+    /// quota refund are identical either way.
+    /// </summary>
+    public Task DeleteMediaAsAdminAsync(string mediaId);
     public Task ToggleVisibilityAsync(string mediaId, string userId);
     public Task UpdateMediaDetailsAsync(string mediaId, string userId, UpdateMediaDetailsDTO dto);
     /// <summary>

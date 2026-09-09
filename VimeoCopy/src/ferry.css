@@ -1108,3 +1108,45 @@ textarea:focus-visible,
   cursor: default;
   opacity: 0.5;
 }
+
+/* ═══════════════════════════════════════════════
+   20 · ADMIN TABS — five jobs, one page
+
+   A waterline that moves. The active tab is marked by the rule beneath it rather than by a filled
+   pill, so the row reads as one surface with a position on it instead of five competing buttons.
+   The row scrolls sideways rather than wrapping: five tabs that reflow to two lines move under the
+   cursor as you switch between them.
+   ═══════════════════════════════════════════════ */
+
+.admin-tabs {
+  display: flex;
+  gap: var(--space-1);
+  margin-top: var(--space-6);
+  border-bottom: 1px solid var(--border-color);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.admin-tabs::-webkit-scrollbar { display: none; }
+
+.admin-tab {
+  flex: 0 0 auto;
+  padding: var(--space-3) var(--space-5);
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: var(--gray-500);
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: none;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.admin-tab:hover:not(.is-active) { color: var(--gray-600); }
+.admin-tab:active { transform: none; }
+
+.admin-tab.is-active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}

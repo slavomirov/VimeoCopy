@@ -21,6 +21,32 @@ public class ApplicationUser : IdentityUser
     /// <summary>Last time the owner was emailed about exceeding bandwidth this cycle (throttles notifications).</summary>
     public DateTime? BandwidthOverageNotifiedAt { get; set; }
 
+    // ── Administrative grants ──────────────────────────────
+    /// <summary>
+    /// Storage handed out by an administrator, in bytes, on top of whatever the plan includes.
+    ///
+    /// Kept apart from <see cref="BuyedMemory"/> because plan assignment overwrites that field
+    /// outright: a boost written straight into BuyedMemory would silently vanish the next time the
+    /// user changed, renewed or was granted a plan. Stored once here, it is re-applied by every
+    /// plan assignment instead, so a gift survives.
+    /// </summary>
+    public long? BonusMemory { get; set; }
+
+    /// <summary>Bandwidth handed out by an administrator, in bytes. Same reasoning as
+    /// <see cref="BonusMemory"/>, and it survives the monthly cycle roll too.</summary>
+    public long? BonusBandwidth { get; set; }
+
+    /// <summary>
+    /// When an administrator suspended this account, or null while it is in good standing. This —
+    /// not Identity's LockoutEnd — is what sign-in checks, so a suspension reads as a suspension
+    /// rather than as "too many failed attempts", which is the message lockout is for.
+    /// </summary>
+    public DateTime? SuspendedAt { get; set; }
+
+    /// <summary>Why, in words. Shown to the suspended user at sign-in, so write it for them.</summary>
+    [MaxLength(300)]
+    public string? SuspensionReason { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     // ── Public artist profile ──────────────────────────────

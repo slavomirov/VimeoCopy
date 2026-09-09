@@ -281,7 +281,29 @@ public class MediaService : IMediaService
         var userId = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
             ?? throw new UnauthorizedAccessException("User not authenticated!");
 
-        var media = await GetOwnedMediaAsync(mediaId, userId);
+        await DeleteMediaCoreAsync(await GetOwnedMediaAsync(mediaId, userId));
+    }
+
+    /// <summary>
+    /// Deletes somebody else's file. Authorisation is the caller's job — only the Admin-gated
+    /// endpoint reaches this, and it is deliberately a separate method rather than a bool on the
+    /// owner path, so nothing can skip the ownership check by passing the wrong argument.
+    ///
+    /// Everything downstream is shared with the owner's own delete: the same bucket cleanup in the
+    /// same order, and the same refund to the same account. An admin removing a file must leave
+    /// the owner's quota exactly where deleting it themselves would have.
+    /// </summary>
+    public async Task DeleteMediaAsAdminAsync(string mediaId)
+    {
+        var id = ParseMediaId(mediaId);
+        var media = await _dbContext.Media.FirstOrDefaultAsync(m => m.Id == id)
+            ?? throw new NotFoundException("Media not found.");
+
+        await DeleteMediaCoreAsync(media);
+    }
+
+    private async Task DeleteMediaCoreAsync(Media media)
+    {
 
         // Storage first, database second. The row is the only record of the key, so committing the
         // delete before the object is gone strands it in the bucket with nothing pointing at it.
@@ -323,7 +345,27 @@ public class MediaService : IMediaService
         // the account until the nightly reconcile happened to correct it. The clip is charged the
         // same way, so it is refunded the same way.
         var reclaimed = media.FileSize + (media.ThumbnailSize ?? 0) + (media.GifSize ?? 0);
-        await _userService.DecreaseUsedMemoryAsync(userId, reclaimed); // bytes (matches upload accounting)
+        await _userService.DecreaseUsedMemoryAsync(media.UserId, reclaimed); // bytes (matches upload accounting)
+
+        // Nothing below is optional. ProjectMedias points at Media with NoAction — a deliberate
+        // choice, to avoid a cascade cycle — so a file that belongs to a project cannot be removed
+        // until its join rows are; the delete fails on the constraint otherwise, which is exactly
+        // what an admin deleting a curated file would hit. The rest have no foreign key at all, so
+        // their rows would quietly outlive the file they describe: a project cover pointing at
+        // nothing, an avatar that resolves to a missing object, a download request for a file that
+        // no longer exists.
+        await _dbContext.ProjectMedias.Where(pm => pm.MediaId == media.Id).ExecuteDeleteAsync();
+        await _dbContext.Projects
+            .Where(p => p.ThumbnailMediaId == media.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.ThumbnailMediaId, (Guid?)null));
+        await _dbContext.Users
+            .Where(u => u.AvatarMediaId == media.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.AvatarMediaId, (Guid?)null));
+        await _dbContext.Users
+            .Where(u => u.BannerMediaId == media.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.BannerMediaId, (Guid?)null));
+        await _dbContext.DownloadRequests.Where(r => r.MediaId == media.Id).ExecuteDeleteAsync();
+        await _dbContext.MediaReports.Where(r => r.MediaId == media.Id).ExecuteDeleteAsync();
         _dbContext.Remove(media);
         await _dbContext.SaveChangesAsync();
     }

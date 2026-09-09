@@ -147,6 +147,14 @@ namespace VimeoCopyAPI.Services
         {
             var user = await _userManager.FindByEmailAsync(input.Email) ?? throw new UnauthorizedAccessException("Invalid email or password.");
 
+            // Checked before the password, and with its own message. A suspended account answering
+            // "invalid email or password" sends the user round the reset-password loop forever,
+            // and lockout's "too many failed attempts" is a different thing that expires on its own.
+            if (user.SuspendedAt is not null)
+                throw new UnauthorizedAccessException(string.IsNullOrWhiteSpace(user.SuspensionReason)
+                    ? "This account has been suspended. Contact support if you think this is a mistake."
+                    : $"This account has been suspended: {user.SuspensionReason}");
+
             var result = await _signInManager.CheckPasswordSignInAsync(user, input.Password, lockoutOnFailure: true);
             if (result.IsLockedOut)
                 throw new UnauthorizedAccessException("Account temporarily locked due to too many failed attempts. Please try again later.");
@@ -173,6 +181,12 @@ namespace VimeoCopyAPI.Services
                 return new RefreshResultDTO(null, null, IsUnauthorized: true, ErrorMessage: "Invalid refresh token");
 
             var user = refreshToken.User;
+
+            // A suspension has to reach live sessions too. Suspending revokes the tokens that exist
+            // at that moment, but this is the check that holds if one is missed: without it the
+            // account keeps renewing itself for as long as the browser stays open.
+            if (user.SuspendedAt is not null)
+                return new RefreshResultDTO(null, null, IsUnauthorized: true, ErrorMessage: "Account suspended");
 
             refreshToken.RevokedAt = DateTime.UtcNow;
             var newRefreshToken = await CreateAndStoreRefreshTokenAsync(user);
@@ -609,8 +623,11 @@ namespace VimeoCopyAPI.Services
             var isFree = planName == "Free";
 
             user.PlanId = plan.Id;
-            user.BuyedMemory = plan.StorageLimitMB * BytesPerMb;
-            user.BuyedBandwidth = plan.BandwidthMB * BytesPerMb;
+            // Administrative grants ride on top of the tier rather than inside it. Writing the
+            // plan's figure alone here is what used to erase a support boost the moment the user
+            // renewed, so the bonus is re-added on every assignment instead of being spent once.
+            user.BuyedMemory = plan.StorageLimitMB * BytesPerMb + (user.BonusMemory ?? 0);
+            user.BuyedBandwidth = plan.BandwidthMB * BytesPerMb + (user.BonusBandwidth ?? 0);
             user.UsedBandwidth = 0;
             user.BandwidthCycleStart = now;
             user.BandwidthOverageNotifiedAt = null;
