@@ -91,27 +91,23 @@ public partial class ProfileService : IProfileService
         // in one query rather than per tile, which is what made the gallery need a shared context.
         var downloadsEnabled = await _media.PlanAllowsDownloadsAsync(user.Id);
 
-        var myRequests = viewerUserId is null
-            ? []
+        // Neither offer means anything to the artist looking at their own page: the original is
+        // already theirs from the dashboard, and asking themselves for it is refused server-side.
+        // Resolved here rather than left to the client, exactly as the gallery does it — the page
+        // hides these too, but that guard depends on a second fetch, and a button that appears
+        // while it is in flight is a button someone can click.
+        var viewerIsOwner = viewerUserId != null && viewerUserId == user.Id;
+
+        var perFileStatus = viewerUserId is null
+            ? new Dictionary<Guid, string>()
             : await _db.DownloadRequests.AsNoTracking()
                 .Where(r => r.OwnerUserId == user.Id && r.RequesterUserId == viewerUserId)
-                .GroupBy(r => new { r.MediaId, r.Kind })
-                .Select(g => new { g.Key.MediaId, g.Key.Kind, Status = g.OrderByDescending(x => x.Id).First().Status })
-                .ToListAsync();
-
-        var perFileStatus = myRequests
-            .Where(r => r.Kind == DownloadRequestKind.Media && r.MediaId != null)
-            .ToDictionary(r => r.MediaId!.Value, r => r.Status);
-
-        var showreel = works.Where(m => m.InShowreel).ToList();
+                .GroupBy(r => r.MediaId)
+                .Select(g => new { MediaId = g.Key, Status = g.OrderByDescending(x => x.Id).First().Status })
+                .ToDictionaryAsync(r => r.MediaId, r => r.Status);
 
         var dto = new PublicProfileDTO
         {
-            DownloadsEnabled = downloadsEnabled,
-            ShowreelCount = downloadsEnabled ? showreel.Count : 0,
-            ShowreelBytes = downloadsEnabled ? showreel.Sum(m => m.FileSize) : 0,
-            ShowreelRequestStatus = myRequests
-                .FirstOrDefault(r => r.Kind == DownloadRequestKind.Showreel)?.Status,
             // Always set: the profile is looked up BY this handle.
             Handle = user.Handle!,
             // Must never come back null: the client does displayName.charAt(0) for the avatar
@@ -127,29 +123,38 @@ public partial class ProfileService : IProfileService
             BannerUrl = await PresignOwnedMediaAsync(user.Id, user.BannerMediaId),
             BannerOffsetY = user.BannerOffsetY,
             IsOwner = viewerUserId != null && viewerUserId == user.Id,
-            Works = works.Select(m =>
-            {
-                projectByMedia.TryGetValue(m.Id, out var project);
-                return new ProfileWorkDTO
-                {
-                    Id = m.Id,
-                    FileName = m.FileName,
-                    ContentType = m.ContentType,
-                    Description = m.Description,
-                    HasThumbnail = !string.IsNullOrEmpty(m.ThumbnailUrl),
-                    UploadedAt = m.UploadedAt,
-                    ProjectId = project?.Id,
-                    ProjectTitle = project?.Title,
-                    // Mutually exclusive by construction, exactly as on the gallery: open to
-                    // everyone, or askable, or neither because the plan can't serve downloads.
-                    Downloadable = downloadsEnabled && m.Downloadable,
-                    DownloadRequestable = downloadsEnabled && !m.Downloadable,
-                    RequestStatus = perFileStatus.GetValueOrDefault(m.Id),
-                    InShowreel = m.InShowreel,
-                };
-            }).ToList(),
+            // Pinned work leads the page, newest pin first, and is left out of Works so a piece is
+            // never drawn twice on the same screen. An album view puts them back together — that
+            // list is "everything in this project" and a hole in it would be the bug.
+            Pinned = [.. works
+                .Where(m => m.PinnedAt != null)
+                .OrderByDescending(m => m.PinnedAt)
+                .Select(ToWorkDto)],
+            Works = [.. works.Where(m => m.PinnedAt == null).Select(ToWorkDto)],
             Albums = albums,
         };
+
+        ProfileWorkDTO ToWorkDto(Media m)
+        {
+            projectByMedia.TryGetValue(m.Id, out var project);
+            return new ProfileWorkDTO
+            {
+                Id = m.Id,
+                FileName = m.FileName,
+                ContentType = m.ContentType,
+                Description = m.Description,
+                HasThumbnail = !string.IsNullOrEmpty(m.ThumbnailUrl),
+                UploadedAt = m.UploadedAt,
+                ProjectId = project?.Id,
+                ProjectTitle = project?.Title,
+                // Mutually exclusive by construction, exactly as on the gallery: open to
+                // everyone, or askable, or neither because the plan can't serve downloads.
+                Downloadable = downloadsEnabled && m.Downloadable && !viewerIsOwner,
+                DownloadRequestable = downloadsEnabled && !m.Downloadable && !viewerIsOwner,
+                RequestStatus = perFileStatus.GetValueOrDefault(m.Id),
+                Pinned = m.PinnedAt != null,
+            };
+        }
 
         return dto;
     }
@@ -514,7 +519,10 @@ public partial class ProfileService : IProfileService
         catch { throw new ValidationException("Invalid theme."); }
         if (root.ValueKind != JsonValueKind.Object) throw new ValidationException("Invalid theme.");
 
-        var clean = new Dictionary<string, string>();
+        // object, not string: every token here used to be a string, and `useSiteBackground` is a
+        // bool — a string-valued dictionary simply had nowhere to put it, so the checkbox was
+        // silently dropped on every save and came back unticked.
+        var clean = new Dictionary<string, object>();
 
         foreach (var key in new[] { "bg", "surface", "text", "textMuted", "accent", "border" })
         {
@@ -545,6 +553,13 @@ public partial class ProfileService : IProfileService
             clean["backgroundKind"] = b.GetString()!;
         else
             throw new ValidationException("Invalid theme background.");
+
+        // Optional, and only ever true or false — nothing here reaches CSS as a value, it just
+        // switches a class on. Absent means false, which is what every theme saved before the
+        // option existed should keep meaning.
+        if (root.TryGetProperty("useSiteBackground", out var sb) &&
+            sb.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            clean["useSiteBackground"] = sb.GetBoolean();
 
         if (root.TryGetProperty("preset", out var p) && p.ValueKind == JsonValueKind.String &&
             p.GetString()!.Length <= 40)

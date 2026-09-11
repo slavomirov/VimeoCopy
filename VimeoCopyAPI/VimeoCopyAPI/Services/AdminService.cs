@@ -378,7 +378,7 @@ public class AdminService : IAdminService
         await _db.ProjectMedias.Where(pm => mediaIds.Contains(pm.MediaId)).ExecuteDeleteAsync();
         await _db.DownloadRequests
             .Where(r => r.OwnerUserId == userId || r.RequesterUserId == userId
-                     || (r.MediaId != null && mediaIds.Contains(r.MediaId.Value)))
+                     || mediaIds.Contains(r.MediaId))
             .ExecuteDeleteAsync();
         await _db.MediaReports
             .Where(r => mediaIds.Contains(r.MediaId) || r.ReporterUserId == userId)

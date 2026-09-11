@@ -34,8 +34,8 @@ public class SetDownloadableDTO
     public bool Downloadable { get; set; }
 }
 
-/// <summary>Owner's curation of the showreel bundle, one file at a time.</summary>
-public class SetInShowreelDTO
+/// <summary>Owner pinning one file to the top of their public profile, or unpinning it.</summary>
+public class SetPinnedDTO
 {
-    public bool InShowreel { get; set; }
+    public bool Pinned { get; set; }
 }

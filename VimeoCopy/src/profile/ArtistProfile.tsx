@@ -33,7 +33,8 @@ interface Work {
   downloadRequestable: boolean;
   /** This viewer's standing on this file, or null if they've never asked. */
   requestStatus: RequestStatus | null;
-  inShowreel: boolean;
+  /** Pinned by the artist. Shown as a badge; the ordering is already done server-side. */
+  pinned: boolean;
 }
 
 interface Album {
@@ -57,20 +58,10 @@ interface PublicProfile {
   bannerOffsetY: number;
   isOwner: boolean;
   themeJson: string | null;
-  downloadsEnabled: boolean;
-  showreelCount: number;
-  showreelBytes: number;
-  showreelRequestStatus: RequestStatus | null;
+  /** The artist's pinned work, newest pin first. Already excluded from `works`. */
+  pinned: Work[];
   works: Work[];
   albums: Album[];
-}
-
-function formatBytes(value: number) {
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let size = value;
-  let i = 0;
-  while (size >= 1024 && i < units.length - 1) { size /= 1024; i++; }
-  return `${size.toFixed(size >= 10 || Number.isInteger(size) ? 0 : 1)} ${units[i]}`;
 }
 
 export function ArtistProfile() {
@@ -78,8 +69,6 @@ export function ArtistProfile() {
   const { accessToken, authFetch } = useAuth();
   const { theme: siteTheme } = useTheme();
   const [profile, setProfile] = useState<PublicProfile | null>(null);
-  /** True while the showreel zip is being built and streamed, so the button can say so. */
-  const [zipping, setZipping] = useState(false);
   const [status, setStatus] = useState<"loading" | "ok" | "notfound">("loading");
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
@@ -228,7 +217,7 @@ export function ArtistProfile() {
     if (!profile) return;
     let cancelled = false;
     (async () => {
-      for (const w of profile.works) {
+      for (const w of [...profile.pinned, ...profile.works]) {
         if (urls[w.id]) continue;
         try {
           // Unmetered preview — rendering the gallery must not burn the artist's bandwidth.
@@ -288,6 +277,7 @@ export function ArtistProfile() {
    */
   const isOwner =
     profile.isOwner === true && ownHandle !== null && ownHandle === profile.handle;
+
   /**
    * Ask the artist for one file.
    *
@@ -326,64 +316,22 @@ export function ArtistProfile() {
     window.location.href = body.url;
   }
 
-  async function requestShowreel() {
-    if (!accessToken) { toast.error("Sign in to ask for the showreel."); return; }
-
-    const res = await authFetch(`${API_BASE_URL}/api/download-requests/showreel`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ handle: profile!.handle }),
-      silent: true,
-    });
-
-    const body = await res.json().catch(() => null);
-    if (!res.ok) { toast.error(body?.message ?? "Couldn't send that request."); return; }
-
-    setProfile((p) => p && { ...p, showreelRequestStatus: "Pending" });
-    toast.success("Asked — the artist has been emailed.");
-  }
-
   /**
-   * Pull the zip.
+   * An album is shown whole.
    *
-   * Fetched rather than navigated to, because the endpoint needs the bearer token and a plain
-   * link carries no headers. That means the archive lands in memory before it is saved, which is
-   * why the server caps a showreel's total size — this is not the path for a hundred gigabytes.
+   * The server hands back pinned work in its own list so the band at the top can be drawn without
+   * repeating anything below it — but a pinned piece is still one of its project's works, and an
+   * album with a hole in it where the pinned one should be is the bug that split would cause. So
+   * the two are put back together here and re-sorted the way the profile lists everything else.
    */
-  async function downloadShowreel() {
-    setZipping(true);
-    const toastId = toast.loading("Building the archive…");
-    try {
-      const res = await authFetch(
-        `${API_BASE_URL}/api/download-requests/showreel/${encodeURIComponent(profile!.handle)}/zip`,
-        { silent: true },
-      );
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.message ?? "Couldn't build that archive.");
-      }
-
-      const blob = await res.blob();
-      const href = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = href;
-      a.download = `${profile!.handle}-showreel.zip`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      // Revoked on the next tick — releasing it synchronously can cancel the save in some browsers.
-      setTimeout(() => URL.revokeObjectURL(href), 0);
-      toast.success("Downloaded", { id: toastId });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't build that archive.", { id: toastId });
-    } finally {
-      setZipping(false);
-    }
-  }
-
   const visibleWorks = selectedAlbum
-    ? profile.works.filter((w) => w.projectId === selectedAlbum)
+    ? [...profile.pinned, ...profile.works]
+        .filter((w) => w.projectId === selectedAlbum)
+        .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt))
     : profile.works;
+
+  /** Nothing published at all, as opposed to nothing left over once the pinned band took its share. */
+  const hasAnyWork = profile.pinned.length + profile.works.length > 0;
   const selectedAlbumTitle = selectedAlbum
     ? profile.albums.find((a) => a.id === selectedAlbum)?.title ?? null
     : null;
@@ -490,6 +438,35 @@ export function ArtistProfile() {
         </div>
       </div>
 
+      {/* Pinned work, above the fold and above the albums — the whole point of pinning is that
+          this is what the artist wants seen first. Hidden while an album is open: that view is
+          about one project, and a band from outside it on top would be noise. */}
+      {!selectedAlbum && profile.pinned.length > 0 && (
+        <>
+          <div className="ap-section-head">
+            <h2>Pinned</h2>
+            <span className="ap-count">
+              {profile.pinned.length} piece{profile.pinned.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          <div className="ap-gallery ap-gallery-pinned">
+            {profile.pinned.map((w) => (
+              <WorkTile
+                key={w.id}
+                work={w}
+                url={urls[w.id]}
+                thumb={thumbs[w.id]}
+                gif={gifs[w.id]}
+                onOpen={() => openWork(w)}
+                isOwner={isOwner}
+                onRequest={() => requestWork(w)}
+                onDownload={() => downloadWork(w)}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
       {profile.albums.length > 0 && (
         <>
           <div className="ap-section-head">
@@ -520,69 +497,44 @@ export function ArtistProfile() {
         </>
       )}
 
-      {/* The showreel offer. Only shown when there is genuinely something to hand over: the
-          artist's plan can serve downloads and they have curated at least one file. */}
-      {profile.downloadsEnabled && profile.showreelCount > 0 && (
-        <div className="ap-showreel">
-          <div className="ap-showreel-text">
-            <strong>Showreel</strong>
-            <span>
-              {profile.showreelCount} file{profile.showreelCount === 1 ? "" : "s"}
-              {" · "}{formatBytes(profile.showreelBytes)}
-              {isOwner
-                ? " · this is what visitors receive"
-                : profile.showreelRequestStatus === "Approved"
-                  ? " · yours to download"
-                  : " · the artist decides who gets a copy"}
-            </span>
-          </div>
-
-          {isOwner || profile.showreelRequestStatus === "Approved" ? (
-            <button type="button" className="btn-primary" disabled={zipping} onClick={downloadShowreel}>
-              {zipping ? "Preparing…" : "Download as .zip"}
-            </button>
-          ) : profile.showreelRequestStatus === "Pending" ? (
-            <button type="button" className="btn-secondary" disabled>
-              Waiting for the artist
-            </button>
-          ) : (
-            <button type="button" className="btn-primary" onClick={requestShowreel}>
-              {profile.showreelRequestStatus === "Denied" ? "Ask again" : "Request the showreel"}
-            </button>
-          )}
-        </div>
-      )}
-
-      <div className="ap-section-head">
-        <h2>{selectedAlbumTitle ?? "Works"}</h2>
-        <div className="ap-section-actions">
-          {selectedAlbum && (
-            <button type="button" className="ap-show-all" onClick={() => setSelectedAlbum(null)}>
-              Show all
-            </button>
-          )}
-          <span className="ap-count">{visibleWorks.length} piece{visibleWorks.length !== 1 ? "s" : ""}</span>
-        </div>
-      </div>
-
-      {visibleWorks.length === 0 ? (
+      {!hasAnyWork ? (
         <div className="ap-empty">This artist hasn’t published any public works yet.</div>
       ) : (
-        <div className="ap-gallery">
-          {visibleWorks.map((w) => (
-            <WorkTile
-              key={w.id}
-              work={w}
-              url={urls[w.id]}
-              thumb={thumbs[w.id]}
-              gif={gifs[w.id]}
-              onOpen={() => openWork(w)}
-              isOwner={isOwner}
-              onRequest={() => requestWork(w)}
-              onDownload={() => downloadWork(w)}
-            />
-          ))}
-        </div>
+        <>
+          {visibleWorks.length > 0 && (
+            <>
+              <div className="ap-section-head">
+                <h2>{selectedAlbumTitle ?? (profile.pinned.length > 0 ? "More work" : "Works")}</h2>
+                <div className="ap-section-actions">
+                  {selectedAlbum && (
+                    <button type="button" className="ap-show-all" onClick={() => setSelectedAlbum(null)}>
+                      Show all
+                    </button>
+                  )}
+                  <span className="ap-count">
+                    {visibleWorks.length} piece{visibleWorks.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+              </div>
+
+              <div className="ap-gallery">
+                {visibleWorks.map((w) => (
+                  <WorkTile
+                    key={w.id}
+                    work={w}
+                    url={urls[w.id]}
+                    thumb={thumbs[w.id]}
+                    gif={gifs[w.id]}
+                    onOpen={() => openWork(w)}
+                    isOwner={isOwner}
+                    onRequest={() => requestWork(w)}
+                    onDownload={() => downloadWork(w)}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </>
       )}
 
       {isOwner && (
@@ -708,7 +660,9 @@ function WorkTile({
         {work.description && <p className="ap-work-desc">{work.description}</p>}
         <div className="ap-work-foot">
           {work.projectTitle && <span className="ap-work-project">{work.projectTitle}</span>}
-          {isOwner && work.inShowreel && <span className="ap-work-showreel">In showreel</span>}
+          {/* Shown to everyone, not just the owner: in an album view a pinned piece sits among
+              unpinned ones and the badge is the only thing saying why it is being highlighted. */}
+          {work.pinned && <span className="ap-work-pinned">Pinned</span>}
           {!isOwner && <WorkDownload work={work} onRequest={onRequest} onDownload={onDownload} />}
         </div>
       </div>

@@ -16,20 +16,8 @@ public class DownloadRequest
 {
     public long Id { get; set; }
 
-    /// <summary>
-    /// Which file is being asked for, or null for a showreel request — those ask for the owner's
-    /// whole curated set rather than one item, and which files are in it is decided when the zip is
-    /// built, not when the request is made. Pinning a list at request time would mean an approval
-    /// granted last week hands over a set the owner has since changed.
-    /// </summary>
-    public Guid? MediaId { get; set; }
-
-    /// <summary>
-    /// <see cref="DownloadRequestKind.Media"/> or <see cref="DownloadRequestKind.Showreel"/>. Says
-    /// how to read <see cref="MediaId"/>, and which of the two grants an approval hands out.
-    /// </summary>
-    [MaxLength(20)]
-    public string Kind { get; set; } = DownloadRequestKind.Media;
+    /// <summary>Which file is being asked for. One request, one file, one grant.</summary>
+    public Guid MediaId { get; set; }
 
     /// <summary>
     /// Who asked. Never null: a grant has to belong to somebody, and the answer has to be
@@ -57,16 +45,6 @@ public class DownloadRequest
 
     /// <summary>When the owner last answered. Null while pending.</summary>
     public DateTime? DecidedAt { get; set; }
-}
-
-/// <summary>What is being asked for. Same table, two different grants.</summary>
-public static class DownloadRequestKind
-{
-    /// <summary>One file, named by MediaId.</summary>
-    public const string Media = "Media";
-
-    /// <summary>The owner's whole showreel, whatever is in it at the moment it is downloaded.</summary>
-    public const string Showreel = "Showreel";
 }
 
 /// <summary>The three states, in one place, so no string literal decides behaviour twice.</summary>

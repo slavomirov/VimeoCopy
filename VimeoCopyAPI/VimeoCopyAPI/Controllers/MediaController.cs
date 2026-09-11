@@ -125,20 +125,20 @@ public class MediaController : ControllerBase
     }
 
     /// <summary>
-    /// Owner-only: put a file in the showreel, or take it out.
+    /// Owner-only: pin a file to the top of the public profile, or unpin it.
     ///
-    /// Not plan-gated, unlike the downloadable flag. Curating a portfolio is harmless on a plan
-    /// that can't serve it — the set is simply not offered until the plan can — and clearing
-    /// somebody's curation when their plan lapses would lose work they'd have to redo on renewal.
+    /// Deliberately not plan-gated. Pinning is how an artist arranges a page they already have —
+    /// it hands nothing extra to a visitor and costs nothing to serve, so putting it behind a tier
+    /// would be a paywall on rearranging your own work.
     /// </summary>
-    [HttpPatch("{mediaId}/showreel")]
-    public async Task<IActionResult> SetInShowreel(string mediaId, [FromBody] SetInShowreelDTO dto)
+    [HttpPatch("{mediaId}/pinned")]
+    public async Task<IActionResult> SetPinned(string mediaId, [FromBody] SetPinnedDTO dto)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? throw new UnauthorizedAccessException("User not authenticated.");
 
-        await _mediaService.SetInShowreelAsync(mediaId, userId, dto.InShowreel);
-        return Ok(new { message = dto.InShowreel ? "Added to your showreel." : "Removed from your showreel." });
+        await _mediaService.SetPinnedAsync(mediaId, userId, dto.Pinned);
+        return Ok(new { message = dto.Pinned ? "Pinned to your profile." : "Unpinned." });
     }
 
     /// <summary>Whether the signed-in user's plan includes downloads, so the UI can explain itself.</summary>

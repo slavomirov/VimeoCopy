@@ -10,19 +10,6 @@ public class CreateDownloadRequestDTO
 }
 
 /// <summary>
-/// Asking an artist for their whole showreel. Addressed by handle rather than by user id, because
-/// the only place this is offered is /u/{handle} and the handle is what the page already knows —
-/// an id would have to be published to the client for no other reason.
-/// </summary>
-public class CreateShowreelRequestDTO
-{
-    public string Handle { get; set; } = default!;
-
-    /// <summary>Optional note to the owner. Worth writing: this asks for everything at once.</summary>
-    public string? Message { get; set; }
-}
-
-/// <summary>
 /// One request, as either side sees it. The owner's inbox and the requester's outbox return the
 /// same shape — which side is looking decides whether RequesterName or OwnerName is the useful one.
 /// </summary>
@@ -30,16 +17,9 @@ public class DownloadRequestDTO
 {
     public long Id { get; set; }
 
-    /// <summary>Null on a showreel request — that one asks for a set, not a file.</summary>
-    public Guid? MediaId { get; set; }
+    public Guid MediaId { get; set; }
 
-    /// <summary>"Media" or "Showreel". Decides which of the fields below mean anything.</summary>
-    public string Kind { get; set; } = default!;
-
-    /// <summary>How many files are in the owner's showreel right now. Showreel rows only.</summary>
-    public int ShowreelCount { get; set; }
-
-    /// <summary>Title of the file being asked for. Null on a showreel request.</summary>
+    /// <summary>Title of the file being asked for.</summary>
     public string? FileName { get; set; }
     public string? ContentType { get; set; }
     public long FileSize { get; set; }

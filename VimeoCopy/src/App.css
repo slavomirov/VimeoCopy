@@ -186,6 +186,13 @@
 
 /* ── Main Content ──────────────────────────── */
 .app-content {
+  /* Published as variables, not just applied: a page that wants to paint edge to edge inside the
+     content column (the artist profile) has to cancel exactly this padding and put it back on the
+     inside. Hard-coding the same values in two files is how those two drift apart. */
+  --app-pad-x: var(--space-6);
+  --app-pad-top: var(--space-8);
+  --app-pad-bottom: var(--space-8);
+
   margin-left: 235px;
   flex: 1;
   display: flex;
@@ -193,7 +200,7 @@
   transition: margin-left 0.3s ease;
   overflow: auto;
   background-color: var(--bg-base);
-  padding: var(--space-8) var(--space-6);
+  padding: var(--app-pad-top) var(--app-pad-x) var(--app-pad-bottom);
 }
 
 .sidebar.closed ~ .app-content {
@@ -853,9 +860,14 @@
   }
 
   .app-content {
+    /* The top pad clears the fixed mobile topbar, so a full-bleed page has to cancel that value
+       and not the desktop one — which is the whole reason these are variables. */
+    --app-pad-x: var(--space-4);
+    --app-pad-top: calc(56px + var(--space-4));
+    --app-pad-bottom: var(--space-4);
+
     margin-left: 0 !important;
-    padding: var(--space-4);
-    padding-top: calc(56px + var(--space-4));
+    padding: var(--app-pad-top) var(--app-pad-x) var(--app-pad-bottom);
   }
 
   .sidebar.open ~ .app-content {

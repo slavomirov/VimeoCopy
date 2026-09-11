@@ -11,6 +11,30 @@
   padding-bottom: var(--space-16);
 }
 
+/*
+ * Full bleed inside the content column.
+ *
+ * An artist's page colour is the page, not a panel on it. Left as an ordinary child of
+ * `.app-content` the wrapper sits inside that column's padding, so the colour rendered as a
+ * rectangle floating on the site's own background with a margin of site colour all around it —
+ * a coloured square, not a themed page.
+ *
+ * So the wrapper cancels the column's padding with negative margins and puts the same padding
+ * back on the inside: content lands in exactly the same place, and the fill reaches the top, the
+ * bottom, the right edge and the sidebar. The sidebar itself is untouched — it is fixed, outside
+ * this column, and stays the site's chrome whatever the artist picks.
+ *
+ * Scoped to a direct child of `.app-content` on purpose: the editor renders `.artist-profile`
+ * again as a live preview inside a card, and negative margins there would tear it out of its box.
+ */
+.app-content > .artist-profile {
+  margin:
+    calc(var(--app-pad-top, 0px) * -1)
+    calc(var(--app-pad-x, 0px) * -1)
+    calc(var(--app-pad-bottom, 0px) * -1);
+  padding-top: var(--app-pad-top, 0px);
+}
+
 .artist-profile h1,
 .artist-profile h2,
 .artist-profile h3,
@@ -694,7 +718,6 @@
 
 .artist-profile.uses-site-bg .ap-work,
 .artist-profile.uses-site-bg .ap-album,
-.artist-profile.uses-site-bg .ap-showreel,
 .artist-profile.uses-site-bg .card {
   backdrop-filter: blur(10px) saturate(1.1);
   -webkit-backdrop-filter: blur(10px) saturate(1.1);
@@ -726,27 +749,16 @@
   color: var(--ap-muted-on-backdrop);
 }
 
-/* ── Showreel ──
+/* ── Pinned band ──
  *
- * The one offer on the page that is about the artist's whole body of work rather than a single
- * piece, so it gets a band of its own above the grid instead of a button lost among the tiles. */
-.ap-showreel {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  flex-wrap: wrap;
-  max-width: var(--ap-width, 1200px);
-  margin: var(--space-8) auto 0;
-  padding: var(--space-4) var(--space-5);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  background: var(--bg-surface);
+ * The same masonry as the rest of the wall, one column wider at every breakpoint so a short pinned
+ * set reads as a row of highlights rather than as three tall stripes above the real gallery. */
+.ap-gallery-pinned {
+  column-count: 4;
 }
-
-.ap-showreel-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.ap-showreel-text strong { font-family: var(--ap-heading-font, var(--font-family)); font-size: 1.05rem; }
-.ap-showreel-text span { font-size: 0.8rem; color: var(--gray-500); }
+@media (max-width: 1100px) { .ap-gallery-pinned { column-count: 3; } }
+@media (max-width: 900px)  { .ap-gallery-pinned { column-count: 2; } }
+@media (max-width: 560px)  { .ap-gallery-pinned { column-count: 1; } }
 
 /* ── Per-work download ──
  *
@@ -786,7 +798,7 @@
 .ap-work-dl.is-open { color: var(--primary); border-color: var(--primary); }
 .ap-work-dl.is-waiting { cursor: default; opacity: 0.65; }
 
-.ap-work-showreel {
+.ap-work-pinned {
   padding: 2px 8px;
   border-radius: var(--radius-full, 9999px);
   background: rgba(var(--primary-rgb), 0.12);

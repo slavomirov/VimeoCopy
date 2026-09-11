@@ -1,5 +1,4 @@
 ﻿using Amazon.S3;
-using System.IO.Compression;
 using Amazon.S3.Model;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
@@ -492,16 +491,44 @@ public class MediaService : IMediaService
         await _dbContext.SaveChangesAsync();
     }
 
-    public async Task SetInShowreelAsync(string mediaId, string userId, bool inShowreel)
+    /// <summary>
+    /// How many pieces one profile may pin.
+    ///
+    /// There has to be a number: pinning is a claim that these few are the ones to look at first,
+    /// and a profile with everything pinned has said nothing. Six fills two rows of the gallery's
+    /// three columns and one of the phone layout's, so the band never becomes the page.
+    /// </summary>
+    public const int MaxPinnedMedia = 6;
+
+    public async Task SetPinnedAsync(string mediaId, string userId, bool pinned)
     {
         var media = await GetOwnedMediaAsync(mediaId, userId);
 
-        // A private file in a public showreel would leak it to anyone the owner ever approves, so
-        // the two have to agree. Taking a file OUT is always allowed.
-        if (inShowreel && !media.IsPublic)
-            throw new ValidationException("Make this file public before adding it to your showreel.");
+        if (!pinned)
+        {
+            media.PinnedAt = null;
+            await _dbContext.SaveChangesAsync();
+            return;
+        }
 
-        media.InShowreel = inShowreel;
+        // The public profile lists public work and nothing else, so pinning a private file would
+        // be a control that silently does nothing. Unpinning is always allowed — including on a
+        // file that has since been made private, which is how a stale pin gets cleared.
+        if (!media.IsPublic)
+            throw new ValidationException("Make this file public before pinning it to your profile.");
+
+        // Re-pinning something already pinned would otherwise move it back to the front for free
+        // and, worse, count against the cap twice.
+        if (media.PinnedAt is not null) return;
+
+        var pinnedCount = await _dbContext.Media
+            .CountAsync(m => m.UserId == userId && m.PinnedAt != null && !m.IsProfileAsset);
+
+        if (pinnedCount >= MaxPinnedMedia)
+            throw new ValidationException(
+                $"You can pin up to {MaxPinnedMedia} pieces. Unpin one to make room.");
+
+        media.PinnedAt = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync();
     }
 
@@ -519,113 +546,9 @@ public class MediaService : IMediaService
 
         return await _dbContext.DownloadRequests
             .AsNoTracking()
-            // Kind is pinned deliberately. A showreel approval grants the bundle, not a standing
-            // right to pull originals one at a time through this endpoint — they are two different
-            // things the owner said yes to, and conflating them widens a grant nobody gave.
             .AnyAsync(r => r.MediaId == mediaId
-                        && r.Kind == DownloadRequestKind.Media
                         && r.RequesterUserId == viewerId
                         && r.Status == DownloadRequestStatus.Approved);
-    }
-
-    /// <summary>A showreel is capped so one click can't try to zip a terabyte into a response.</summary>
-    public const long MaxShowreelBytes = 4L * 1024 * 1024 * 1024;
-
-    public async Task<(int Count, long Bytes)> GetShowreelSizeAsync(string ownerUserId)
-    {
-        var stats = await _dbContext.Media.AsNoTracking()
-            .Where(m => m.UserId == ownerUserId && m.InShowreel && !m.IsProfileAsset)
-            .GroupBy(_ => 1)
-            .Select(g => new { Count = g.Count(), Bytes = g.Sum(m => m.FileSize) })
-            .FirstOrDefaultAsync();
-
-        return (stats?.Count ?? 0, stats?.Bytes ?? 0);
-    }
-
-    public async Task WriteShowreelZipAsync(string ownerUserId, Stream output, CancellationToken ct = default)
-    {
-        var files = await _dbContext.Media.AsNoTracking()
-            .Where(m => m.UserId == ownerUserId && m.InShowreel && !m.IsProfileAsset)
-            .OrderBy(m => m.UploadedAt)
-            .ToListAsync(ct);
-
-        if (files.Count == 0)
-            throw new NotFoundException("This showreel is empty.");
-
-        if (files.Sum(f => f.FileSize) > MaxShowreelBytes)
-            throw new ValidationException("This showreel is too large to download in one archive.");
-
-        // leaveOpen, because the archive must not close the HTTP response stream — disposing it
-        // mid-request is how a half-written zip turns into a connection error with no explanation.
-        using var zip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true);
-
-        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var media in files)
-        {
-            ct.ThrowIfCancellationRequested();
-
-            // Metered per file, and the loop stops the moment the owner runs out rather than
-            // serving the rest for free. Whatever was written before that point is a valid zip.
-            if (!await _bandwidthService.TrackPresignAsync(media, ResolveSource(media, null)))
-            {
-                _logger.LogWarning(
-                    "Showreel for {OwnerId} truncated: the owner is out of bandwidth.", ownerUserId);
-                break;
-            }
-
-            GetObjectResponse obj;
-            try
-            {
-                obj = await _s3.GetObjectAsync(bucket, media.Id.ToString(), ct);
-            }
-            catch (AmazonS3Exception ex)
-            {
-                // One unreachable object must not sink the whole archive — the visitor gets the
-                // rest, and the gap is a logged problem rather than a failed download.
-                _logger.LogWarning(ex, "Showreel for {OwnerId}: skipping unreadable object {MediaId}.",
-                    ownerUserId, media.Id);
-                continue;
-            }
-
-            using (obj)
-            await using (var source = obj.ResponseStream)
-            {
-                var entry = zip.CreateEntry(UniqueEntryName(media, used), CompressionLevel.NoCompression);
-                await using var target = entry.Open();
-                await source.CopyToAsync(target, ct);
-            }
-        }
-    }
-
-    /// <summary>Windows path separator, kept as a named constant so no shell or editor between here
-    /// and the compiler can eat the escape.</summary>
-    private const char BackslashChar = (char)92;
-
-    /// <summary>
-    /// A safe, unique name for a file inside the archive.
-    ///
-    /// Two things to get right: the stored name is user input, so a path separator in it would let
-    /// an upload decide where the extractor writes; and two files legitimately sharing a name would
-    /// otherwise produce an archive with duplicate entries, which some extractors silently collapse.
-    /// </summary>
-    private static string UniqueEntryName(Media media, HashSet<string> used)
-    {
-        var raw = string.IsNullOrWhiteSpace(media.FileName) ? media.Id.ToString() : media.FileName!;
-        var name = Path.GetFileName(raw.Replace(BackslashChar, '/'));
-
-        foreach (var bad in Path.GetInvalidFileNameChars()) name = name.Replace(bad, '_');
-        if (string.IsNullOrWhiteSpace(name)) name = media.Id.ToString();
-
-        if (used.Add(name)) return name;
-
-        var stem = Path.GetFileNameWithoutExtension(name);
-        var ext = Path.GetExtension(name);
-        for (var i = 2; ; i++)
-        {
-            var candidate = $"{stem} ({i}){ext}";
-            if (used.Add(candidate)) return candidate;
-        }
     }
 
     /// <summary>Whether this user's current plan includes downloads.</summary>

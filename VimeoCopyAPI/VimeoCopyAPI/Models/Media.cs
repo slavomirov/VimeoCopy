@@ -96,15 +96,17 @@ public class Media
     public bool Downloadable { get; set; }
 
     /// <summary>
-    /// Whether this file is part of the owner's showreel — the curated set a visitor can ask to
-    /// download in one go, as a portfolio or a CV.
+    /// When the owner pinned this file to the top of their public profile, or null if they haven't.
     ///
-    /// Separate from <see cref="Downloadable"/> on purpose. That flag says "anyone may take this
-    /// one file"; this one says "this belongs in the bundle I hand to a prospective client", and an
-    /// artist wants those to be different lists. A showreel is still gated behind an approved
-    /// request, so marking a file here gives nothing away by itself.
+    /// A timestamp rather than a bool, because pinned work needs an order of its own and the moment
+    /// it was pinned is the only one the owner never has to maintain: pin something and it goes to
+    /// the front, which is what pinning is for. Sorting by upload date instead would make the
+    /// feature useless for the case it exists for — putting an older piece first.
+    ///
+    /// Only public files may be pinned, since the profile shows nothing else. Capped, in
+    /// MediaService — a profile where everything is pinned has nothing pinned.
     /// </summary>
-    public bool InShowreel { get; set; }
+    public DateTime? PinnedAt { get; set; }
 
     /// <summary>Optional user-provided description for the media.</summary>
     [MaxLength(2000)]

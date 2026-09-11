@@ -29,24 +29,14 @@ public class PublicProfileDTO
     /// <summary>Raw theme-token JSON the client applies as CSS variables (null = default theme).</summary>
     public string? ThemeJson { get; set; }
 
-    // ── Downloads ──────────────────────────────────────────
     /// <summary>
-    /// Whether this artist's plan lets them serve downloads at all. Resolved server-side, like the
-    /// gallery's flags, so the page never has to reason about tiers.
+    /// The artist's pinned work, newest pin first, already excluded from <see cref="Works"/>.
+    ///
+    /// Split out rather than flagged in place so the page can give it a band of its own at the top
+    /// without filtering the same list twice — and so a pinned piece is never drawn twice on one
+    /// screen, which is what it looks like when a "featured" row repeats rows below it.
     /// </summary>
-    public bool DownloadsEnabled { get; set; }
-
-    /// <summary>How many files the artist has put in their showreel. Zero means don't offer it.</summary>
-    public int ShowreelCount { get; set; }
-
-    /// <summary>Total size of the showreel, so a visitor knows what they are about to ask for.</summary>
-    public long ShowreelBytes { get; set; }
-
-    /// <summary>
-    /// This viewer's standing with the showreel: null (never asked), "Pending", "Approved" or
-    /// "Denied". Null for a signed-out visitor, who has to sign in before they can ask.
-    /// </summary>
-    public string? ShowreelRequestStatus { get; set; }
+    public List<ProfileWorkDTO> Pinned { get; set; } = [];
 
     public List<ProfileWorkDTO> Works { get; set; } = [];
 
@@ -89,8 +79,12 @@ public class ProfileWorkDTO
     /// <summary>This viewer's request status for this file, or null if they've never asked.</summary>
     public string? RequestStatus { get; set; }
 
-    /// <summary>Whether it is part of the showreel. Shown to the owner as a curation cue.</summary>
-    public bool InShowreel { get; set; }
+    /// <summary>
+    /// Whether the owner pinned this piece. Set on rows in both lists: the pinned band reads it to
+    /// mark them, and an album view — which draws pinned and unpinned side by side — needs the cue
+    /// there too.
+    /// </summary>
+    public bool Pinned { get; set; }
 }
 
 /// <summary>Lightweight card returned by artist search.</summary>

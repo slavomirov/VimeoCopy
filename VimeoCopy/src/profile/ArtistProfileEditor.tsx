@@ -125,6 +125,20 @@ export function ArtistProfileEditor() {
   }, [theme.headingFont, theme.bodyFont]);
 
   const cssVars = useMemo(() => themeToCssVars(theme), [theme]);
+
+  /**
+   * The colour swatches actually worth offering.
+   *
+   * "Background" is dropped while the site's sea is switched on, because in that mode the page
+   * colour is never painted — the wrapper goes transparent. Leaving the swatch there is a control
+   * that visibly does nothing, which reads as a bug in the picker rather than as a consequence of
+   * the checkbox. Every other colour still applies: cards, text and accent are all still the
+   * artist's, and the card tint is drawn from `surface`, not from this one.
+   */
+  const colorFields = useMemo(
+    () => (theme.useSiteBackground ? COLOR_FIELDS.filter((f) => f.key !== "bg") : COLOR_FIELDS),
+    [theme.useSiteBackground]
+  );
   const textContrast = contrastRatio(theme.text, theme.surface);
   const lowContrast = textContrast < 4.5;
 
@@ -375,7 +389,7 @@ export function ArtistProfileEditor() {
               <div className="ap-field">
                 <label>Colors</label>
                 <div className="ap-color-grid">
-                  {COLOR_FIELDS.map((f) => (
+                  {colorFields.map((f) => (
                     <div className="ap-color-row" key={f.key}>
                       <input type="color" value={String(theme[f.key])}
                         onChange={(e) => setThemeField(f.key, e.target.value as ArtistTheme[typeof f.key])} />
@@ -383,6 +397,12 @@ export function ArtistProfileEditor() {
                     </div>
                   ))}
                 </div>
+                {theme.useSiteBackground && (
+                  <p className="ap-hint" style={{ marginTop: "var(--space-2)" }}>
+                    Your page colour is hidden because the site's sea is painting the backdrop.
+                    Untick it below to choose one again.
+                  </p>
+                )}
                 {lowContrast && (
                   <div className="ap-contrast-warn">
                     ⚠ Low contrast between text and cards ({textContrast.toFixed(1)}:1). Aim for 4.5:1 so your work stays readable.
@@ -421,9 +441,9 @@ export function ArtistProfileEditor() {
 
               {/* Backdrop. A checkbox rather than a seventh preset, because it is orthogonal to
                   every other choice — any palette, font and corner style can ride the site's sea.
-                  The background swatch above stays enabled on purpose: it is what the translucent
-                  cards are tinted with, so it still does something, and unticking this brings the
-                  artist back to exactly the flat colour they had. */}
+                  Ticking it hides the Background swatch above, which is the one token it makes
+                  meaningless; the flat colour is kept, so unticking brings the artist back to
+                  exactly what they had. The translucent cards are tinted from `surface`. */}
               <div className="ap-field" style={{ marginTop: "var(--space-5)", marginBottom: 0 }}>
                 <label>Backdrop</label>
                 <label className="ap-check">

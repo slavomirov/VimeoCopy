@@ -31,8 +31,8 @@ public class MediaDTO
     /// <summary>Whether the owner offers this file for download.</summary>
     public bool Downloadable { get; set; }
 
-    /// <summary>Whether this file is in the owner's showreel bundle.</summary>
-    public bool InShowreel { get; set; }
+    /// <summary>Whether the owner pinned this file to the top of their public profile.</summary>
+    public bool Pinned { get; set; }
 
     /// <summary>
     /// True when staff took this file down. The owner cannot publish it themselves while this is

@@ -15,11 +15,7 @@ import "../App.css";
 
 interface DownloadRequestRow {
   id: number;
-  /** Null on a showreel row — that one asks for a set, not a file. */
-  mediaId: string | null;
-  kind: "Media" | "Showreel";
-  /** How many files are in the showreel right now. Showreel rows only. */
-  showreelCount: number;
+  mediaId: string;
   fileName: string | null;
   contentType: string | null;
   fileSize: number;
@@ -42,28 +38,9 @@ function formatBytes(value: number) {
   return `${size.toFixed(Number.isInteger(size) ? 0 : 1)} ${units[i]}`;
 }
 
-/**
- * What this row is asking for, in one line.
- *
- * A showreel row has no file behind it, so every field the per-file layout reads is null. Naming it
- * here keeps that branch in one place instead of scattering `row.kind ===` checks through the JSX.
- */
+/** The file a row is about. Null once the owner has deleted it out from under the request. */
 function describeTarget(row: DownloadRequestRow) {
-  if (row.kind === "Showreel") {
-    return `Showreel · ${row.showreelCount} file${row.showreelCount === 1 ? "" : "s"}`;
-  }
   return row.fileName || "Untitled";
-}
-
-/**
- * What the "busy" flag is keyed on.
- *
- * A media row is keyed by its file, a showreel row by the request itself — two showreel rows from
- * different artists share no media id, so keying both on mediaId would leave showreel buttons
- * either all spinning at once or none of them.
- */
-function keyOf(row: DownloadRequestRow) {
-  return row.kind === "Showreel" ? `showreel:${row.id}` : row.mediaId ?? `row:${row.id}`;
 }
 
 function formatWhen(iso: string) {
@@ -104,6 +81,9 @@ export function RequestsPage() {
   /** Which row is mid-decision, so its buttons can't be double-fired. */
   const [busyId, setBusyId] = useState<number | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  /** The row whose delete is waiting on a yes — deleting is not undoable, so it is never one click. */
+  const [confirmDelete, setConfirmDelete] = useState<DownloadRequestRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -147,40 +127,34 @@ export function RequestsPage() {
   }
 
   /**
-   * Pulls an approved showreel as a zip.
+   * Removes the row for good, from whichever list it is in.
    *
-   * Fetched rather than navigated to, because the endpoint needs the bearer token and a plain link
-   * carries no headers — which is also why the archive lands in memory before it is saved, and why
-   * the server caps a showreel's total size.
+   * The same endpoint serves both sides — the server works out whether the caller is the owner
+   * clearing their inbox or the requester withdrawing an ask — so this only has to drop the row
+   * from both lists and let the sidebar recount.
    */
-  async function downloadShowreel(row: DownloadRequestRow) {
-    if (downloadingId || !row.ownerHandle) return;
-    setDownloadingId(keyOf(row));
-    const toastId = toast.loading("Building the archive…");
+  async function remove(row: DownloadRequestRow) {
+    if (deleting) return;
+    setDeleting(true);
     try {
-      const res = await authFetch(
-        `${API_BASE_URL}/api/download-requests/showreel/${encodeURIComponent(row.ownerHandle)}/zip`,
-        { silent: true },
-      );
+      const res = await authFetch(`${API_BASE_URL}/api/download-requests/${row.id}`, {
+        method: "DELETE",
+        silent: true,
+      });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.message || "Couldn't build that archive.");
+        throw new Error(body?.message || "Couldn't delete that request.");
       }
-
-      const href = URL.createObjectURL(await res.blob());
-      const a = document.createElement("a");
-      a.href = href;
-      a.download = `${row.ownerHandle}-showreel.zip`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      // Revoked on the next tick — releasing it synchronously cancels the save in some browsers.
-      setTimeout(() => URL.revokeObjectURL(href), 0);
-      toast.success("Downloaded", { id: toastId });
+      setIncoming((prev) => prev.filter((r) => r.id !== row.id));
+      setOutgoing((prev) => prev.filter((r) => r.id !== row.id));
+      setConfirmDelete(null);
+      // The badge counts pending and approved rows; a deleted one must stop counting.
+      refreshBadge();
+      toast.success("Request deleted.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't build that archive.", { id: toastId });
+      toast.error(err instanceof Error ? err.message : "Couldn't delete that request.");
     } finally {
-      setDownloadingId(null);
+      setDeleting(false);
     }
   }
 
@@ -260,17 +234,9 @@ export function RequestsPage() {
                       ) : (
                         row.requesterName
                       )}
-                      {/* A showreel has no single size worth quoting, and its contents change as
-                          the owner curates — so the row shows when it was asked and nothing else. */}
-                      {row.kind === "Media" && <>{" · "}{formatBytes(row.fileSize)}</>}
+                      {" · "}{formatBytes(row.fileSize)}
                       {" · "}{formatWhen(row.createdAt)}
                     </p>
-                    {row.kind === "Showreel" && (
-                      <p className="text-muted" style={{ fontSize: "var(--font-size-xs)", marginBottom: row.message ? 6 : 0 }}>
-                        Approving lets them download everything in your showreel, as it stands at
-                        the moment they download it.
-                      </p>
-                    )}
                     {row.message && (
                       <p style={{ fontSize: "var(--font-size-xs)", marginBottom: 0, fontStyle: "italic" }}>
                         “{row.message}”
@@ -304,6 +270,12 @@ export function RequestsPage() {
                         {row.status === "Approved" ? "Revoke" : "Decline"}
                       </button>
                     )}
+                    {/* Deleting is not an answer — the requester is told nothing. It is for a row
+                        that has been dealt with and no longer needs to sit in the inbox. */}
+                    <DeleteButton
+                      onClick={() => setConfirmDelete(row)}
+                      title="Remove this request from your list"
+                    />
                   </div>
                 </div>
               ))}
@@ -357,16 +329,18 @@ export function RequestsPage() {
                       <button
                         className="btn-primary"
                         style={{ fontSize: "var(--font-size-xs)", padding: "var(--space-1) var(--space-4)" }}
-                        onClick={() => (row.kind === "Showreel"
-                          ? downloadShowreel(row)
-                          : row.mediaId && download(row.mediaId))}
-                        disabled={downloadingId === keyOf(row)}
+                        onClick={() => download(row.mediaId)}
+                        disabled={downloadingId === row.mediaId}
                       >
-                        {downloadingId === keyOf(row)
-                          ? (row.kind === "Showreel" ? "Preparing…" : "Starting…")
-                          : (row.kind === "Showreel" ? "Download .zip" : "Download")}
+                        {downloadingId === row.mediaId ? "Starting…" : "Download"}
                       </button>
                     )}
+                    <DeleteButton
+                      onClick={() => setConfirmDelete(row)}
+                      title={row.status === "Approved"
+                        ? "Withdraw this request and give up the access it granted"
+                        : "Withdraw this request"}
+                    />
                   </div>
                 </div>
               ))}
@@ -374,6 +348,79 @@ export function RequestsPage() {
           )}
         </div>
       </div>
+
+      {confirmDelete && (
+        <div
+          style={{
+            position: "fixed", inset: 0, background: "var(--overlay-medium)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            zIndex: 9999, padding: "var(--space-4)",
+          }}
+          onClick={() => !deleting && setConfirmDelete(null)}
+        >
+          <div
+            className="card modal-card"
+            style={{ maxWidth: 440, width: "100%" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="card-header">
+              <h2 className="card-title" style={{ marginBottom: 0 }}>Delete this request?</h2>
+            </div>
+            <div className="card-body">
+              <p className="text-muted" style={{ marginBottom: 0, fontSize: "var(--font-size-sm)" }}>
+                <strong>{describeTarget(confirmDelete)}</strong> — this removes the row for both of
+                you and can't be undone.
+                {confirmDelete.status === "Approved" && " Any access it granted goes with it."}
+              </p>
+            </div>
+            <div
+              className="card-body"
+              style={{ paddingTop: 0, display: "flex", gap: "var(--space-3)", justifyContent: "flex-end" }}
+            >
+              <button className="btn-secondary" onClick={() => setConfirmDelete(null)} disabled={deleting}>
+                Cancel
+              </button>
+              <button className="btn-danger" onClick={() => remove(confirmDelete)} disabled={deleting}>
+                {deleting ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+/**
+ * The delete affordance on a request row.
+ *
+ * An icon rather than a worded button: the row already carries up to two worded actions, and a
+ * third would make "Delete" compete with "Decline" for the same glance — which are very different
+ * things. Never fires straight away; the page confirms first.
+ */
+function DeleteButton({ onClick, title }: { onClick: () => void; title: string }) {
+  return (
+    <button
+      type="button"
+      className="btn-outline"
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      style={{
+        fontSize: "var(--font-size-xs)",
+        padding: "var(--space-1) var(--space-2)",
+        lineHeight: 1,
+        color: "var(--danger)",
+        display: "inline-flex",
+        alignItems: "center",
+      }}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="3 6 5 6 21 6" />
+        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+        <path d="M10 11v6M14 11v6" />
+        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+      </svg>
+    </button>
   );
 }

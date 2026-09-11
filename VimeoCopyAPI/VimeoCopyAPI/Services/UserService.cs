@@ -568,7 +568,7 @@ namespace VimeoCopyAPI.Services
                     HasThumbnail = !string.IsNullOrEmpty(m.ThumbnailUrl),
                     HasGif = !string.IsNullOrEmpty(m.GifUrl),
                     Downloadable = m.Downloadable,
-                    InShowreel = m.InShowreel,
+                    Pinned = m.PinnedAt != null,
                     StaffHidden = m.StaffHidden,
                     StaffHiddenReason = m.StaffHiddenReason,
                     ShowOnMediaPage = m.ShowOnMediaPage,

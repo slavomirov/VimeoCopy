@@ -25,8 +25,8 @@ interface Media {
   hasGif: boolean;
   /** Whether the owner offers this file for download. */
   downloadable: boolean;
-  /** Whether this file is in the showreel bundle visitors can request from the public profile. */
-  inShowreel: boolean;
+  /** Whether this file is pinned to the top of the owner's public profile. */
+  pinned: boolean;
   /** True when staff took this file down — the owner cannot publish it again themselves. */
   staffHidden: boolean;
   /** Why staff hid it, so the appeal can answer it rather than guess. */
@@ -85,7 +85,7 @@ export function ProfilePage() {
   /** Whether this account's plan includes downloads at all — decides toggle vs upsell. */
   const [downloadsAllowed, setDownloadsAllowed] = useState(false);
   const [downloadBusyId, setDownloadBusyId] = useState<string | null>(null);
-  const [showreelBusyId, setShowreelBusyId] = useState<string | null>(null);
+  const [pinBusyId, setPinBusyId] = useState<string | null>(null);
   /** The file whose takedown the owner is appealing, or null when the dialog is closed. */
   const [republishFor, setRepublishFor] = useState<Media | null>(null);
   const [republishReason, setRepublishReason] = useState("");
@@ -330,40 +330,41 @@ export function ProfilePage() {
   }, [authFetch]);
 
   /**
-   * Put one file in the showreel, or take it out.
+   * Pin one file to the top of the public profile, or unpin it.
    *
-   * Not plan-gated, unlike downloads: curating the set is useful on any plan, and it is only ever
-   * offered to visitors once the plan can actually serve it. The server refuses a private file,
-   * because a private work inside a bundle would leak to everyone the owner ever approves.
+   * Not plan-gated: this arranges a page the artist already has and hands a visitor nothing extra.
+   * The server refuses a private file — the public profile lists nothing else, so pinning one
+   * would be a control that looks like it worked and changed nothing — and it caps how many may be
+   * pinned at once, which is the other answer worth showing rather than swallowing.
    */
-  async function handleToggleShowreel(mediaId: string, current: boolean) {
-    setShowreelBusyId(mediaId);
+  async function handleTogglePinned(mediaId: string, current: boolean) {
+    setPinBusyId(mediaId);
     try {
-      const res = await authFetch(`${API_BASE_URL}/api/media/${mediaId}/showreel`, {
+      const res = await authFetch(`${API_BASE_URL}/api/media/${mediaId}/pinned`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ inShowreel: !current }),
+        body: JSON.stringify({ pinned: !current }),
         silent: true,
       });
 
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.message || "Couldn't change the showreel.");
+        throw new Error(body?.message || "Couldn't change the pin.");
       }
 
-      toast.success(!current ? "Added to your showreel." : "Removed from your showreel.");
+      toast.success(!current ? "Pinned to your profile." : "Unpinned.");
       setUser((prev) =>
         prev
           ? {
               ...prev,
-              media: prev.media.map((m) => (m.id === mediaId ? { ...m, inShowreel: !current } : m)),
+              media: prev.media.map((m) => (m.id === mediaId ? { ...m, pinned: !current } : m)),
             }
           : prev
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to change the showreel");
+      toast.error(err instanceof Error ? err.message : "Failed to change the pin");
     } finally {
-      setShowreelBusyId(null);
+      setPinBusyId(null);
     }
   }
 
@@ -721,8 +722,8 @@ export function ProfilePage() {
                 downloadsAllowed={downloadsAllowed}
                 downloadBusy={downloadBusyId === m.id}
                 onToggleDownloadable={() => handleToggleDownloadable(m.id, m.downloadable)}
-                showreelBusy={showreelBusyId === m.id}
-                onToggleShowreel={() => handleToggleShowreel(m.id, m.inShowreel)}
+                pinBusy={pinBusyId === m.id}
+                onTogglePinned={() => handleTogglePinned(m.id, m.pinned)}
                 onGenerateGif={() => handleGenerateGif(m.id)}
                 onRemoveGif={() => handleRemoveGif(m.id)}
                 gifBusy={gifBusyId === m.id}
@@ -1008,8 +1009,8 @@ function MediaItem({
   downloadsAllowed,
   downloadBusy,
   onToggleDownloadable,
-  showreelBusy,
-  onToggleShowreel,
+  pinBusy,
+  onTogglePinned,
   onGenerateGif,
   onRemoveGif,
   gifBusy,
@@ -1037,8 +1038,8 @@ function MediaItem({
   downloadsAllowed: boolean;
   downloadBusy: boolean;
   onToggleDownloadable: () => void;
-  showreelBusy: boolean;
-  onToggleShowreel: () => void;
+  pinBusy: boolean;
+  onTogglePinned: () => void;
   onGenerateGif: () => void;
   onRemoveGif: () => void;
   gifBusy: boolean;
@@ -1294,25 +1295,25 @@ function MediaItem({
           </svg>
           {downloadBusy ? "…" : media.downloadable ? "Downloads on" : "Downloads off"}
         </button>
-        {/* Showreel membership. Deliberately NOT plan-gated — an artist can build the set on any
-            plan; it simply isn't offered to visitors until the plan can serve downloads. Only
-            public files may join, so the control explains itself rather than failing on click. */}
+        {/* Pinned to the public profile. Deliberately NOT plan-gated — this only rearranges a page
+            the artist already has. Only public files can be pinned, since the profile lists nothing
+            else, so the control says so rather than failing on click. */}
         <button
-          onClick={media.isPublic ? onToggleShowreel : undefined}
-          className={media.inShowreel ? "btn-secondary" : "btn-outline"}
-          disabled={!media.isPublic || showreelBusy}
+          onClick={media.isPublic ? onTogglePinned : undefined}
+          className={media.pinned ? "btn-secondary" : "btn-outline"}
+          disabled={!media.isPublic || pinBusy}
           title={
             !media.isPublic
-              ? "Make this file public before adding it to your showreel."
-              : media.inShowreel
-                ? "In the bundle visitors can request. Click to take it out."
-                : "Add this to the showreel bundle visitors can request."
+              ? "Make this file public before pinning it to your profile."
+              : media.pinned
+                ? "Shown first on your public profile. Click to unpin."
+                : "Pin this to the top of your public profile."
           }
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: "4px", verticalAlign: "middle" }}>
-            <path d="M21 8v13H3V8" /><rect x="1" y="3" width="22" height="5" /><line x1="10" y1="12" x2="14" y2="12" />
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: "4px", verticalAlign: "middle" }}>
+            <path d="M9 4h6l-1 6 3 3v2H7v-2l3-3-1-6z" /><line x1="12" y1="15" x2="12" y2="21" />
           </svg>
-          {showreelBusy ? "…" : media.inShowreel ? "In showreel" : "Add to showreel"}
+          {pinBusy ? "…" : media.pinned ? "Pinned" : "Pin to profile"}
         </button>
         <button onClick={onDelete} className="btn-danger" disabled={deleting}>
           Delete
