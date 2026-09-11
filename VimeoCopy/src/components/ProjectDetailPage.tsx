@@ -6,6 +6,7 @@ import { API_BASE_URL } from "../config";
 import { UploadPanel } from "./UploadUI";
 import { ThumbnailPicker } from "./ThumbnailPicker";
 import { EnhancedPlayer } from "./EnhancedPlayer";
+import { HoverPreview } from "./HoverPreview";
 import toast from "react-hot-toast";
 import "../App.css";
 
@@ -45,6 +46,8 @@ export function ProjectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
+  /** GIF-generator clips, keyed by media id. Arrives on the same /preview response as the thumbnail. */
+  const [gifUrls, setGifUrls] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editDesc, setEditDesc] = useState("");
@@ -81,15 +84,23 @@ export function ProjectDetailPage() {
       if (!project) return;
       const newUrls: Record<string, string> = {};
       const newThumbs: Record<string, string> = {};
+      const newGifs: Record<string, string> = {};
       for (const m of project.media) {
         if (urls[m.id]) continue;
         try {
-          const res = await authFetch(`${API_BASE_URL}/api/media/${m.id}/url`);
+          // /preview, not /url. Both presign the same object, but /url is METERED — it exists for
+          // the moment somebody actually plays something. This page was calling it once per tile
+          // just to draw thumbnails, so merely opening a project billed the owner's bandwidth for
+          // every item in it. Every other grid in the app uses /preview for exactly this reason.
+          const res = await authFetch(`${API_BASE_URL}/api/media/${m.id}/preview`, { silent: true });
           if (res.ok) {
             const data = await res.json();
             newUrls[m.id] = data.url;
             if (data.thumbnailUrl) {
               newThumbs[m.id] = data.thumbnailUrl;
+            }
+            if (data.gifUrl) {
+              newGifs[m.id] = data.gifUrl;
             }
           }
         } catch { /* skip */ }
@@ -100,10 +111,33 @@ export function ProjectDetailPage() {
       if (Object.keys(newThumbs).length > 0) {
         setThumbnailUrls((prev) => ({ ...prev, ...newThumbs }));
       }
+      if (Object.keys(newGifs).length > 0) {
+        setGifUrls((prev) => ({ ...prev, ...newGifs }));
+      }
     }
     loadUrls();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.media.length, authFetch]);
+
+  /**
+   * Opens the player.
+   *
+   * Starts on the unmetered preview URL the grid already holds, so playback begins with no round
+   * trip, then swaps in the metered one. Actually watching something IS a view and has to be
+   * counted — the grid is unmetered, this is not. Same two-step as the dashboard.
+   */
+  async function handleExpand(m: ProjectMedia) {
+    const optimistic = urls[m.id];
+    if (!optimistic) return;
+
+    setViewerMedia({ media: m, url: optimistic });
+    try {
+      const res = await authFetch(`${API_BASE_URL}/api/media/${m.id}/url`, { silent: true });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.url) setViewerMedia((prev) => (prev && prev.media.id === m.id ? { ...prev, url: data.url } : prev));
+    } catch { /* keep the preview URL; playback already started */ }
+  }
 
   // ── Change thumbnail on existing media ────
   async function handleThumbnailCapture(blob: Blob) {
@@ -432,7 +466,8 @@ export function ProjectDetailPage() {
               onToggleVisibility={() => toggleMediaVisibility(m.id)}
               visibilityBusy={visibilityBusyId === m.id}
               onChangeThumbnail={() => setThumbPickerMediaId(m.id)}
-              onExpand={() => urls[m.id] && setViewerMedia({ media: m, url: urls[m.id] })}
+              gifUrl={gifUrls[m.id]}
+              onExpand={() => handleExpand(m)}
             />
           ))}
         </div>
@@ -564,6 +599,7 @@ function MediaCard({
   media,
   url,
   thumbnailUrl,
+  gifUrl,
   isThumbnail,
   onSetThumbnail,
   onRemove,
@@ -575,6 +611,7 @@ function MediaCard({
   media: ProjectMedia;
   url?: string;
   thumbnailUrl?: string;
+  gifUrl?: string;
   isThumbnail: boolean;
   onSetThumbnail: () => void;
   onRemove: () => void;
@@ -632,11 +669,13 @@ function MediaCard({
         )}
         {isVideo && (
           <>
-            {thumbnailUrl ? (
-              <img src={thumbnailUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            ) : (
-              <video src={url} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-            )}
+            {/* The generated clip samples four moments from across the video. A video without one
+                shows its thumbnail and does not animate — the original file is never hovered. */}
+            <HoverPreview
+              clipSrc={gifUrl}
+              poster={thumbnailUrl}
+              alt={`Media ${media.id}`}
+            />
             <div style={{
               position: "absolute",
               inset: 0,
@@ -644,6 +683,11 @@ function MediaCard({
               alignItems: "center",
               justifyContent: "center",
               background: "var(--overlay-light)",
+              // Without this the scrim is the hit-test target across the whole tile and swallows
+              // every pointerenter, so the hover preview never arms. opacity/transparency does NOT
+              // exempt an element from hit testing. This is the same trap that broke hover on the
+              // gallery, the artist profile and the dashboard — any full-tile overlay needs it.
+              pointerEvents: "none",
             }}>
               <div style={{
                 width: "44px",
