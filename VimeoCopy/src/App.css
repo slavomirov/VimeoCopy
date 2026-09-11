@@ -1102,6 +1102,8 @@
   pointer-events: none;
 }
 
+/* The left padding is what keeps the text clear of the icon above. It only actually applies
+   because the base input rule in index.css is wrapped in :where() and so carries no weight. */
 .media-search-input {
   width: 100%;
   padding: var(--space-3) var(--space-4) var(--space-3) 38px;

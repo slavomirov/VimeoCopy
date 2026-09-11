@@ -465,13 +465,19 @@
 /* ═══════════════════════════════════════════════════
    Artists discovery / search page
    ═══════════════════════════════════════════════════ */
-.artists-page { max-width: 1080px; margin: 0 auto; }
+/*
+ * No max-width of its own. `.container` already sets the app's reading measure (1200px), which is
+ * what /audience and /projects use; the 1080 cap here made this one page narrower than the rest
+ * for no reason anybody could point at, and the tile grid is the thing that wanted the room.
+ */
+.artists-page { margin: 0 auto; }
 
 .artists-search-wrap {
   position: relative;
   max-width: 560px;
   margin: var(--space-6) 0 var(--space-8);
 }
+/* Left padding clears the icon — see the note on .media-search-input in App.css. */
 .artists-search-input {
   width: 100%;
   padding: var(--space-4) var(--space-4) var(--space-4) 44px;
@@ -486,7 +492,14 @@
   border-color: var(--primary);
   box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12);
 }
-.artists-search-icon { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); }
+/* pointer-events off so a click on the icon lands in the field behind it, not nowhere. */
+.artists-search-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
 
 .artists-grid {
   display: grid;
@@ -681,9 +694,36 @@
 
 .artist-profile.uses-site-bg .ap-work,
 .artist-profile.uses-site-bg .ap-album,
+.artist-profile.uses-site-bg .ap-showreel,
 .artist-profile.uses-site-bg .card {
   backdrop-filter: blur(10px) saturate(1.1);
   -webkit-backdrop-filter: blur(10px) saturate(1.1);
+}
+
+/*
+ * Text that sits on the SEA rather than on one of the artist's surfaces.
+ *
+ * Everything listed here is page chrome with nothing painted behind it once the backdrop is given
+ * up, so it takes the site's text colours (supplied as --ap-on-backdrop by the component) instead
+ * of the artist's. A light palette's near-black heading on the dark sea is invisible otherwise —
+ * which is the one way this option can make a profile worse rather than different.
+ *
+ * Card text is deliberately absent: that does sit on the artist's surface and stays theirs.
+ */
+.artist-profile.uses-site-bg .ap-name,
+.artist-profile.uses-site-bg > .ap-section-head h2,
+.artist-profile.uses-site-bg > h1,
+.artist-profile.uses-site-bg > h2 {
+  color: var(--ap-on-backdrop);
+}
+
+.artist-profile.uses-site-bg .ap-handle,
+.artist-profile.uses-site-bg .ap-bio,
+.artist-profile.uses-site-bg .ap-links,
+.artist-profile.uses-site-bg .ap-links a,
+.artist-profile.uses-site-bg > .ap-section-head .ap-count,
+.artist-profile.uses-site-bg .ap-empty {
+  color: var(--ap-muted-on-backdrop);
 }
 
 /* ── Showreel ──

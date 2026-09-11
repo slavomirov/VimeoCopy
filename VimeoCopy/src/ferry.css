@@ -102,7 +102,19 @@ h1, h2, .ferry-wordmark, .stat-number, .hero h1 {
 .sea-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 0;
+  /*
+   * NEGATIVE, and it matters. This is a positioned element with an explicit z-index, so at 0 it
+   * painted in the "positioned descendants" step — above `.app-content`, which is a static flex
+   * item and paints a step earlier. The sea's base layer is an opaque gradient, so it was covering
+   * every piece of content that isn't itself positioned: page headings washed out, and an artist
+   * profile's own background colour never visible at all (only `.card` survived, because cards are
+   * position: relative and so painted above it by accident).
+   *
+   * At -1 it paints below in-flow content but still above `.app-container`'s own background, which
+   * is where a backdrop belongs. `.app-container` is a stacking context (position: relative,
+   * z-index: 1), so the negative index stays scoped to it and can't slip behind the body.
+   */
+  z-index: -1;
   pointer-events: none;
   overflow: hidden;
 }
@@ -638,6 +650,21 @@ h1, h2, .ferry-wordmark, .stat-number, .hero h1 {
    bet on which stylesheet happens to load last. */
 .container.media-gallery-page {
   max-width: min(1760px, 100%);
+  width: 100%;
+}
+
+/*
+ * Every other page needs the width declared too, for a reason that is easy to miss.
+ *
+ * `.app-content` is a column flex container, and `margin: 0 auto` on a flex item switches off the
+ * default stretch — so `.container` was sizing to fit-content and centring that, instead of taking
+ * the 1200px measure. Pages with naturally wide content (audience: auto-fit stat grids) filled out
+ * and looked right; pages with narrow content collapsed. /artists was rendering at 526px.
+ *
+ * The gallery rule above already worked around this for itself; this generalises it. Direct
+ * children only, so a `.container` nested inside a modal keeps its own sizing.
+ */
+.app-content > .container {
   width: 100%;
 }
 

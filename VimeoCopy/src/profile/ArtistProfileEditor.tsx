@@ -448,7 +448,13 @@ export function ArtistProfileEditor() {
         {/* ── Live preview ── */}
         <div className="ap-preview-sticky">
           <p className="text-muted" style={{ fontSize: "var(--font-size-sm)", marginBottom: "var(--space-2)" }}>Live preview</p>
-          <div className="artist-profile" style={{ ...cssVars, minHeight: 0, borderRadius: "var(--radius-lg)", border: "1px solid var(--border-color)", overflow: "hidden", paddingBottom: "var(--space-6)" }}>
+          {/* The modifier class has to be here too, or the backdrop checkbox looks inert: the
+              custom properties alone make the wrapper transparent, but the translucent-card
+              treatment lives on `.uses-site-bg` and the preview would keep showing solid cards. */}
+          <div
+            className={`artist-profile${theme.useSiteBackground ? " uses-site-bg" : ""}`}
+            style={{ ...cssVars, minHeight: 0, borderRadius: "var(--radius-lg)", border: "1px solid var(--border-color)", overflow: "hidden", paddingBottom: "var(--space-6)" }}
+          >
             <div className="ap-banner">
               {bannerMediaId && bannerPreviewUrl && (
                 <img

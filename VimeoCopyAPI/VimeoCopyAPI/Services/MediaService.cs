@@ -43,6 +43,11 @@ public class MediaService : IMediaService
         skip = Math.Max(0, skip);
         take = Math.Clamp(take, 1, MaxPageSize);
 
+        // Read once, unconditionally, and null for a signed-out visitor. Both the "mine" filter
+        // below and the per-tile download flags need it, and reading it twice from two places is
+        // how they end up disagreeing about who is looking.
+        var viewerId = _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
         var query = _dbContext.Media
             .Where(m => m.IsPublic && m.ShowOnMediaPage && !m.IsProfileAsset);
 
@@ -52,8 +57,7 @@ public class MediaService : IMediaService
         // count, the paging and the "load more" all stay truthful.
         if (mine)
         {
-            var viewerId = _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                ?? throw new UnauthorizedAccessException("Sign in to see your own media.");
+            if (viewerId is null) throw new UnauthorizedAccessException("Sign in to see your own media.");
 
             // Own private media is included: it belongs to the caller and they are authenticated for
             // it. ShowOnMediaPage is still respected, because that flag is the owner's own decision
@@ -109,11 +113,15 @@ public class MediaService : IMediaService
                 IsPublic = m.IsPublic,
                 Description = m.Description,
                 HasThumbnail = !string.IsNullOrEmpty(m.ThumbnailUrl),
-                Downloadable = m.Downloadable && downloadOwners.Contains(m.UserId),
+                // Both flags are false on your own work. Neither offer means anything to the
+                // person who owns the file: the download is already theirs from the dashboard, and
+                // asking themselves for it is refused server-side — so a button that does one of
+                // those is either redundant or an error waiting to be clicked.
+                Downloadable = m.Downloadable && downloadOwners.Contains(m.UserId) && m.UserId != viewerId,
                 // Askable exactly when the owner could serve a download but hasn't opened this
                 // file up. Whether THIS viewer has already asked is their own state, fetched once
                 // per page from /api/download-requests/outgoing rather than joined onto every tile.
-                DownloadRequestable = !m.Downloadable && downloadOwners.Contains(m.UserId),
+                DownloadRequestable = !m.Downloadable && downloadOwners.Contains(m.UserId) && m.UserId != viewerId,
                 // Presigning here removes one HTTP round trip per tile.
                 PreviewUrl = PresignKey(m.Id.ToString()),
                 ThumbnailUrl = string.IsNullOrEmpty(m.ThumbnailUrl) ? null : PresignKey(m.ThumbnailUrl),

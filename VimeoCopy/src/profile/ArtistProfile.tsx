@@ -12,6 +12,7 @@ import {
   type ArtistTheme,
 } from "./artistTheme";
 import { useBannerDrag } from "./useBannerDrag";
+import { useTheme } from "../theme/useTheme";
 import "../App.css";
 import "./artist-profile.css";
 
@@ -75,6 +76,7 @@ function formatBytes(value: number) {
 export function ArtistProfile() {
   const { handle } = useParams<{ handle: string }>();
   const { accessToken, authFetch } = useAuth();
+  const { theme: siteTheme } = useTheme();
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   /** True while the showreel zip is being built and streamed, so the button can say so. */
   const [zipping, setZipping] = useState(false);
@@ -181,6 +183,40 @@ export function ArtistProfile() {
 
   const theme: ArtistTheme = useMemo(() => parseTheme(profile?.themeJson), [profile?.themeJson]);
 
+  /**
+   * Theme variables, plus the two colours that only matter when the profile rides the site's sea.
+   *
+   * Giving up your own background means the page-level text — name, handle, section headings — is
+   * no longer sitting on your surface, it is sitting on the SITE's. An artist on a light palette
+   * whose text is near-black becomes unreadable the moment it lands on the dark sea, which is
+   * exactly what the checkbox does.
+   *
+   * Read from :root at render: they cannot be constants (the site is themeable) and they cannot be
+   * pure CSS, because the wrapper shadows --gray-900 with the artist's own text colour and nothing
+   * inside it can reach the site's value any more. Card text is untouched — that really does sit
+   * on the artist's surface and stays theirs.
+   *
+   * Declared up here, above the loading and not-found returns. Hooks cannot sit after an early
+   * return; putting it next to the markup that uses it renders a different number of hooks on the
+   * loading pass than on the loaded one, and React tears the component down.
+   */
+  const cssVars = useMemo(() => {
+    const vars = themeToCssVars(theme);
+    if (!theme.useSiteBackground) return vars;
+
+    const root = getComputedStyle(document.documentElement);
+    const pick = (name: string, fallback: string) => root.getPropertyValue(name).trim() || fallback;
+
+    return {
+      ...vars,
+      "--ap-on-backdrop": pick("--gray-900", "#E8F4FB"),
+      "--ap-muted-on-backdrop": pick("--gray-500", "#8FA9BC"),
+    };
+    // siteTheme is not referenced above, and is still a genuine dependency: the memo reads the
+    // site's CSS variables out of the DOM, and those change when the dark/light toggle flips.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theme, siteTheme]);
+
   // Lazy-load the chosen fonts
   useEffect(() => {
     ensureFontLoaded(theme.headingFont);
@@ -252,8 +288,6 @@ export function ArtistProfile() {
    */
   const isOwner =
     profile.isOwner === true && ownHandle !== null && ownHandle === profile.handle;
-  const cssVars = themeToCssVars(theme);
-
   /**
    * Ask the artist for one file.
    *

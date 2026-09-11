@@ -214,8 +214,8 @@ export function themeToCssVars(theme: ArtistTheme): CSSProperties {
   // Riding the site's backdrop means not painting over it. The page background is handed back to
   // the app (the wrapper drops its own fill via .uses-site-bg) and surfaces become a tinted glass
   // of the theme's own surface colour, so cards still read as the artist's while the sea moves
-  // behind them. 0.72 is the point where text stays comfortably legible over the animation.
-  const surface = theme.useSiteBackground ? `rgba(${surfaceRgb}, 0.72)` : theme.surface;
+  // behind them. 0.82 keeps card text comfortable while the swells still read through.
+  const surface = theme.useSiteBackground ? `rgba(${surfaceRgb}, 0.82)` : theme.surface;
 
   return {
     // accent

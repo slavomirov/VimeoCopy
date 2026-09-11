@@ -288,7 +288,21 @@ a:hover {
  * borders act as a FLOOR on the box, so 12px/16px of padding inflated every 16px checkbox into a
  * 36×28 rectangle and left its tick sitting near the top-left corner.
  */
-input:not([type="checkbox"]):not([type="radio"]), textarea, select {
+/*
+ * Wrapped in :where() so this base layer has ZERO specificity.
+ *
+ * It used to be written bare, and `:not()` carries the specificity of its argument — so the
+ * selector scored (0,2,1) and beat every single-class rule in the app no matter which stylesheet
+ * loaded last. A base layer that outranks the components built on top of it silently defeats them:
+ * `.password-field input { padding-right: 3rem }` (put there so text clears the reveal toggle),
+ * `.media-desc-input`, `.reset-code-input`, `.profile-form-group input` and both search fields were
+ * all being overridden by the symmetric padding below. The visible result was icons sitting on top
+ * of placeholder text in every field that has one.
+ *
+ * :where() keeps the same matching and drops the weight to nothing, which is what a reset wants:
+ * anything more specific than "an input" — i.e. any class at all — now wins by default.
+ */
+:where(input:not([type="checkbox"]):not([type="radio"]), textarea, select) {
   width: 100%;
   padding: var(--space-3) var(--space-4);
   font-family: inherit;
@@ -299,6 +313,15 @@ input:not([type="checkbox"]):not([type="radio"]), textarea, select {
   color: var(--gray-900);
   transition: var(--transition);
   box-shadow: var(--shadow-sm);
+}
+
+/*
+ * Room for the browser's own clear button. Chrome draws a ✕ inside `input[type="search"]` once it
+ * has content, and it sits within the content box — so with the symmetric padding above it lands
+ * on the last characters of a long query.
+ */
+input[type="search"] {
+  padding-right: var(--space-8);
 }
 
 input::placeholder, textarea::placeholder {
